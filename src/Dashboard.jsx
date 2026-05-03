@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { load, save } from "./supabase.js";
+import Calculator from "./Calculator";
 
 const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
 const DEF_PLATFORMS = ["eBay AU", "StockX", "Facebook Marketplace", "Instagram", "Depop", "Discord", "GOAT", "CSFloat", "Bonusbank", "Other"];
-const TIME_RANGES = ["1D", "1W", "1M", "MTD", "3M", "YTD", "ALL", "Custom"];
+const TIME_RANGES = ["1D", "1W", "1M", "MTD", "3M", "YTD", "1Y", "ALL", "Custom"];
 const DEF_SIZE_MAP = {
   Sneakers: ["US 3","US 3.5","US 4","US 4.5","US 5","US 5.5","US 6","US 6.5","US 7","US 7.5","US 8","US 8.5","US 9","US 9.5","US 10","US 10.5","US 11","US 11.5","US 12","US 12.5","US 13","US 14","US 15"],
   Apparel: ["XXS","XS","S","M","L","XL","XXL"],
@@ -24,9 +25,21 @@ const getFilterDate = (range) => {
     case "MTD": return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
     case "3M": return daysAgo(90);
     case "YTD": return new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    case "1Y": return daysAgo(365);
     default: return "2000-01-01";
   }
 };
+
+// ─── Mobile detection hook ───
+function useIsMobile() {
+  const [m, setM] = useState(typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const onR = () => setM(window.innerWidth < 768);
+    window.addEventListener("resize", onR);
+    return () => window.removeEventListener("resize", onR);
+  }, []);
+  return m;
+}
 
 // Styles
 const inp = { width: "100%", padding: "9px 11px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, color: "#e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
@@ -80,7 +93,7 @@ function Modal({ open, onClose, title, children, guardedClose }) {
 
 const Field = ({ label, req, children }) => (<div style={{ marginBottom: 14 }}><label style={{ fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 5, fontWeight: 500 }}>{label}{req && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}</label>{children}</div>);
 const Row = ({ children, cols = 2 }) => <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>{children}</div>;
-function KPI({ label, value, accent }) { return (<div style={{ background: "#111827", borderRadius: 10, padding: "14px 16px", border: "1px solid #1f2937", flex: 1, minWidth: 140 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 5 }}>{label}</div><div style={{ fontSize: 20, fontWeight: 700, color: accent || "#f1f5f9" }}>{value}</div></div>); }
+function KPI({ label, value, accent }) { return (<div style={{ background: "#111827", borderRadius: 10, padding: "14px 16px", border: "1px solid #1f2937", flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: "#6b7280", marginBottom: 5 }}>{label}</div><div style={{ fontSize: 20, fontWeight: 700, color: accent || "#f1f5f9" }}>{value}</div></div>); }
 
 function Spark({ data, color = "#3b82f6" }) {
   const w = 500, h = 100;
@@ -111,7 +124,7 @@ function EditInvModal({ item, onSave, onClose, categories, customers }) {
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
-// ─── Edit Sale Modal (with unsaved warning) ───
+// ─── Edit Sale Modal ───
 function EditSaleModal({ sale, onSave, onClose, platforms, customers }) {
   const [ef, setEf] = useState({ name: sale.name, category: sale.category, costPrice: sale.costPrice, salePrice: sale.salePrice, shippingPrice: sale.shippingPrice, platformFees: sale.platformFees, platform: sale.platform, saleDate: sale.saleDate, tags: sale.tags || "", brand: sale.brand || "", customer: sale.customer || "" });
   const [showU, setShowU] = useState(false);
@@ -265,6 +278,7 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
 
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
+  const isMobile = useIsMobile();
   const [inventory, setInventory] = useState([]);
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -460,7 +474,7 @@ export default function App({ onLogout, userEmail }) {
     return { salesIncome, grossProfit, totalExpenses, netProfit, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
   }, [inventory, sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
 
-  // ─── Filtered Inventory (with collapsible groups) ───
+  // ─── Filtered Inventory ───
   const filteredInv = useMemo(() => {
     let f = inventory;
     if (invSearch) f = f.filter((i) => i.name.toLowerCase().includes(invSearch.toLowerCase()) || (i.brand||"").toLowerCase().includes(invSearch.toLowerCase()));
@@ -571,36 +585,183 @@ export default function App({ onLogout, userEmail }) {
     { id: "inventory", icon: "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12" },
     { id: "sales", icon: "M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01" },
     { id: "expenses", icon: "M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" },
+    { id: "calculator", icon: "M4 4a2 2 0 012-2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2z M8 6h8 M16 14v4 M16 10h0.01 M12 10h0.01 M8 10h0.01 M12 14h0.01 M8 14h0.01 M12 18h0.01 M8 18h0.01" },
     { id: "backup", icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3" },
     { id: "settings", icon: "M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z M12 8a4 4 0 100 8 4 4 0 000-8z" },
   ];
 
-  // Notepad toggle (separate from page nav)
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
   const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
 
-  // Click anywhere on row to select (skip if clicking button/input)
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
-  const invRow = (item, isGroupChild) => (
-    <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedInv.has(item.id) ? "#1e293b" : isGroupChild ? "#0d111788" : "transparent", cursor: "pointer" }}>
-      <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-      <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{item.preorderDate && <span style={badge("#3b1f2b","#f472b6")}>PRE</span>}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
-      <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
-      <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500 }}>{item.size||"OS"}</span>
-      <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item.price)}</span>
-      <span style={{ color: "#6b7280", fontSize: 11 }}>{item.purchaseDate}</span>
-      <div style={{ display: "flex", gap: 3 }}>
-        <button onClick={() => setSellOpen(item)} style={{ padding: "4px 7px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
-        <button onClick={() => setEditInvOpen(item)} style={{ padding: "4px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-        <button onClick={() => duplicateItem(item)} title="Duplicate" style={{ padding: "4px 7px", background: "#1f2937", color: "#a78bfa", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>⧉</button>
-        <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "4px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+  const pagePad = isMobile ? "14px 12px" : "20px 24px";
+
+  // ─── Inventory row (mobile + desktop) ───
+  const invRow = (item, isGroupChild) => {
+    if (isMobile) {
+      return (
+        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #1f293722", background: selectedInv.has(item.id) ? "#1e293b" : isGroupChild ? "#0d111788" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, marginTop: 3 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}</span>
+              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
+                {item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}
+                {item.preorderDate && <span style={badge("#3b1f2b","#f472b6")}>PRE</span>}
+              </div>
+              <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                <button onClick={() => setSellOpen(item)} style={{ padding: "5px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
+                <button onClick={() => setEditInvOpen(item)} style={{ padding: "5px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "5px 9px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedInv.has(item.id) ? "#1e293b" : isGroupChild ? "#0d111788" : "transparent", cursor: "pointer" }}>
+        <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{item.preorderDate && <span style={badge("#3b1f2b","#f472b6")}>PRE</span>}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500 }}>{item.size||"OS"}</span>
+        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item.price)}</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{item.purchaseDate}</span>
+        <div style={{ display: "flex", gap: 3 }}>
+          <button onClick={() => setSellOpen(item)} style={{ padding: "4px 7px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
+          <button onClick={() => setEditInvOpen(item)} style={{ padding: "4px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => duplicateItem(item)} title="Duplicate" style={{ padding: "4px 7px", background: "#1f2937", color: "#a78bfa", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>⧉</button>
+          <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "4px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        </div>
       </div>
+    );
+  };
+
+  // ─── Group row (mobile + desktop) ───
+  const groupRow = (item, isExpanded, key) => {
+    if (isMobile) {
+      return (
+        <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "#0d111766", borderBottom: "1px solid #1f293722" }}>
+          <span style={{ color: "#6b7280", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name} <span style={badge("#1f2937","#60a5fa")}>×{item._count}</span></span>
+              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
+            </div>
+            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 3 }}>{item.category}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: "#0d111766" }}>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
+        <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12 }}></span>
+        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item._totalValue)}</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{item._count} units</span>
+        <span style={{ fontSize: 11, color: "#4b5563" }}>{isExpanded ? "Collapse" : "Expand"}</span>
+      </div>
+    );
+  };
+
+  // ─── Sales row (mobile + desktop) ───
+  const saleRow = (s) => {
+    if (isMobile) {
+      return (
+        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: selectedSales.has(s.id) ? "#1e293b" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={{ ...cb, marginTop: 3 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}</span>
+              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(s.salePrice)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                {s.platform} · {s.category} · {s.saleDate}
+              </div>
+              <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
+                <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, marginRight: 2 }}>{currency(s.profit)}</span>
+                <button onClick={() => setEditSaleOpen(s)} style={{ padding: "4px 8px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "4px 8px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedSales.has(s.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
+        <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
+        <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#4b5563" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
+        <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.platform}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12 }}>{s.size||"OS"}</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{s.saleDate}</span>
+        <span style={{ color: "#6b7280", fontSize: 12 }}>{currency(s.costPrice)}</span>
+        <span style={{ color: "#f1f5f9", fontWeight: 500, fontSize: 12 }}>{currency(s.salePrice)}</span>
+        <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12 }}>{currency(s.profit)}</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={() => setEditSaleOpen(s)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Expense row (mobile + desktop) ───
+  const expRow = (e) => {
+    if (isMobile) {
+      return (
+        <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: selectedExp.has(e.id) ? "#1e293b" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={{ ...cb, marginTop: 3 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.name}</span>
+              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(e.amount)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.expCategory || "Other"} · {e.purchaseDate}</div>
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                <button onClick={() => setEditExpOpen(e)} style={{ padding: "4px 8px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "4px 8px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedExp.has(e.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
+        <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
+        <span style={{ color: "#e5e7eb" }}>{e.name}{e.tags&&<span style={{ fontSize: 10, color: "#4b5563", marginLeft: 6 }}>{e.tags}</span>}</span>
+        <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
+        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(e.amount)}</span>
+        <span style={{ color: "#6b7280", fontSize: 12 }}>{e.purchaseDate}</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button onClick={() => setEditExpOpen(e)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        </div>
+      </div>
+    );
+  };
+
+  // Mobile select-all bar
+  const mobileSelectAll = (allSelected, toggleFn, count) => isMobile && count > 0 && (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #1f2937", fontSize: 11, color: "#6b7280", background: "#0d1117" }}>
+      <input type="checkbox" checked={allSelected} onChange={toggleFn} style={cb} />
+      <span>Select all ({count})</span>
     </div>
   );
 
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#0b0f19", color: "#e5e7eb", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
+      <style>{`.np-edit ul,.np-edit ol{padding-left:24px;margin:6px 0}.np-edit li{margin:3px 0}`}</style>
       {/* SIDEBAR */}
       <div style={{ width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
         <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>
@@ -613,49 +774,49 @@ export default function App({ onLogout, userEmail }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
 
         {/* ══ DASHBOARD ══ */}
-        {page === "dashboard" && (<div style={{ padding: "20px 24px" }}>
+        {page === "dashboard" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventory.length} in stock · {sales.length} total sales</p></div>
             <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
           </div>
-          {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center" }}><span style={{ fontSize: 12, color: "#6b7280" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#6b7280" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "#6b7280" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#6b7280" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
             <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "18px 20px", marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-              <div><div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div><div style={{ fontSize: 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div></div>
-              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Inventory value</div><div style={{ fontSize: 18, fontWeight: 600, color: "#f1f5f9" }}>{currency(stats.invValue)}</div></div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+              <div><div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div><div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div></div>
+              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Inventory value</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{currency(stats.invValue)}</div></div>
             </div>
             <Spark data={stats.spark.length>1?stats.spark:undefined} color={stats.netProfit>=0?"#3b82f6":"#ef4444"} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10, marginBottom: 10 }}>
             <KPI label="Sales income" value={currency(stats.salesIncome)} /><KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} /><KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} /><KPI label="Inventory value" value={currency(stats.invValue)} /><KPI label="Sales count" value={stats.cnt} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10, marginBottom: 18 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10, marginBottom: 18 }}>
             <KPI label="Avg. order value" value={currency(stats.aov)} /><KPI label="Net margin" value={(stats.netMargin * 100).toFixed(1) + "%"} accent={stats.netMargin>=0?"#34d399":"#f87171"} /><KPI label="Gross margin" value={(stats.grossMargin * 100).toFixed(1) + "%"} accent={stats.grossMargin>=0?"#34d399":"#f87171"} /><KPI label="Total expenses" value={currency(stats.totalExpenses)} accent="#f59e0b" /><KPI label="Platform fees" value={currency(stats.totalFees)} accent="#f59e0b" />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
             <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Sales</div>
-              {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722" }}><div><div style={{ fontSize: 13, color: "#e5e7eb" }}>{s.name}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
+              {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
             </div>
             <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Inventory</div>
-              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722" }}><div><div style={{ fontSize: 13, color: "#e5e7eb" }}>{i.name}{i.inTransit&&<span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(i.price)}</div></div>))}
+              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{i.inTransit&&<span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
             </div>
           </div>
         </div>)}
 
         {/* ══ INVENTORY ══ */}
-        {page === "inventory" && (<div style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        {page === "inventory" && (<div style={{ padding: pagePad }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Inventory</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventory.length} items · {currency(inventory.reduce((a, i) => a + i.price, 0))}</p></div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedInv.size > 0 && <><button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button><button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button><button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button></>}
               <button onClick={() => { setInvForm({ ...emptyInv, category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||"") }); setAddDirty(false); setAddInvOpen(true); }} style={primaryBtn}>+ Add inventory</button>
             </div>
@@ -669,24 +830,19 @@ export default function App({ onLogout, userEmail }) {
             <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredInv.length} items{selectedInv.size>0&&` · ${selectedInv.size} selected · ${currency(selectedValue)}`}</span>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
-              <input type="checkbox" checked={selectedInv.size===filteredInv.length&&filteredInv.length>0} onChange={toggleAll} style={cb} /><span>Name</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Actions</span>
-            </div>
+            {!isMobile && (
+              <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+                <input type="checkbox" checked={selectedInv.size===filteredInv.length&&filteredInv.length>0} onChange={toggleAll} style={cb} /><span>Name</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Actions</span>
+              </div>
+            )}
+            {mobileSelectAll(selectedInv.size===filteredInv.length&&filteredInv.length>0, toggleAll, filteredInv.length)}
             {groupedInv.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No inventory</div>}
             {groupedInv.map((item) => {
               if (!item._group) return invRow(item, false);
               const key = item.name;
               const isExpanded = expandedGroups.has(key);
               return (<div key={key}>
-                <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: "#0d111766" }}>
-                  <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
-                  <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
-                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
-                  <span style={{ color: "#60a5fa", fontSize: 12 }}></span>
-                  <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item._totalValue)}</span>
-                  <span style={{ color: "#6b7280", fontSize: 11 }}>{item._count} units</span>
-                  <span style={{ fontSize: 11, color: "#4b5563" }}>{isExpanded ? "Collapse" : "Expand"}</span>
-                </div>
+                {groupRow(item, isExpanded, key)}
                 {isExpanded && item._items.map((sub) => invRow(sub, true))}
               </div>);
             })}
@@ -694,15 +850,15 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* ══ SALES ══ */}
-        {page === "sales" && (<div style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        {page === "sales" && (<div style={{ padding: pagePad }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Sales</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{sales.length} sales · {currency(sales.reduce((a, s) => a + s.salePrice, 0))} revenue · {currency(sales.reduce((a, s) => a + s.profit, 0))} profit</p></div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedSales.size > 0 && <><button onClick={() => setBulkEditSaleOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedSales.size}</button><button onClick={deleteSelectedSales} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedSales.size}</button></>}
             </div>
           </div>
           {selectedSales.size > 0 && (
-            <div style={{ background: "#111827", borderRadius: 10, border: "1px solid #1f2937", padding: "10px 16px", marginBottom: 12, display: "flex", gap: 24, alignItems: "center", fontSize: 12 }}>
+            <div style={{ background: "#111827", borderRadius: 10, border: "1px solid #1f2937", padding: "10px 16px", marginBottom: 12, display: "flex", gap: 24, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
               <span style={{ color: "#6b7280" }}>{selectedSales.size} selected</span>
               <span style={{ color: "#f1f5f9" }}>Revenue: <strong>{currency(selectedSalesRevenue)}</strong></span>
               <span style={{ color: selectedSalesProfit >= 0 ? "#34d399" : "#f87171" }}>Profit: <strong>{currency(selectedSalesProfit)}</strong></span>
@@ -717,30 +873,23 @@ export default function App({ onLogout, userEmail }) {
             <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredSales.length} · {currency(filteredSales.reduce((a, s) => a + s.profit, 0))} profit</span>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
-              <input type="checkbox" checked={selectedSales.size===filteredSales.length&&filteredSales.length>0} onChange={toggleAllSales} style={cb} />
-              <span>Item</span><span>Platform</span><span>Size</span><span>Date</span><span>Cost</span><span>Sale</span><span>Profit</span><span>Actions</span>
-            </div>
+            {!isMobile && (
+              <div style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+                <input type="checkbox" checked={selectedSales.size===filteredSales.length&&filteredSales.length>0} onChange={toggleAllSales} style={cb} />
+                <span>Item</span><span>Platform</span><span>Size</span><span>Date</span><span>Cost</span><span>Sale</span><span>Profit</span><span>Actions</span>
+              </div>
+            )}
+            {mobileSelectAll(selectedSales.size===filteredSales.length&&filteredSales.length>0, toggleAllSales, filteredSales.length)}
             {filteredSales.length===0&&<div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No sales</div>}
-            {filteredSales.map((s) => (<div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedSales.has(s.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
-              <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
-              <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#4b5563" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
-              <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.platform}</span>
-              <span style={{ color: "#60a5fa", fontSize: 12 }}>{s.size||"OS"}</span>
-              <span style={{ color: "#6b7280", fontSize: 11 }}>{s.saleDate}</span>
-              <span style={{ color: "#6b7280", fontSize: 12 }}>{currency(s.costPrice)}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 500, fontSize: 12 }}>{currency(s.salePrice)}</span>
-              <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12 }}>{currency(s.profit)}</span>
-              <div style={{ display: "flex", gap: 4 }}><button onClick={() => setEditSaleOpen(s)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button><button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button></div>
-            </div>))}
+            {filteredSales.map((s) => saleRow(s))}
           </div>
         </div>)}
 
         {/* ══ EXPENSES ══ */}
-        {page === "expenses" && (<div style={{ padding: "20px 24px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        {page === "expenses" && (<div style={{ padding: pagePad }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Expenses</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{expenses.length} expenses · {currency(expenses.reduce((a, e) => a + e.amount, 0))}</p></div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedExp.size > 0 && <><button onClick={() => setBulkEditExpOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedExp.size}</button><button onClick={deleteSelectedExp} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedExp.size}</button></>}
               <button onClick={() => { setExpForm(emptyExp); setAddExpOpen(true); }} style={primaryBtn}>+ Add expense</button>
             </div>
@@ -755,36 +904,35 @@ export default function App({ onLogout, userEmail }) {
             <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredExp.length}{selectedExp.size>0&&` · ${selectedExp.size} selected · ${currency(selectedExpValue)}`} · {currency(filteredExp.reduce((a, e) => a + e.amount, 0))}</span>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
-              <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
-              <span>Name</span><span>Category</span><span>Price</span><span>Date</span><span>Actions</span>
-            </div>
+            {!isMobile && (
+              <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+                <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
+                <span>Name</span><span>Category</span><span>Price</span><span>Date</span><span>Actions</span>
+              </div>
+            )}
+            {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}
             {filteredExp.length===0&&<div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No expenses</div>}
-            {filteredExp.map((e) => (<div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedExp.has(e.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
-              <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
-              <span style={{ color: "#e5e7eb" }}>{e.name}{e.tags&&<span style={{ fontSize: 10, color: "#4b5563", marginLeft: 6 }}>{e.tags}</span>}</span>
-              <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(e.amount)}</span>
-              <span style={{ color: "#6b7280", fontSize: 12 }}>{e.purchaseDate}</span>
-              <div style={{ display: "flex", gap: 4 }}><button onClick={() => setEditExpOpen(e)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button><button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button></div>
-            </div>))}
+            {filteredExp.map((e) => expRow(e))}
           </div>
         </div>)}
 
+        {/* ══ CALCULATOR ══ */}
+        {page === "calculator" && <Calculator isMobile={isMobile} />}
+
         {/* ══ BACKUP ══ */}
-        {page === "backup" && (<div style={{ padding: "20px 24px", maxWidth: 600 }}>
+        {page === "backup" && (<div style={{ padding: pagePad, maxWidth: 600 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h2>
           <p style={{ margin: "0 0 20px", fontSize: 13, color: "#4b5563" }}>Export or import your data.</p>
           {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Export</div>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>{inventory.length} items · {sales.length} sales · {expenses.length} expenses</p>
-            <div style={{ display: "flex", gap: 8 }}><button onClick={exportJSON} style={primaryBtn}>Download JSON</button><button onClick={exportCSV} style={ghostBtn}>Export Sales CSV</button></div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={exportJSON} style={primaryBtn}>Download JSON</button><button onClick={exportCSV} style={ghostBtn}>Export Sales CSV</button></div>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Import</div>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Merge adds new records safely. Replace overwrites everything.</p>
-            <div style={{ display: "flex", gap: 8 }}><button onClick={() => importBackup("merge")} style={primaryBtn}>Merge import (safe)</button><button onClick={() => { if (confirm("Replace ALL data?")) importBackup("replace"); }} style={{ ...ghostBtn, color: "#f59e0b", border: "1px solid #f59e0b44" }}>Replace import</button></div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={() => importBackup("merge")} style={primaryBtn}>Merge import (safe)</button><button onClick={() => { if (confirm("Replace ALL data?")) importBackup("replace"); }} style={{ ...ghostBtn, color: "#f59e0b", border: "1px solid #f59e0b44" }}>Replace import</button></div>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #ef444433", padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171", marginBottom: 4 }}>Danger Zone</div>
@@ -793,9 +941,8 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* ══ SETTINGS ══ */}
-        {page === "settings" && (<div style={{ padding: "20px 24px", maxWidth: 600 }}>
+        {page === "settings" && (<div style={{ padding: pagePad, maxWidth: 600 }}>
           <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
-          {/* Categories */}
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Categories</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -803,7 +950,6 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}><input value={newCat} onChange={(e) => setNewCat(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="New category" /><button onClick={async () => { if (newCat && !CATS.includes(newCat)) { await persistSettings({ ...settings, categories: [...CATS, newCat] }); setNewCat(""); } }} style={primaryBtn}>Add</button></div>
           </div>
-          {/* Platforms */}
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Platforms</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
@@ -811,7 +957,6 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}><input value={newPlat} onChange={(e) => setNewPlat(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="New platform" /><button onClick={async () => { if (newPlat && !PLATS.includes(newPlat)) { await persistSettings({ ...settings, platforms: [...PLATS, newPlat] }); setNewPlat(""); } }} style={primaryBtn}>Add</button></div>
           </div>
-          {/* Customers */}
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Customer Database</div>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 10px" }}>Customers auto-save when you sell. You can also add them here.</p>
@@ -821,7 +966,6 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ display: "flex", gap: 8 }}><input value={newCust} onChange={(e) => setNewCust(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="Customer name" /><button onClick={async () => { if (newCust && !CUSTS.includes(newCust)) { await persistSettings({ ...settings, customers: [...CUSTS, newCust] }); setNewCust(""); } }} style={primaryBtn}>Add</button></div>
           </div>
-          {/* Account */}
           {onLogout && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginTop: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Account</div>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Signed in as {userEmail}</p>
@@ -832,18 +976,25 @@ export default function App({ onLogout, userEmail }) {
 
       {/* ══ NOTEPAD PANEL ══ */}
       {notepadOpen && (
-        <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: 340, background: "#111827", borderLeft: "1px solid #1f2937", zIndex: 150, display: "flex", flexDirection: "column", boxShadow: "-4px 0 20px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: isMobile ? "100%" : 340, background: "#111827", borderLeft: "1px solid #1f2937", zIndex: 150, display: "flex", flexDirection: "column", boxShadow: "-4px 0 20px rgba(0,0,0,0.4)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px", borderBottom: "1px solid #1f2937" }}>
             <span style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9" }}>Notepad</span>
             <button onClick={() => setNotepadOpen(false)} style={{ background: "none", border: "none", color: "#6b7280", fontSize: 16, cursor: "pointer" }}>✕</button>
           </div>
           <div style={{ display: "flex", gap: 4, padding: "8px 16px", borderBottom: "1px solid #1f2937" }}>
-            {[["bold","B","fontWeight:800"],["italic","I","fontStyle:italic"],["underline","U","textDecoration:underline"]].map(([cmd, label, style]) => {
-              const [k,v] = style.split(":"); 
-              return <button key={cmd} onMouseDown={(e) => { e.preventDefault(); document.execCommand(cmd, false, null); }} style={{ width: 30, height: 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", [k]: v }}>{label}</button>;
-            })}
+            {[
+              { cmd: "bold", label: "B", style: { fontWeight: 800 } },
+              { cmd: "italic", label: "I", style: { fontStyle: "italic" } },
+              { cmd: "underline", label: "U", style: { textDecoration: "underline" } },
+              { cmd: "insertUnorderedList", label: "•", style: { fontSize: 16, lineHeight: 1 } },
+            ].map(({ cmd, label, style }) => (
+              <button key={cmd} onMouseDown={(e) => { e.preventDefault(); document.execCommand(cmd, false, null); }} title={cmd} style={{ width: 30, height: 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", ...style }}>
+                {label}
+              </button>
+            ))}
           </div>
           <div
+            className="np-edit"
             ref={(el) => { if (el && !el.dataset.loaded && notepadText) { el.innerHTML = notepadText; el.dataset.loaded = "1"; } }}
             contentEditable
             onInput={(e) => updateNotepad(e.currentTarget.innerHTML)}
