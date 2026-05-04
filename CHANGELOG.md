@@ -8,6 +8,14 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.3.1] — 2026-05-04
+
+### Fixed
+- Production deployment was rendering blank with React error #310 ("Rendered more hooks than during the previous render"). Two `useMemo` calls (`activeNote`, `sortedNotes`) were declared after the `if (loading) return` early return, so React saw a different number of hooks between the loading and loaded renders. Moved both above the early return.
+- Added a `localStorage` shim (`src/storage.js`) imported at the top of `main.jsx` so `window.storage` exists in a real browser. Without this the load/save calls silently no-op in production.
+
+---
+
 ## [0.3.0] — 2026-05-04
 
 ### Added
