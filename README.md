@@ -55,6 +55,7 @@ npm run dev
 │   ├── main.jsx           # React mount
 │   ├── App.jsx            # Auth wrapper (login/signup)
 │   ├── Dashboard.jsx      # Full dashboard (all features)
+│   ├── Calculator.jsx     # eBay fee calculator
 │   └── supabase.js        # Supabase client + data layer
 ├── supabase-setup.sql     # Database schema (run once)
 ├── package.json
