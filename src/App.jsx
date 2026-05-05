@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabase } from "./supabase.js";
+import { isSupabaseConfigured, supabase } from "./supabase.js";
 import Dashboard from "./Dashboard.jsx";
 
 const inp = { width: "100%", padding: "12px 14px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, color: "#e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
@@ -15,6 +15,10 @@ export default function App() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setLoading(false);
+      return;
+    }
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -28,6 +32,7 @@ export default function App() {
   const handleAuth = async (e) => {
     e.preventDefault();
     setError(""); setMessage("");
+    if (!supabase) { setError("Supabase is not configured"); return; }
     if (!email || !password) { setError("Email and password required"); return; }
     if (password.length < 6) { setError("Password must be at least 6 characters"); return; }
 
@@ -50,6 +55,23 @@ export default function App() {
     return (
       <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563", fontFamily: "'DM Sans', sans-serif" }}>
         Loading...
+      </div>
+    );
+  }
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: 20 }}>
+        <div style={{ width: "100%", maxWidth: 460, background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 24 }}>
+          <h1 style={{ margin: "0 0 8px", fontSize: 20, color: "#f1f5f9" }}>Supabase setup needed</h1>
+          <p style={{ margin: "0 0 16px", fontSize: 13, lineHeight: 1.6, color: "#9ca3af" }}>
+            Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel, then redeploy the app.
+          </p>
+          <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, color: "#93c5fd", fontSize: 12, lineHeight: 1.6 }}>
+            VITE_SUPABASE_URL=https://your-project-id.supabase.co<br />
+            VITE_SUPABASE_ANON_KEY=your-anon-key
+          </div>
+        </div>
       </div>
     );
   }
