@@ -3,12 +3,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+export const supabase = isSupabaseConfigured ? createClient(supabaseUrl, supabaseAnonKey) : null
 
 // ─── Data layer (mirrors window.storage API) ───
 
 export async function load(key, fallback) {
   try {
+    if (!supabase) return fallback
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return fallback
 
@@ -28,6 +30,7 @@ export async function load(key, fallback) {
 
 export async function save(key, value) {
   try {
+    if (!supabase) return
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
