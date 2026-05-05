@@ -13,10 +13,12 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.5.0";
+const VERSION = "0.5.1";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
+
+const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
 // ─── Notepad templates ───
 // Use ${date} placeholder — replaced with today's Sydney date when inserted.
@@ -198,17 +200,17 @@ function TopBar({ saveStatus, isMobile }) {
   });
   const parts = fmt.formatToParts(now);
   const get = (t) => parts.find((p) => p.type === t)?.value || "";
-  const dateStr = `${get("weekday")} ${get("day")} ${get("month")}`;
+  const dateStr = `${get("weekday")}, ${get("day")} ${get("month")}`;
   const timeStr = `${get("hour")}:${get("minute")}:${get("second")}`;
   const tz = get("timeZoneName");
-  const dot = saveStatus === "saving" ? "#f59e0b" : saveStatus === "saved" ? "#34d399" : "#1f2937";
+  const dot = saveStatus === "saving" ? "#f59e0b" : saveStatus === "saved" ? "#34d399" : "#374151";
   const dotLabel = saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "Saved" : "Idle";
   return (
     <div style={{ position: "sticky", top: 0, zIndex: 90, background: "#0b0f19", borderBottom: "1px solid #1f2937", padding: isMobile ? "6px 12px" : "6px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: "#6b7280", height: 32, boxSizing: "border-box" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, overflow: "hidden", whiteSpace: "nowrap" }}>
-        <span style={{ color: "#9ca3af" }}>{dateStr}</span>
-        <span style={{ color: "#f1f5f9", fontFamily: "'JetBrains Mono', monospace", fontWeight: 500 }}>{timeStr}</span>
-        {!isMobile && <span style={{ color: "#4b5563" }}>{tz}</span>}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", whiteSpace: "nowrap" }}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#4b5563", flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{`${dateStr}, ${timeStr} ${tz}`}</span>
+        {!isMobile && <span style={{ color: "#4b5563" }}>· Sydney</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, transition: "background 200ms" }} />
@@ -402,8 +404,8 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
 // ─── Reusable rich-text notepad editor ───
 // Used by both the full notepad page and the slide-out quick-access panel.
 // contentEditable-based, supports B/I/U/bullets via execCommand, plus
-// custom buttons for insert-checkbox and quick-insert templates.
-function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, isMobile = false }) {
+// custom buttons for insert-checkbox, template insert, font sizing, and export.
+function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, isMobile = false, templates = [], onManageTemplates, onExport, compact = false }) {
   const editorRef = useRef(null);
   const [tplOpen, setTplOpen] = useState(false);
   const lastNoteId = useRef(null);
@@ -424,6 +426,8 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
       </div>
     );
   }
+
+  const fontSize = note.fontSize || 14;
 
   const exec = (cmd, val = null) => {
     document.execCommand(cmd, false, val);
@@ -446,13 +450,17 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     setTplOpen(false);
   };
 
-  // Click-handler for any rendered checkbox inside the editor
+  const bumpFont = (delta) => {
+    const idx = FONT_SIZES.indexOf(fontSize);
+    const nextIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, (idx === -1 ? 2 : idx) + delta));
+    onUpdate({ fontSize: FONT_SIZES[nextIdx] });
+  };
+
+  // Click handler for any rendered checkbox inside the editor
   const onEditorClick = (e) => {
     const t = e.target;
     if (t && t.tagName === "INPUT" && t.type === "checkbox") {
-      // Toggle the attribute too so it persists in HTML serialization
       if (t.checked) t.setAttribute("checked", "checked"); else t.removeAttribute("checked");
-      // Save on next tick so DOM is updated
       requestAnimationFrame(() => {
         if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
       });
@@ -469,20 +477,38 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         <button onMouseDown={(e) => { e.preventDefault(); exec("underline"); }} title="Underline" style={{ ...tBtn, textDecoration: "underline" }}>U</button>
         <button onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }} title="Bullet list" style={{ ...tBtn, fontSize: 16, lineHeight: 1 }}>•</button>
         <button onMouseDown={(e) => { e.preventDefault(); insertCheckbox(); }} title="Insert checkbox" style={{ ...tBtn, fontSize: 12 }}>☑</button>
-        {showTemplates && (
+
+        {!compact && (<>
+          <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
+          <button onMouseDown={(e) => { e.preventDefault(); bumpFont(-1); }} title="Smaller text" style={{ ...tBtn, fontWeight: 700 }}>A−</button>
+          <select value={fontSize} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} title="Font size" style={{ ...sel, height: 28, padding: "0 6px", fontSize: 12, width: 64, flexShrink: 0 }}>
+            {FONT_SIZES.map((f) => <option key={f} value={f}>{f}px</option>)}
+          </select>
+          <button onMouseDown={(e) => { e.preventDefault(); bumpFont(1); }} title="Bigger text" style={{ ...tBtn, fontSize: 15, fontWeight: 700 }}>A+</button>
+        </>)}
+
+        {showTemplates && templates.length > 0 && (
           <div style={{ position: "relative", marginLeft: 4 }}>
             <button onMouseDown={(e) => { e.preventDefault(); setTplOpen((o) => !o); }} title="Insert template" style={{ ...tBtn, width: "auto", padding: "0 10px", fontSize: 11 }}>+ Template ▾</button>
             {tplOpen && (
               <>
                 <div onClick={() => setTplOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #1f2937", borderRadius: 8, padding: 4, minWidth: 200, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
-                  {TEMPLATES.map((t) => (
-                    <button key={t.name} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#1f2937"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #1f2937", borderRadius: 8, padding: 4, minWidth: 220, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
+                  {templates.map((t) => (
+                    <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#1f2937"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
                   ))}
+                  {onManageTemplates && (<>
+                    <div style={{ height: 1, background: "#1f2937", margin: "4px 0" }} />
+                    <button onMouseDown={(e) => { e.preventDefault(); setTplOpen(false); onManageTemplates(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#1f2937"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>⚙ Manage templates…</button>
+                  </>)}
                 </div>
               </>
             )}
           </div>
+        )}
+
+        {!compact && onExport && (
+          <button onClick={onExport} title="Export this note as .txt" style={{ ...tBtn, width: "auto", padding: "0 10px", fontSize: 11, marginLeft: "auto" }}>Export .txt</button>
         )}
       </div>
       <div
@@ -492,7 +518,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         onInput={(e) => onUpdate({ content: e.currentTarget.innerHTML })}
         onClick={onEditorClick}
         suppressContentEditableWarning
-        style={{ flex: 1, background: "#0d1117", color: "#e5e7eb", border: "none", padding: 16, fontSize: 13, lineHeight: 1.7, outline: "none", fontFamily: "'DM Sans', sans-serif", overflowY: "auto", minHeight: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={{ flex: 1, background: "#0d1117", color: "#e5e7eb", border: "none", padding: 16, fontSize, lineHeight: 1.7, outline: "none", fontFamily: "'DM Sans', sans-serif", overflowY: "auto", minHeight: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
       />
     </div>
   );
@@ -518,6 +544,76 @@ function SubModal({ sub, onSave, onClose }) {
       </div>
     )}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!sf.name || !sf.amount || !sf.nextDue) return; onSave({ ...sf, amount: parseFloat(sf.amount) }); }} style={primaryBtn}>{sub ? "Save" : "Add subscription"}</button></div>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
+
+// ─── Template manager modal ───
+// Lets the user add / rename / edit body / delete templates. Built-in seeds
+// can also be deleted — they're treated identically once loaded into storage.
+function TemplateManagerModal({ templates, onSave, onClose }) {
+  const [list, setList] = useState(templates.map((t) => ({ ...t })));
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState({ name: "", body: "" });
+  const [dirty, setDirty] = useState(false);
+  const [showU, setShowU] = useState(false);
+
+  const startEdit = (t) => { setEditingId(t.id); setDraft({ name: t.name, body: t.body }); };
+  const cancelEdit = () => { setEditingId(null); setDraft({ name: "", body: "" }); };
+  const saveEdit = () => {
+    if (!draft.name.trim()) return;
+    if (editingId === "new") {
+      setList([...list, { id: genId(), name: draft.name.trim(), body: draft.body, builtIn: false }]);
+    } else {
+      setList(list.map((t) => t.id === editingId ? { ...t, name: draft.name.trim(), body: draft.body } : t));
+    }
+    setDirty(true);
+    cancelEdit();
+  };
+  const removeTpl = (id) => { setList(list.filter((t) => t.id !== id)); setDirty(true); };
+
+  const gc = () => { if (dirty || editingId) setShowU(true); else onClose(); };
+
+  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Manage templates">
+    <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>
+      Templates inserted from the notepad toolbar. HTML is allowed. Use <code style={{ background: "#1f2937", padding: "1px 4px", borderRadius: 3 }}>{"${date}"}</code> to insert today's Sydney date when used.
+    </p>
+
+    {editingId ? (
+      <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+        <Field label="Name" req><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inp} placeholder="e.g. Quick listing" autoFocus /></Field>
+        <Field label="Body (HTML allowed)">
+          <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} style={{ ...inp, minHeight: 160, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, lineHeight: 1.5, resize: "vertical" }} placeholder='<b>Title</b><div>Item: </div><div><label><input type="checkbox"> Step 1</label></div>' />
+        </Field>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={cancelEdit} style={ghostBtn}>Cancel</button>
+          <button onClick={saveEdit} style={primaryBtn}>{editingId === "new" ? "Add" : "Save"}</button>
+        </div>
+      </div>
+    ) : (
+      <button onClick={() => { setEditingId("new"); setDraft({ name: "", body: "" }); }} style={{ ...primaryBtn, marginBottom: 12, width: "100%" }}>+ New template</button>
+    )}
+
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+      {list.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: "#374151" }}>No templates. Add one above.</div>}
+      {list.map((t) => (
+        <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#0d1117", borderRadius: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}{t.builtIn && <span style={badge("#1f2937", "#6b7280")}>SEED</span>}</div>
+            <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripHtml(t.body).slice(0, 80) || "Empty"}</div>
+          </div>
+          <button onClick={() => startEdit(t)} style={{ padding: "4px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => removeTpl(t.id)} style={{ padding: "4px 9px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        </div>
+      ))}
+    </div>
+
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16, gap: 8 }}>
+      <button onClick={() => { if (confirm("Reset all templates to the built-in defaults? Your custom templates will be lost.")) { setList(TEMPLATES.map((t) => ({ id: genId(), name: t.name, body: t.body, builtIn: true }))); setDirty(true); } }} style={{ ...ghostBtn, fontSize: 11, padding: "5px 10px" }}>Reset to defaults</button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={gc} style={ghostBtn}>Cancel</button>
+        <button onClick={() => onSave(list)} style={primaryBtn}>Save changes</button>
+      </div>
+    </div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
@@ -557,6 +653,8 @@ export default function App({ onLogout, userEmail }) {
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [noteSearch, setNoteSearch] = useState("");
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [userTemplates, setUserTemplates] = useState(null); // null = not loaded; array once loaded
+  const [tplManagerOpen, setTplManagerOpen] = useState(false);
   const [selectedExp, setSelectedExp] = useState(new Set());
   const [bulkEditExpOpen, setBulkEditExpOpen] = useState(false);
   const [selectedSales, setSelectedSales] = useState(new Set());
@@ -580,7 +678,7 @@ export default function App({ onLogout, userEmail }) {
 
   useEffect(() => {
     (async () => {
-      const [i, s, e, sb, st, existingNotes, oldNotepad, savedActiveId] = await Promise.all([
+      const [i, s, e, sb, st, existingNotes, oldNotepad, savedActiveId, existingTpls] = await Promise.all([
         load("arch-inv2", []),
         load("arch-sales2", []),
         load("arch-exp2", []),
@@ -589,6 +687,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
+        load("arch-templates", null),
       ]);
 
       // Migrate old single-notepad → first note in multi-note model
@@ -612,6 +711,14 @@ export default function App({ onLogout, userEmail }) {
 
       setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings(st);
       setNotes(initialNotes);
+
+      // Templates: seed from defaults on first run, otherwise use what's in storage
+      let initialTpls = existingTpls;
+      if (!Array.isArray(initialTpls)) {
+        initialTpls = TEMPLATES.map((t) => ({ id: genId(), name: t.name, body: t.body, builtIn: true }));
+        await save("arch-templates", initialTpls);
+      }
+      setUserTemplates(initialTpls);
 
       // Restore active note
       if (savedActiveId && initialNotes.some((n) => n.id === savedActiveId)) {
@@ -661,6 +768,7 @@ export default function App({ onLogout, userEmail }) {
       id: genId(),
       title: seed.title || "Untitled",
       content: seed.content || "",
+      fontSize: seed.fontSize || 14,
       pinned: false,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -687,6 +795,31 @@ export default function App({ onLogout, userEmail }) {
     if (!note) return;
     updateNote(id, { pinned: !note.pinned });
   }, [notes, updateNote]);
+
+  const persistTemplates = useCallback(async (next) => {
+    setUserTemplates(next);
+    setSaveStatus("saving"); await save("arch-templates", next); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
+  }, []);
+
+  // Export a single note as a .txt file (HTML stripped to plain text)
+  const exportNoteTxt = useCallback((note) => {
+    if (!note) return;
+    // Convert <br>, <div>, <p>, <li> to line breaks then strip remaining tags
+    const tmp = document.createElement("div");
+    tmp.innerHTML = note.content || "";
+    // Replace block-level tags with newlines
+    tmp.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+    tmp.querySelectorAll("div, p, li").forEach((el) => { el.append("\n"); });
+    // Render checkboxes as [x] / [ ]
+    tmp.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      cb.replaceWith(cb.checked ? "[x] " : "[ ] ");
+    });
+    const txt = (tmp.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+    const safeName = (note.title || "note").replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40) || "note";
+    const blob = new Blob([txt], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${safeName}-${today()}.txt`; a.click(); URL.revokeObjectURL(url);
+  }, []);
 
   // Auto-save customer on sell
   const addCustomer = useCallback(async (name) => {
@@ -1224,12 +1357,6 @@ export default function App({ onLogout, userEmail }) {
           {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
           {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
         </button>))}
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-          <button onClick={() => setNotepadOpen(!notepadOpen)} title="Notepad" style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: notepadOpen ? "#1e293b" : "transparent", color: notepadOpen ? "#facc15" : "#4b5563" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={notepadIcon} /></svg>
-          </button>
-          {saveStatus === "saving" ? <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} /> : saveStatus === "saved" ? <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#34d399" }} /> : <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#1f2937" }} />}
-        </div>
         <div style={{ marginTop: "auto", paddingBottom: 12, fontSize: 9, color: "#374151", letterSpacing: 0.5, fontWeight: 600 }} title="Version">v{VERSION}</div>
       </div>
 
@@ -1248,16 +1375,29 @@ export default function App({ onLogout, userEmail }) {
             <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
           </div>
           {upcomingPreorders.length > 0 && (
-            <div style={{ background: "#111827", border: "1px solid #2563eb55", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#93c5fd", fontWeight: 600 }}>{upcomingPreorders.length} preorder{upcomingPreorders.length === 1 ? "" : "s"} within {PREORDER_THRESHOLD} business days</div>
-                <button onClick={() => setPage("inventory")} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "1px solid #2563eb55", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>View all</button>
+            <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #111827 100%)", border: "1px solid #2563eb55", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
+                  <span style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>Preorders releasing soon</span>
+                  <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 10, background: "#2563eb", color: "#fff", fontWeight: 600 }}>{upcomingPreorders.length}</span>
+                </div>
+                <button onClick={() => setPage("inventory")} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "none", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>View all</button>
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
-                {upcomingPreorders.slice(0, isMobile ? 3 : 6).map((i) => {
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {upcomingPreorders.slice(0, isMobile ? 4 : 6).map((i) => {
                   const b = preorderBadge(i._bdays);
-                  return <span key={i.id} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 5, background: b.bg, color: b.fg, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{i.name} · {b.text}</span>;
+                  return (
+                    <div key={i.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #1f293766" }}>
+                      <span style={{ fontSize: 13, color: "#e5e7eb", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
+                      {!isMobile && <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{i.preorderDate}</span>}
+                      <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: b.bg, color: b.fg, fontWeight: 600, flexShrink: 0 }}>{b.text}</span>
+                    </div>
+                  );
                 })}
+                {upcomingPreorders.length > (isMobile ? 4 : 6) && (
+                  <div style={{ fontSize: 11, color: "#4b5563", textAlign: "center", paddingTop: 4 }}>+ {upcomingPreorders.length - (isMobile ? 4 : 6)} more</div>
+                )}
               </div>
             </div>
           )}
@@ -1520,7 +1660,7 @@ export default function App({ onLogout, userEmail }) {
                     <button onClick={() => setConfirmDel({ type: "note", id: activeNote.id, name: activeNote.title || "Untitled" })} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: "#f87171" }}>Delete</button>
                   </div>
                   <div style={{ flex: 1, background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
-                    <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} isMobile={isMobile} />
+                    <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} isMobile={isMobile} templates={userTemplates || []} onManageTemplates={() => setTplManagerOpen(true)} onExport={() => exportNoteTxt(activeNote)} />
                   </div>
                 </>
               )}
@@ -1587,6 +1727,24 @@ export default function App({ onLogout, userEmail }) {
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}
+      {/* ══ FLOATING NOTEPAD BUTTON — visible on all pages except notepad and when slide-out is open ══ */}
+      {page !== "notepad" && !notepadOpen && (
+        <button
+          onClick={() => setNotepadOpen(true)}
+          title="Quick notes"
+          style={{ position: "fixed", bottom: 18, right: 18, width: 46, height: 46, borderRadius: "50%", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", boxShadow: "0 6px 16px rgba(37,99,235,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, transition: "transform 150ms" }}
+          onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
+          onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <path d="M14 2v6h6" />
+            <path d="M16 13H8" />
+            <path d="M16 17H8" />
+          </svg>
+        </button>
+      )}
+
       {notepadOpen && (
         <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: isMobile ? "100%" : 360, background: "#111827", borderLeft: "1px solid #1f2937", zIndex: 150, display: "flex", flexDirection: "column", boxShadow: "-4px 0 20px rgba(0,0,0,0.4)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid #1f2937", gap: 6 }}>
@@ -1605,7 +1763,7 @@ export default function App({ onLogout, userEmail }) {
             </div>
           ) : null}
           {activeNote ? (
-            <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} showTemplates={!isMobile} isMobile={isMobile} />
+            <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} showTemplates={!isMobile} isMobile={isMobile} templates={userTemplates || []} compact />
           ) : (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 20 }}>
               <div style={{ fontSize: 12, color: "#4b5563", textAlign: "center" }}>No notes yet.</div>
@@ -1639,6 +1797,7 @@ export default function App({ onLogout, userEmail }) {
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} />}
       {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
+      {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}
       {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} />}
       {bulkEditExpOpen && <BulkEditExpModal items={expenses.filter((e) => selectedExp.has(e.id))} onSave={handleBulkEditExp} onClose={() => setBulkEditExpOpen(false)} />}
       {bulkEditSaleOpen && <BulkEditSaleModal items={sales.filter((s) => selectedSales.has(s.id))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} />}
