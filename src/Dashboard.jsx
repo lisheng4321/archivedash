@@ -770,6 +770,7 @@ export default function App({ onLogout, userEmail }) {
       content: seed.content || "",
       fontSize: seed.fontSize || 14,
       pinned: false,
+      order: Math.min(0, ...notes.map((n) => n.order ?? 0)) - 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -795,6 +796,25 @@ export default function App({ onLogout, userEmail }) {
     if (!note) return;
     updateNote(id, { pinned: !note.pinned });
   }, [notes, updateNote]);
+
+  const moveNote = useCallback((id, dir) => {
+    const ordered = notes.map((n, idx) => ({ ...n, order: n.order ?? idx }));
+    const note = ordered.find((n) => n.id === id);
+    if (!note) return;
+    const samePinned = ordered
+      .filter((n) => !!n.pinned === !!note.pinned)
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
+    const pos = samePinned.findIndex((n) => n.id === id);
+    const targetPos = pos + dir;
+    if (pos < 0 || targetPos < 0 || targetPos >= samePinned.length) return;
+    const target = samePinned[targetPos];
+    const next = ordered.map((n) => {
+      if (n.id === id) return { ...n, order: target.order, updatedAt: Date.now() };
+      if (n.id === target.id) return { ...n, order: note.order, updatedAt: Date.now() };
+      return n;
+    });
+    persistNotes(next, true);
+  }, [notes, persistNotes]);
 
   const persistTemplates = useCallback(async (next) => {
     setUserTemplates(next);
@@ -1116,6 +1136,12 @@ export default function App({ onLogout, userEmail }) {
   const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
   const toggleSel = (id) => setSelectedInv((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const toggleAll = () => { if (selectedInv.size === filteredInv.length) setSelectedInv(new Set()); else setSelectedInv(new Set(filteredInv.map((i) => i.id))); };
+  const toggleGroupSelection = (items = []) => setSelectedInv((p) => {
+    const n = new Set(p);
+    const allSelected = items.length > 0 && items.every((i) => n.has(i.id));
+    items.forEach((i) => { allSelected ? n.delete(i.id) : n.add(i.id); });
+    return n;
+  });
 
   const selectedExpValue = useMemo(() => expenses.filter((e) => selectedExp.has(e.id)).reduce((a, e) => a + e.amount, 0), [expenses, selectedExp]);
   const toggleSelExp = (id) => setSelectedExp((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -1152,7 +1178,7 @@ export default function App({ onLogout, userEmail }) {
       const q = noteSearch.toLowerCase();
       f = f.filter((n) => (n.title || "").toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q));
     }
-    return [...f].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
+    return [...f].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((a.order ?? 0) - (b.order ?? 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
   }, [notes, noteSearch]);
 
   if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>Loading...</div>;
@@ -1183,12 +1209,15 @@ export default function App({ onLogout, userEmail }) {
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
+  const rowBg = (index, selected = false) => selected ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827");
+  const groupAccent = { boxShadow: "inset 3px 0 0 #2563eb66" };
+  const childAccent = { boxShadow: "inset 3px 0 0 #1f2937" };
 
   // ─── Inventory row (mobile + desktop) ───
-  const invRow = (item, isGroupChild) => {
+  const invRow = (item, isGroupChild, index = 0) => {
     if (isMobile) {
       return (
-        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #1f293722", background: selectedInv.has(item.id) ? "#1e293b" : isGroupChild ? "#0d111788" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...(isGroupChild ? childAccent : {}) }}>
           <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
@@ -1212,7 +1241,7 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedInv.has(item.id) ? "#1e293b" : isGroupChild ? "#0d111788" : "transparent", cursor: "pointer" }}>
+      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
         <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
@@ -1230,10 +1259,12 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Group row (mobile + desktop) ───
-  const groupRow = (item, isExpanded, key) => {
+  const groupRow = (item, isExpanded, key, index = 0) => {
+    const groupChecked = item._items?.length > 0 && item._items.every((i) => selectedInv.has(i.id));
     if (isMobile) {
       return (
-        <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "#0d111766", borderBottom: "1px solid #1f293722" }}>
+        <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: rowBg(index, false), borderBottom: "1px solid #1f293722", ...groupAccent }}>
+          <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={{ ...cb, marginTop: 1 }} />
           <span style={{ color: "#6b7280", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
@@ -1246,8 +1277,11 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: "#0d111766" }}>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
+      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: rowBg(index, false), ...groupAccent }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
+          <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
+        </div>
         <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12 }}></span>
@@ -1259,10 +1293,10 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Sales row (mobile + desktop) ───
-  const saleRow = (s) => {
+  const saleRow = (s, index = 0) => {
     if (isMobile) {
       return (
-        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: selectedSales.has(s.id) ? "#1e293b" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
@@ -1284,7 +1318,7 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedSales.has(s.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
+      <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: "48px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer" }}>
         <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
         <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#4b5563" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.platform}</span>
@@ -1302,10 +1336,10 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Expense row (mobile + desktop) ───
-  const expRow = (e) => {
+  const expRow = (e, index = 0) => {
     if (isMobile) {
       return (
-        <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: selectedExp.has(e.id) ? "#1e293b" : "transparent", cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
@@ -1324,7 +1358,7 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: selectedExp.has(e.id) ? "#1e293b" : "transparent", cursor: "pointer" }}>
+      <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer" }}>
         <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
         <span style={{ color: "#e5e7eb" }}>{e.name}{e.tags&&<span style={{ fontSize: 10, color: "#4b5563", marginLeft: 6 }}>{e.tags}</span>}</span>
         <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
@@ -1451,19 +1485,19 @@ export default function App({ onLogout, userEmail }) {
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
                 <input type="checkbox" checked={selectedInv.size===filteredInv.length&&filteredInv.length>0} onChange={toggleAll} style={cb} /><span>Name</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedInv.size===filteredInv.length&&filteredInv.length>0, toggleAll, filteredInv.length)}
             {groupedInv.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No inventory</div>}
-            {groupedInv.map((item) => {
-              if (!item._group) return invRow(item, false);
+            {groupedInv.map((item, idx) => {
+              if (!item._group) return invRow(item, false, idx);
               const key = item.name;
               const isExpanded = expandedGroups.has(key);
               return (<div key={key}>
-                {groupRow(item, isExpanded, key)}
-                {isExpanded && item._items.map((sub) => invRow(sub, true))}
+                {groupRow(item, isExpanded, key, idx)}
+                {isExpanded && item._items.map((sub, childIdx) => invRow(sub, true, idx + childIdx + 1))}
               </div>);
             })}
           </div>
@@ -1494,14 +1528,14 @@ export default function App({ onLogout, userEmail }) {
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "30px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
                 <input type="checkbox" checked={selectedSales.size===filteredSales.length&&filteredSales.length>0} onChange={toggleAllSales} style={cb} />
                 <span>Item</span><span>Platform</span><span>Size</span><span>Date</span><span>Cost</span><span>Sale</span><span>Profit</span><span>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedSales.size===filteredSales.length&&filteredSales.length>0, toggleAllSales, filteredSales.length)}
             {filteredSales.length===0&&<div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No sales</div>}
-            {filteredSales.map((s) => saleRow(s))}
+            {filteredSales.map((s, idx) => saleRow(s, idx))}
           </div>
         </div>)}
 
@@ -1525,14 +1559,14 @@ export default function App({ onLogout, userEmail }) {
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "30px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
                 <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
                 <span>Name</span><span>Category</span><span>Price</span><span>Date</span><span>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}
             {filteredExp.length===0&&<div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No expenses</div>}
-            {filteredExp.map((e) => expRow(e))}
+            {filteredExp.map((e, idx) => expRow(e, idx))}
           </div>
         </div>)}
 
@@ -1616,12 +1650,14 @@ export default function App({ onLogout, userEmail }) {
                 {activeNote && activeNote.updatedAt ? ` · saved ${new Date(activeNote.updatedAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}` : ""}
               </p>
             </div>
-            <button onClick={() => createNote()} style={primaryBtn}>+ New note</button>
           </div>
 
           <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0, flexDirection: isMobile ? "column" : "row" }}>
             {/* LEFT: Notes list */}
             <div style={{ width: isMobile ? "100%" : 240, maxHeight: isMobile ? 220 : "none", background: "#111827", borderRadius: 12, border: "1px solid #1f2937", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+              <div style={{ padding: "8px 10px 6px", borderBottom: "1px solid #1f2937" }}>
+                <button onClick={() => createNote()} style={{ ...primaryBtn, width: "100%", padding: "7px 10px", fontSize: 12 }}>+ New note</button>
+              </div>
               <div style={{ padding: "8px 10px", borderBottom: "1px solid #1f2937" }}>
                 <input value={noteSearch} onChange={(e) => setNoteSearch(e.target.value)} placeholder="Search notes…" style={{ ...inp, padding: "6px 10px", fontSize: 12 }} />
               </div>
@@ -1636,6 +1672,8 @@ export default function App({ onLogout, userEmail }) {
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                         {n.pinned && <span style={{ fontSize: 9, color: "#fbbf24" }}>●</span>}
                         <div style={{ fontSize: 13, color: isActive ? "#f1f5f9" : "#d1d5db", fontWeight: isActive ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title || "Untitled"}</div>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↑</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↓</button>
                       </div>
                       <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview}</div>
                       <div style={{ fontSize: 9, color: "#4b5563", marginTop: 2 }}>{dateStr}</div>
