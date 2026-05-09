@@ -8,6 +8,17 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.5.3] — 2026-05-09
+
+### Added
+- **Pre-record eBay sale review** — clicking `Record sale` now opens an editable review step before the sale is saved.
+- **Editable eBay shipping and fees** — sale price, shipping, and platform fees can be adjusted before recording.
+
+### Changed
+- **eBay fee prefill** now uses the stored eBay fee when available, otherwise estimates eBay AU fees from the order total so the profit preview is closer before save.
+
+---
+
 ## [0.5.2] — 2026-05-09
 
 ### Added

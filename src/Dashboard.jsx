@@ -13,10 +13,11 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.5.2";
+const VERSION = "0.5.3";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
+const EBAY_AU_FEE_RATE = 0.1165;
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
@@ -489,6 +490,71 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
+function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
+  const qty = Math.max(1, Number(draft.quantity || 1));
+  const saleTotal = Number(draft.sale_price || 0);
+  const shipTotal = Number(draft.shipping_price || 0);
+  const rawFeeTotal = Number(draft.platform_fees || 0);
+  const feeTotal = rawFeeTotal > 0 ? rawFeeTotal : Number((saleTotal * EBAY_AU_FEE_RATE).toFixed(2));
+  const [shared, setShared] = useState({
+    platform: "eBay AU",
+    saleDate: draft.sale_date || today(),
+    customer: draft.buyer_username || "",
+  });
+  const [rows, setRows] = useState(items.map((item) => ({
+    id: item.id,
+    salePrice: (saleTotal / qty).toFixed(2),
+    shippingPrice: (shipTotal / qty).toFixed(2),
+    platformFees: (feeTotal / qty).toFixed(2),
+  })));
+  const [showU, setShowU] = useState(false);
+  const updateRow = (id, u) => setRows(rows.map((r) => r.id === id ? { ...r, ...u } : r));
+  const previews = items.map((item) => {
+    const r = rows.find((x) => x.id === item.id) || {};
+    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+    return { ...item, sp, ship, fees, profit: sp - item.price - ship - fees };
+  });
+  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
+  const totalShip = previews.reduce((a, p) => a + p.ship, 0);
+  const totalFees = previews.reduce((a, p) => a + p.fees, 0);
+  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
+  const allPriced = previews.every((p) => p.sp > 0);
+
+  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay sale">
+    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.item_title}</div>
+      <div style={{ color: "#6b7280", fontSize: 11 }}>Order {draft.order_id || "unknown"} · qty {qty} · {draft.buyer_username || "Unknown buyer"}</div>
+    </div>
+    <Row cols={3}><Field label="Platform"><input value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} /></Field></Row>
+    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Shipping</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalShip)}</div></div>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Fees</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalFees)}</div></div>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
+    </div>
+    {rawFeeTotal <= 0 && <div style={{ fontSize: 11, color: "#fbbf24", margin: "-2px 0 10px" }}>Fees are estimated from eBay AU at {(EBAY_AU_FEE_RATE * 100).toFixed(2)}%. Edit them before recording if eBay shows a different amount.</div>}
+    <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
+      {items.map((item) => {
+        const r = rows.find((x) => x.id === item.id) || {};
+        const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+        const profit = sp - item.price - ship - fees;
+        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293744", background: "#0d1117" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
+            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ color: "#6b7280", fontSize: 11 }}>{item.category} · cost {currency(item.price)}</div></div>
+            <div style={{ color: profit>=0?"#34d399":"#f87171", fontSize: 13, fontWeight: 800 }}>{currency(profit)}</div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+            <Field label="Sale price"><input type="number" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+            <Field label="Shipping"><input type="number" step="0.01" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+            <Field label="Fees"><input type="number" step="0.01" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+          </div>
+        </div>);
+      })}
+    </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onRecord(draft, { items, shared, rows }); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record sale</button></div>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
+
 function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, isMobile = false, templates = [], onManageTemplates, onExport, compact = false }) {
   const editorRef = useRef(null);
   const [tplOpen, setTplOpen] = useState(false);
@@ -748,6 +814,7 @@ export default function App({ onLogout, userEmail }) {
   const [ebayBusy, setEbayBusy] = useState(false);
   const [ebayStatus, setEbayStatus] = useState("");
   const [ebayQueueOpen, setEbayQueueOpen] = useState(false);
+  const [ebayReviewOpen, setEbayReviewOpen] = useState(null);
 
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
@@ -1068,24 +1135,37 @@ export default function App({ onLogout, userEmail }) {
     await loadEbayImports();
   };
 
-  const recordEbaySale = async (draft) => {
+  const reviewEbaySale = (draft) => {
     const qty = Math.max(1, Number(draft.quantity || 1));
     const matches = findEbayMatches(draft).map((m) => m.item).slice(0, qty);
     if (matches.length < qty) {
       alert("Not enough matching inventory found. Edit the inventory name/SKU or record this sale manually for now.");
       return;
     }
-    const perItemSale = Number(draft.sale_price || 0) / qty;
-    const perItemShip = Number(draft.shipping_price || 0) / qty;
+    setEbayReviewOpen({ draft, items: matches });
+  };
+
+  const recordEbaySale = async (draft, review = null) => {
+    const reviewItems = review?.items || [];
+    const matches = reviewItems.length ? reviewItems : findEbayMatches(draft).map((m) => m.item).slice(0, Math.max(1, Number(draft.quantity || 1)));
+    if (!matches.length) return;
+    const shared = review?.shared || { platform: "eBay AU", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
+    const rows = review?.rows || matches.map((item) => {
+      const qty = Math.max(1, Number(draft.quantity || 1));
+      const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : Number((Number(draft.sale_price || 0) * EBAY_AU_FEE_RATE).toFixed(2));
+      return { id: item.id, salePrice: Number(draft.sale_price || 0) / qty, shippingPrice: Number(draft.shipping_price || 0) / qty, platformFees: feeTotal / qty };
+    });
     const newSales = matches.map((item) => {
-      const fees = Number(draft.platform_fees || 0) / qty;
-      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: perItemSale, shippingPrice: perItemShip, platformFees: fees, profit: perItemSale - item.price - perItemShip - fees, platform: "eBay AU", saleDate: draft.sale_date || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: draft.buyer_username || "" };
+      const r = rows.find((x) => x.id === item.id) || {};
+      const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: sp - item.price - ship - fees, platform: shared.platform || "eBay AU", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
     });
     const soldIds = new Set(matches.map((i) => i.id));
     await persistSales([...newSales, ...sales]);
     await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
-    if (draft.buyer_username) await addCustomer(draft.buyer_username);
+    if (shared.customer) await addCustomer(shared.customer);
     await markEbayImport(draft.id, "imported");
+    setEbayReviewOpen(null);
   };
 
   const handleDelete = async () => {
@@ -1610,7 +1690,7 @@ export default function App({ onLogout, userEmail }) {
                     {best ? `Match: ${best.item.name} (${best.score}%)` : "No inventory match yet"}
                   </span>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => recordEbaySale(draft)} disabled={!canRecord} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11, opacity: canRecord ? 1 : 0.45 }}>Record sale</button>
+                    <button onClick={() => reviewEbaySale(draft)} disabled={!canRecord} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11, opacity: canRecord ? 1 : 0.45 }}>Record sale</button>
                     <button onClick={() => markEbayImport(draft.id, "ignored")} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#f87171" }}>Ignore</button>
                   </div>
                 </div>
@@ -2099,6 +2179,7 @@ export default function App({ onLogout, userEmail }) {
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} />}
       {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} />}
+      {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} />}
       {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} />}
       {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} />}
