@@ -13,7 +13,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.0";
+const VERSION = "0.6.1";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -632,6 +632,15 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
   };
 
+  const undoRedo = (cmd) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    document.execCommand(cmd);
+    requestAnimationFrame(() => {
+      if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
+    });
+  };
+
   const insertHtml = (html) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
@@ -670,6 +679,9 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, minHeight: 0 }}>
       <div style={{ display: "flex", gap: 4, padding: "8px 12px", borderBottom: "1px solid #1f2937", flexWrap: "wrap", alignItems: "center" }}>
+        <button onMouseDown={(e) => { e.preventDefault(); undoRedo("undo"); }} title="Undo" style={tBtn}>↶</button>
+        <button onMouseDown={(e) => { e.preventDefault(); undoRedo("redo"); }} title="Redo" style={tBtn}>↷</button>
+        <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
         <button onMouseDown={(e) => { e.preventDefault(); exec("bold"); }} title="Bold" style={{ ...tBtn, fontWeight: 800 }}>B</button>
         <button onMouseDown={(e) => { e.preventDefault(); exec("italic"); }} title="Italic" style={{ ...tBtn, fontStyle: "italic" }}>I</button>
         <button onMouseDown={(e) => { e.preventDefault(); exec("underline"); }} title="Underline" style={{ ...tBtn, textDecoration: "underline" }}>U</button>
@@ -1449,6 +1461,26 @@ export default function App({ onLogout, userEmail }) {
     return { salesIncome, grossProfit, totalExpenses, netProfit, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
   }, [inventory, sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
 
+  const monthComparison = useMemo(() => {
+    const [year, month] = today().split("-").map(Number);
+    const currentStart = `${year}-${String(month).padStart(2, "0")}-01`;
+    const previousMonthDate = new Date(year, month - 2, 1);
+    const previousYear = previousMonthDate.getFullYear();
+    const previousMonth = previousMonthDate.getMonth() + 1;
+    const previousStart = `${previousYear}-${String(previousMonth).padStart(2, "0")}-01`;
+    const previousEnd = `${previousYear}-${String(previousMonth).padStart(2, "0")}-${String(new Date(previousYear, previousMonth, 0).getDate()).padStart(2, "0")}`;
+    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
+    const currentSalesProfit = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= today() && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
+    const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= today()).reduce((a, e) => a + (e.amount || 0), 0);
+    const previousSalesProfit = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
+    const previousExpenses = expenses.filter((e) => e.purchaseDate >= previousStart && e.purchaseDate <= previousEnd).reduce((a, e) => a + (e.amount || 0), 0);
+    const current = currentSalesProfit - currentExpenses;
+    const previous = previousSalesProfit - previousExpenses;
+    const delta = current - previous;
+    const pct = previous !== 0 ? (delta / Math.abs(previous)) * 100 : null;
+    return { current, previous, delta, pct };
+  }, [sales, expenses, dashCat, dashPlat]);
+
   // ─── Preorders within the reminder window ───
   const upcomingPreorders = useMemo(() => {
     return inventory
@@ -1605,6 +1637,15 @@ export default function App({ onLogout, userEmail }) {
 
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
   const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
+  const mainNavItems = navItems.filter((n) => !["backup", "settings"].includes(n.id));
+  const utilityNavItems = navItems.filter((n) => ["backup", "settings"].includes(n.id));
+  const renderNavButton = (n) => (
+    <button key={n.id} onClick={() => setPage(n.id)} title={n.id} style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative" }}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
+      {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
+      {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
+    </button>
+  );
 
   const renderPreBadge = (item) => {
     if (!item.preorderDate) return null;
@@ -1884,11 +1925,9 @@ export default function App({ onLogout, userEmail }) {
       {/* SIDEBAR */}
       <div style={{ width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
         <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>
-        {navItems.map((n) => (<button key={n.id} onClick={() => setPage(n.id)} title={n.id} style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative" }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
-          {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
-          {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
-        </button>))}
+        {mainNavItems.map(renderNavButton)}
+        <div style={{ width: 24, height: 1, background: "#1f2937", margin: "9px 0 7px", opacity: 0.9 }} />
+        {utilityNavItems.map(renderNavButton)}
         <div style={{ marginTop: "auto", paddingBottom: 12, fontSize: 9, color: "#374151", letterSpacing: 0.5, fontWeight: 600 }} title="Version">v{VERSION}</div>
       </div>
 
@@ -1941,7 +1980,15 @@ export default function App({ onLogout, userEmail }) {
           )}
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "18px 20px", marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
-              <div><div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div><div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div></div>
+              <div>
+                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                  <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div>
+                  <div title={`This month: ${currency(monthComparison.current)} · Previous month: ${currency(monthComparison.previous)}`} style={{ fontSize: 12, color: monthComparison.delta >= 0 ? "#34d399" : "#f87171", background: monthComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${monthComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
+                    {monthComparison.pct === null ? "new vs last month" : `${monthComparison.delta >= 0 ? "+" : ""}${monthComparison.pct.toFixed(1)}% vs last month`}
+                  </div>
+                </div>
+              </div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Inventory value</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{currency(stats.invValue)}</div></div>
             </div>
             <Spark data={stats.spark.length>1?stats.spark:undefined} color={stats.netProfit>=0?"#3b82f6":"#ef4444"} />

@@ -8,6 +8,17 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.1] - 2026-05-09
+
+### Added
+- **Notepad undo/redo** controls in the editor toolbar.
+- **Month comparison badge** next to the dashboard net profit graph, comparing this month against the previous month.
+
+### Changed
+- **Sidebar utilities** now sit in a separated group so Backup and Settings feel less crowded.
+
+---
+
 ## [0.6.0] - 2026-05-09
 
 ### Added
