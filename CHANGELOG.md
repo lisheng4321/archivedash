@@ -8,6 +8,18 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.0] - 2026-05-09
+
+### Added
+- **Gmail Inventory Import** - connect Gmail from Settings, then sync purchase confirmations into an Inventory review queue.
+- **Inventory Gmail queue** - review, edit, add, or ignore Gmail-drafted inventory before it enters stock.
+- **Gmail Edge Functions** - added OAuth start/callback plus Gmail receipt scanning and draft queue storage.
+
+### Changed
+- **Supabase setup SQL** is now safe to re-run without duplicate table, index, or policy errors.
+
+---
+
 ## [0.5.4] — 2026-05-09
 
 ### Changed

@@ -1,0 +1,87 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+
+const html = (body: string, status = 200) => new Response(body, {
+  status,
+  headers: { "Content-Type": "text/html; charset=utf-8" },
+});
+
+const redirect = (url: string) => new Response(null, { status: 302, headers: { Location: url } });
+
+Deno.serve(async (req) => {
+  const url = new URL(req.url);
+  const code = url.searchParams.get("code");
+  const state = url.searchParams.get("state");
+  const error = url.searchParams.get("error") || url.searchParams.get("error_description");
+
+  const appUrl = Deno.env.get("ARCHIVEDASH_APP_URL") || "https://archivedash.vercel.app";
+  if (error) return redirect(`${appUrl}?gmail=declined`);
+  if (!code || !state) return html("Missing Gmail OAuth code/state.", 400);
+
+  const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
+  const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const redirectUri = Deno.env.get("GOOGLE_REDIRECT_URI") || `${supabaseUrl}/functions/v1/gmail-oauth-callback`;
+
+  if (!clientId || !clientSecret || !supabaseUrl || !serviceRole) {
+    return html("ArchiveDash Gmail secrets are not configured in Supabase.", 500);
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRole);
+  const { data: stateRow, error: stateError } = await supabase
+    .from("gmail_oauth_states")
+    .select("state,user_id,expires_at")
+    .eq("state", state)
+    .single();
+
+  if (stateError || !stateRow || new Date(stateRow.expires_at).getTime() < Date.now()) {
+    return html("This Gmail connection link expired. Please return to ArchiveDash and try again.", 400);
+  }
+
+  const tokenBody = new URLSearchParams();
+  tokenBody.set("grant_type", "authorization_code");
+  tokenBody.set("code", code);
+  tokenBody.set("redirect_uri", redirectUri);
+  tokenBody.set("client_id", clientId);
+  tokenBody.set("client_secret", clientSecret);
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: tokenBody,
+  });
+
+  const tokenJson = await tokenRes.json();
+  if (!tokenRes.ok) {
+    console.error("Gmail token exchange failed", tokenJson);
+    return html("Gmail token exchange failed. Check your Google Client ID, Client Secret, and redirect URI.", 500);
+  }
+
+  const now = Date.now();
+  const expiresAt = tokenJson.expires_in ? new Date(now + tokenJson.expires_in * 1000).toISOString() : null;
+
+  const { data: existing } = await supabase
+    .from("gmail_tokens")
+    .select("refresh_token")
+    .eq("user_id", stateRow.user_id)
+    .maybeSingle();
+
+  const { error: upsertError } = await supabase.from("gmail_tokens").upsert({
+    user_id: stateRow.user_id,
+    access_token: tokenJson.access_token,
+    refresh_token: tokenJson.refresh_token || existing?.refresh_token,
+    token_type: tokenJson.token_type,
+    scope: tokenJson.scope,
+    expires_at: expiresAt,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+
+  await supabase.from("gmail_oauth_states").delete().eq("state", state);
+
+  if (upsertError) {
+    console.error("Gmail token store failed", upsertError);
+    return html("ArchiveDash could not save the Gmail connection.", 500);
+  }
+
+  return redirect(`${appUrl}?gmail=connected`);
+});

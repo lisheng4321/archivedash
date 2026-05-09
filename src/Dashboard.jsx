@@ -13,7 +13,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.5.4";
+const VERSION = "0.6.0";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -555,6 +555,44 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
+function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
+  const defaultCat = categories.includes("Collectables") ? "Collectables" : (categories[0] || "Other");
+  const [form, setForm] = useState({
+    name: draft.item_title || "",
+    category: defaultCat,
+    size: getDefaultSize(defaultCat),
+    price: draft.unit_cost || draft.total_cost || "",
+    quantity: Math.max(1, Number(draft.quantity || 1)),
+    purchaseDate: draft.email_date || today(),
+    preorderDate: "",
+    brand: draft.vendor || "",
+    inTransit: false,
+    tags: draft.order_reference ? `Gmail ${draft.order_reference}` : "Gmail import",
+    customer: "",
+  });
+  const [showU, setShowU] = useState(false);
+  const up = (u) => setForm({ ...form, ...u });
+  const total = (parseFloat(form.price) || 0) * (parseInt(form.quantity) || 1);
+
+  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review Gmail Inventory" maxWidth={720}>
+    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.subject || draft.item_title}</div>
+      <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.sender || "Unknown sender"} · {draft.email_date || "No date"}</div>
+    </div>
+    <Field label="Product name" req><input value={form.name} onChange={(e) => up({ name: e.target.value })} style={inp} autoFocus /></Field>
+    <Row cols={3}><Field label="Category"><select value={form.category} onChange={(e) => up({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={form.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(form.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Unit cost"><input type="number" step="0.01" value={form.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
+    <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={form.quantity} onChange={(e) => up({ quantity: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={form.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={form.preorderDate} onChange={(e) => up({ preorderDate: e.target.value })} style={inp} /></Field></Row>
+    <Row><Field label="Brand / vendor"><input value={form.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={form.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
+    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", marginBottom: 12 }}><input type="checkbox" checked={form.inTransit} onChange={(e) => up({ inTransit: e.target.checked })} style={cb} /> In Transit</label>
+    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Source</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Quantity</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{form.quantity || 1}</div></div>
+      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Total cost</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{currency(total)}</div></div>
+    </div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!form.name || !form.price) return; onAdd(draft, form); }} style={primaryBtn}>Add Inventory</button></div>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
+
 function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, isMobile = false, templates = [], onManageTemplates, onExport, compact = false }) {
   const editorRef = useRef(null);
   const [tplOpen, setTplOpen] = useState(false);
@@ -815,6 +853,11 @@ export default function App({ onLogout, userEmail }) {
   const [ebayStatus, setEbayStatus] = useState("");
   const [ebayQueueOpen, setEbayQueueOpen] = useState(false);
   const [ebayReviewOpen, setEbayReviewOpen] = useState(null);
+  const [gmailImports, setGmailImports] = useState([]);
+  const [gmailBusy, setGmailBusy] = useState(false);
+  const [gmailStatus, setGmailStatus] = useState("");
+  const [gmailQueueOpen, setGmailQueueOpen] = useState(false);
+  const [gmailReviewOpen, setGmailReviewOpen] = useState(null);
 
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
@@ -932,9 +975,45 @@ export default function App({ onLogout, userEmail }) {
     await loadEbayImports();
   }, [loadEbayImports]);
 
+  const loadGmailImports = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("gmail_import_queue")
+      .select("*")
+      .eq("status", "draft")
+      .order("email_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      setGmailStatus("Could not load Gmail imports.");
+      return;
+    }
+    setGmailImports(data || []);
+  }, []);
+
+  const connectGmail = useCallback(async () => {
+    if (!supabase) { setGmailStatus("Supabase is not configured."); return; }
+    setGmailBusy(true); setGmailStatus("Opening Google sign-in...");
+    const { data, error } = await supabase.functions.invoke("gmail-oauth-start", { body: {} });
+    setGmailBusy(false);
+    if (error || !data?.url) { setGmailStatus(error?.message || "Could not start Gmail connection."); return; }
+    window.location.href = data.url;
+  }, []);
+
+  const syncGmailInventory = useCallback(async () => {
+    if (!supabase) { setGmailStatus("Supabase is not configured."); return; }
+    setGmailBusy(true); setGmailStatus("Scanning Gmail for inventory receipts...");
+    const { data, error } = await supabase.functions.invoke("gmail-sync-inventory", { body: { days: 90, maxResults: 25 } });
+    setGmailBusy(false);
+    if (error) { setGmailStatus(error.message || "Could not sync Gmail inventory."); return; }
+    setGmailStatus(`Scanned ${data?.searched || 0} Gmail messages. ${data?.queuedDrafts || 0} inventory drafts waiting.`);
+    await loadGmailImports();
+  }, [loadGmailImports]);
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ebay = params.get("ebay");
+    const gmail = params.get("gmail");
     if (ebay === "connected") {
       setEbayStatus("eBay connected. Sync orders when you're ready.");
       setPage("sales");
@@ -945,8 +1024,18 @@ export default function App({ onLogout, userEmail }) {
       setEbayStatus("eBay connection was cancelled.");
       setPage("settings");
       window.history.replaceState({}, "", window.location.pathname);
+    } else if (gmail === "connected") {
+      setGmailStatus("Gmail connected. Sync inventory emails when you're ready.");
+      setPage("inventory");
+      setGmailQueueOpen(true);
+      loadGmailImports();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (gmail === "declined") {
+      setGmailStatus("Gmail connection was cancelled.");
+      setPage("settings");
+      window.history.replaceState({}, "", window.location.pathname);
     }
-  }, [loadEbayImports]);
+  }, [loadEbayImports, loadGmailImports]);
 
   // Persist active note id
   useEffect(() => { if (activeNoteId) save("arch-notes-active", activeNoteId); }, [activeNoteId]);
@@ -1166,6 +1255,34 @@ export default function App({ onLogout, userEmail }) {
     if (shared.customer) await addCustomer(shared.customer);
     await markEbayImport(draft.id, "imported");
     setEbayReviewOpen(null);
+  };
+
+  const markGmailImport = async (id, status) => {
+    if (!supabase) return;
+    await supabase.from("gmail_import_queue").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    await loadGmailImports();
+  };
+
+  const recordGmailInventory = async (draft, form) => {
+    const qty = Math.max(1, parseInt(form.quantity) || 1);
+    const price = parseFloat(form.price) || 0;
+    const items = Array.from({ length: qty }, () => ({
+      id: genId(),
+      name: form.name,
+      category: form.category,
+      size: form.size,
+      price,
+      purchaseDate: form.purchaseDate,
+      preorderDate: form.preorderDate || "",
+      brand: form.brand || "",
+      inTransit: !!form.inTransit,
+      tags: form.tags || "",
+      customer: form.customer || "",
+      addedAt: Date.now(),
+    }));
+    await persistInv([...items, ...inventory]);
+    await markGmailImport(draft.id, "imported");
+    setGmailReviewOpen(null);
   };
 
   const handleDelete = async () => {
@@ -1702,6 +1819,47 @@ export default function App({ onLogout, userEmail }) {
     </div>
   );
 
+  const gmailQueuePanel = () => (
+    <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 14, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700 }}>Gmail inventory drafts</div>
+          <div style={{ fontSize: 12, color: "#6b7280" }}>Review purchase confirmations before they become inventory.</div>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync Gmail</button>
+          <button onClick={loadGmailImports} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Refresh queue</button>
+          <button onClick={() => setGmailQueueOpen(false)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Hide</button>
+        </div>
+      </div>
+      {gmailStatus && <div style={{ fontSize: 12, color: "#93c5fd", marginBottom: 10 }}>{gmailStatus}</div>}
+      {gmailImports.length === 0 ? (
+        <div style={{ fontSize: 12, color: "#4b5563", padding: "10px 0" }}>No Gmail inventory drafts loaded.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 380, overflow: "auto" }}>
+          {gmailImports.map((draft) => (
+            <div key={draft.id} style={{ border: "1px solid #1f2937", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.item_title}</div>
+                  <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.email_date || "No date"} · qty {draft.quantity || 1} · {draft.vendor || draft.sender || "Unknown source"}</div>
+                </div>
+                <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 700 }}>{currency(draft.total_cost || draft.unit_cost)}</div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={{ color: "#93c5fd", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.subject || "Gmail receipt"}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => setGmailReviewOpen(draft)} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11 }}>Add Inventory</button>
+                  <button onClick={() => markGmailImport(draft.id, "ignored")} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#f87171" }}>Ignore</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   // Mobile select-all bar
   const mobileSelectAll = (allSelected, toggleFn, count) => isMobile && count > 0 && (
     <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #1f2937", fontSize: 11, color: "#6b7280", background: "#0d1117" }}>
@@ -1802,9 +1960,12 @@ export default function App({ onLogout, userEmail }) {
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Inventory</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventory.length} items · {currency(inventory.reduce((a, i) => a + i.price, 0))}</p></div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedInv.size > 0 && <><button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button><button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button><button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button></>}
+              <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync Gmail</button>
+              <button onClick={async () => { setGmailQueueOpen((v) => !v); if (!gmailImports.length) await loadGmailImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Gmail queue{gmailImports.length ? ` (${gmailImports.length})` : ""}</button>
               <button onClick={() => { setInvForm({ ...emptyInv, category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||"") }); setAddDirty(false); setAddInvOpen(true); }} style={primaryBtn}>+ Add inventory</button>
             </div>
           </div>
+          {gmailQueueOpen && gmailQueuePanel()}
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
             <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
@@ -2082,6 +2243,20 @@ export default function App({ onLogout, userEmail }) {
             <div style={{ fontSize: 12, color: "#4b5563" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Gmail Inventory Import</div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Connect Gmail here. Review purchase confirmations from Inventory before adding stock.</p>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button onClick={connectGmail} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
+                <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
+              </div>
+            </div>
+            {gmailStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{gmailStatus}</div>}
+            <div style={{ fontSize: 12, color: "#4b5563" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
+          </div>
+          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Categories</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
               {CATS.map((c) => (<div key={c} style={{ display: "flex", alignItems: "center", gap: 4, background: "#1f2937", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e5e7eb" }}>{c}<button onClick={async () => { const ns = { ...settings, categories: CATS.filter((x) => x !== c) }; await persistSettings(ns); }} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, padding: 0, marginLeft: 4 }}>×</button></div>))}
@@ -2180,6 +2355,7 @@ export default function App({ onLogout, userEmail }) {
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} />}
       {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} />}
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} />}
+      {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
       {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} />}
       {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} />}
