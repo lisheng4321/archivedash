@@ -152,6 +152,7 @@ create table if not exists gmail_import_queue (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
   message_id text not null,
+  line_item_key text not null default 'single',
   thread_id text,
   subject text,
   sender text,
@@ -161,13 +162,19 @@ create table if not exists gmail_import_queue (
   quantity integer default 1,
   unit_cost numeric default 0,
   total_cost numeric default 0,
+  shipping_total numeric default 0,
+  preorder_date date,
   order_reference text,
   raw jsonb,
   status text default 'draft',
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
-  unique(user_id, message_id)
+  unique(user_id, message_id, line_item_key)
 );
+
+alter table gmail_import_queue add column if not exists line_item_key text not null default 'single';
+alter table gmail_import_queue add column if not exists shipping_total numeric default 0;
+alter table gmail_import_queue add column if not exists preorder_date date;
 
 alter table gmail_import_queue enable row level security;
 

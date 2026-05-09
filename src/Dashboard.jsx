@@ -564,7 +564,7 @@ function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
     price: draft.unit_cost || draft.total_cost || "",
     quantity: Math.max(1, Number(draft.quantity || 1)),
     purchaseDate: draft.email_date || today(),
-    preorderDate: "",
+    preorderDate: draft.preorder_date || "",
     brand: draft.vendor || "",
     inTransit: false,
     tags: draft.order_reference ? `Gmail ${draft.order_reference}` : "Gmail import",
