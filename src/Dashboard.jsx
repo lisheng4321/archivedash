@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { load, save } from "./supabase.js";
+import { load, save, supabase } from "./supabase.js";
 import Calculator from "./Calculator";
 
 const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
@@ -659,6 +659,9 @@ export default function App({ onLogout, userEmail }) {
   const [bulkEditExpOpen, setBulkEditExpOpen] = useState(false);
   const [selectedSales, setSelectedSales] = useState(new Set());
   const [bulkEditSaleOpen, setBulkEditSaleOpen] = useState(false);
+  const [ebayImports, setEbayImports] = useState([]);
+  const [ebayBusy, setEbayBusy] = useState(false);
+  const [ebayStatus, setEbayStatus] = useState("");
 
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
@@ -740,6 +743,56 @@ export default function App({ onLogout, userEmail }) {
   const persistExp = useCallback(async (d) => persist("arch-exp2", d, setExpenses), [persist]);
   const persistSubs = useCallback(async (d) => persist("arch-subs", d, setSubs), [persist]);
   const persistSettings = useCallback(async (d) => { await save("arch-settings", d); setSettings(d); }, []);
+
+  const loadEbayImports = useCallback(async () => {
+    if (!supabase) return;
+    const { data, error } = await supabase
+      .from("ebay_import_queue")
+      .select("*")
+      .eq("status", "draft")
+      .order("sale_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) {
+      setEbayStatus("Could not load eBay imports.");
+      return;
+    }
+    setEbayImports(data || []);
+  }, []);
+
+  const connectEbay = useCallback(async () => {
+    if (!supabase) { setEbayStatus("Supabase is not configured."); return; }
+    setEbayBusy(true); setEbayStatus("Opening eBay sign-in...");
+    const { data, error } = await supabase.functions.invoke("ebay-oauth-start", { body: {} });
+    setEbayBusy(false);
+    if (error || !data?.url) { setEbayStatus(error?.message || "Could not start eBay connection."); return; }
+    window.location.href = data.url;
+  }, []);
+
+  const syncEbayOrders = useCallback(async () => {
+    if (!supabase) { setEbayStatus("Supabase is not configured."); return; }
+    setEbayBusy(true); setEbayStatus("Syncing eBay orders...");
+    const { data, error } = await supabase.functions.invoke("ebay-sync-orders", { body: { days: 30 } });
+    setEbayBusy(false);
+    if (error) { setEbayStatus(error.message || "Could not sync eBay orders."); return; }
+    setEbayStatus(`Synced ${data?.lineItems || 0} eBay line items. ${data?.queuedDrafts || 0} drafts waiting.`);
+    await loadEbayImports();
+  }, [loadEbayImports]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ebay = params.get("ebay");
+    if (ebay === "connected") {
+      setEbayStatus("eBay connected. Sync orders when you're ready.");
+      setPage("settings");
+      loadEbayImports();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (ebay === "declined") {
+      setEbayStatus("eBay connection was cancelled.");
+      setPage("settings");
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [loadEbayImports]);
 
   // Persist active note id
   useEffect(() => { if (activeNoteId) save("arch-notes-active", activeNoteId); }, [activeNoteId]);
@@ -885,6 +938,49 @@ export default function App({ onLogout, userEmail }) {
     if (shared.customer) addCustomer(shared.customer);
     setSelectedInv(new Set());
     setBulkSellOpen(false);
+  };
+
+  const ebayMatchScore = (draft, item) => {
+    const title = (draft.item_title || "").toLowerCase();
+    const name = (item.name || "").toLowerCase();
+    if (!title || !name) return 0;
+    if (title === name) return 100;
+    if (title.includes(name) || name.includes(title)) return 85;
+    const words = name.split(/\s+/).filter((w) => w.length > 2);
+    if (!words.length) return 0;
+    const hits = words.filter((w) => title.includes(w)).length;
+    return Math.round((hits / words.length) * 70);
+  };
+
+  const findEbayMatches = (draft) => [...inventory]
+    .map((item) => ({ item, score: ebayMatchScore(draft, item) }))
+    .filter((m) => m.score >= 45)
+    .sort((a, b) => b.score - a.score);
+
+  const markEbayImport = async (id, status) => {
+    if (!supabase) return;
+    await supabase.from("ebay_import_queue").update({ status, updated_at: new Date().toISOString() }).eq("id", id);
+    await loadEbayImports();
+  };
+
+  const recordEbaySale = async (draft) => {
+    const qty = Math.max(1, Number(draft.quantity || 1));
+    const matches = findEbayMatches(draft).map((m) => m.item).slice(0, qty);
+    if (matches.length < qty) {
+      alert("Not enough matching inventory found. Edit the inventory name/SKU or record this sale manually for now.");
+      return;
+    }
+    const perItemSale = Number(draft.sale_price || 0) / qty;
+    const perItemShip = Number(draft.shipping_price || 0) / qty;
+    const newSales = matches.map((item) => {
+      const fees = Number(draft.platform_fees || 0) / qty;
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: perItemSale, shippingPrice: perItemShip, platformFees: fees, profit: perItemSale - item.price - perItemShip - fees, platform: "eBay AU", saleDate: draft.sale_date || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: draft.buyer_username || "" };
+    });
+    const soldIds = new Set(matches.map((i) => i.id));
+    await persistSales([...newSales, ...sales]);
+    await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
+    if (draft.buyer_username) await addCustomer(draft.buyer_username);
+    await markEbayImport(draft.id, "imported");
   };
 
   const handleDelete = async () => {
@@ -1733,6 +1829,51 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ SETTINGS ══ */}
         {page === "settings" && (<div style={{ padding: pagePad, maxWidth: 600 }}>
           <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>eBay Sales Import</div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Sync recent eBay orders into a review queue before they become dashboard sales.</p>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
+                <button onClick={syncEbayOrders} disabled={ebayBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync orders</button>
+                <button onClick={loadEbayImports} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Load queue</button>
+              </div>
+            </div>
+            {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd", marginBottom: 10 }}>{ebayStatus}</div>}
+            {ebayImports.length === 0 ? (
+              <div style={{ fontSize: 12, color: "#4b5563", padding: "10px 0" }}>No eBay sale drafts loaded.</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 360, overflow: "auto" }}>
+                {ebayImports.map((draft) => {
+                  const matches = findEbayMatches(draft);
+                  const best = matches[0];
+                  const canRecord = !!best && matches.length >= Math.max(1, Number(draft.quantity || 1));
+                  return (
+                    <div key={draft.id} style={{ border: "1px solid #1f2937", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.item_title}</div>
+                          <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.sale_date || "No date"} · qty {draft.quantity || 1} · {draft.buyer_username || "Unknown buyer"}</div>
+                        </div>
+                        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 700 }}>{currency(draft.sale_price)}</div>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ color: best ? "#93c5fd" : "#fbbf24", fontSize: 11 }}>
+                          {best ? `Match: ${best.item.name} (${best.score}%)` : "No inventory match yet"}
+                        </span>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button onClick={() => recordEbaySale(draft)} disabled={!canRecord} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11, opacity: canRecord ? 1 : 0.45 }}>Record sale</button>
+                          <button onClick={() => markEbayImport(draft.id, "ignored")} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#f87171" }}>Ignore</button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Categories</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
