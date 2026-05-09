@@ -8,6 +8,15 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.5.4] — 2026-05-09
+
+### Changed
+- **Add Sale modal** is wider, with more room for inventory titles and per-item pricing.
+- **Sale / Shipping / Fees inputs** now have visible labels and larger columns instead of cramped placeholders.
+- **Sale button text** now capitalises `Sale` consistently.
+
+---
+
 ## [0.5.3] — 2026-05-09
 
 ### Added

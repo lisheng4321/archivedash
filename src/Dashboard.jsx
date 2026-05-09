@@ -13,7 +13,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.5.3";
+const VERSION = "0.5.4";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -168,11 +168,11 @@ function UnsavedDialog({ open, onDiscard, onCancel }) {
   </div>);
 }
 
-function Modal({ open, onClose, title, children, guardedClose }) {
+function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560 }) {
   if (!open) return null;
   const close = guardedClose || onClose;
   return (<div onClick={close} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div onClick={(e) => e.stopPropagation()} style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", width: "100%", maxWidth: 560, maxHeight: "90vh", overflowY: "auto" }}>
+    <div onClick={(e) => e.stopPropagation()} style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", width: "100%", maxWidth, maxHeight: "90vh", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #1f2937" }}>
         <h3 style={{ margin: 0, color: "#f1f5f9", fontSize: 15, fontWeight: 600 }}>{title}</h3>
         <button onClick={close} style={{ background: "none", border: "none", color: "#6b7280", fontSize: 18, cursor: "pointer" }}>✕</button>
@@ -438,7 +438,7 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
   const allPriced = selectedItems.length > 0 && previews.every((p) => p.sp > 0);
 
-  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add sale">
+  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
     <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
       <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Selected</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
@@ -446,16 +446,16 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
       <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </div>
     <Field label="Search inventory"><input value={query} onChange={(e) => setQuery(e.target.value)} style={inp} placeholder="Search name, brand, category..." autoFocus /></Field>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1.15fr", gap: 12, minHeight: 320 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(340px, 0.95fr) minmax(500px, 1.3fr)", gap: 14, minHeight: 360 }}>
       <div style={{ border: "1px solid #1f2937", borderRadius: 8, overflow: "auto", maxHeight: 360, background: "#0d1117" }}>
         {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#4b5563", fontSize: 12 }}>No inventory matches.</div>}
         {filtered.map((item, index) => {
           const checked = selectedIds.has(item.id);
           return (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px 1fr auto", gap: 8, alignItems: "center", padding: "9px 10px", cursor: "pointer", borderBottom: "1px solid #1f293722", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827") }}>
+            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #1f293722", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827") }}>
               <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
               <div style={{ minWidth: 0 }}>
-                <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
                 <div style={{ color: "#6b7280", fontSize: 10 }}>{item.category}{item.brand ? ` · ${item.brand}` : ""} · {item.size || "OS"}</div>
               </div>
               <div style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
@@ -475,18 +475,18 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
                 <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ fontSize: 10, color: "#6b7280" }}>Cost {currency(item.price)}</div></div>
                 <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 72px", gap: 6, alignItems: "center" }}>
-                <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice || ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-                <input type="number" step="0.01" placeholder="Ship $" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-                <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-                <span style={{ fontSize: 12, fontWeight: 700, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right" }}>{sp>0?currency(profit):"—"}</span>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(120px, 1fr)) 92px", gap: 8, alignItems: "end" }}>
+                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" step="0.01" placeholder="Sale price" value={r.salePrice || ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Shipping</div><input type="number" step="0.01" placeholder="Shipping" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Fees</div><input type="number" step="0.01" placeholder="Fees" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{sp>0?currency(profit):"—"}</span>
               </div>
             </div>
           );
         })}
       </div>
     </div>
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(selectedItems, shared, preparedRows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record {selectedItems.length || ""} sale{selectedItems.length === 1 ? "" : "s"}</button></div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(selectedItems, shared, preparedRows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record {selectedItems.length || ""} Sale{selectedItems.length === 1 ? "" : "s"}</button></div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
@@ -520,7 +520,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
   const allPriced = previews.every((p) => p.sp > 0);
 
-  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay sale">
+  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
       <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.item_title}</div>
       <div style={{ color: "#6b7280", fontSize: 11 }}>Order {draft.order_id || "unknown"} · qty {qty} · {draft.buyer_username || "Unknown buyer"}</div>
@@ -551,7 +551,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
         </div>);
       })}
     </div>
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onRecord(draft, { items, shared, rows }); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record sale</button></div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onRecord(draft, { items, shared, rows }); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record Sale</button></div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
@@ -1690,7 +1690,7 @@ export default function App({ onLogout, userEmail }) {
                     {best ? `Match: ${best.item.name} (${best.score}%)` : "No inventory match yet"}
                   </span>
                   <div style={{ display: "flex", gap: 6 }}>
-                    <button onClick={() => reviewEbaySale(draft)} disabled={!canRecord} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11, opacity: canRecord ? 1 : 0.45 }}>Record sale</button>
+                    <button onClick={() => reviewEbaySale(draft)} disabled={!canRecord} style={{ ...primaryBtn, padding: "5px 9px", fontSize: 11, opacity: canRecord ? 1 : 0.45 }}>Record Sale</button>
                     <button onClick={() => markEbayImport(draft.id, "ignored")} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#f87171" }}>Ignore</button>
                   </div>
                 </div>
@@ -1839,7 +1839,7 @@ export default function App({ onLogout, userEmail }) {
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Sales</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{sales.length} sales · {currency(sales.reduce((a, s) => a + s.salePrice, 0))} revenue · {currency(sales.reduce((a, s) => a + s.profit, 0))} profit</p></div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedSales.size > 0 && <><button onClick={() => setBulkEditSaleOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedSales.size}</button><button onClick={deleteSelectedSales} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedSales.size}</button></>}
-              <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add sale</button>
+              <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add Sale</button>
               <button onClick={async () => { setEbayQueueOpen(true); await syncEbayOrders(); }} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync eBay</button>
               <button onClick={async () => { setEbayQueueOpen((v) => !v); if (!ebayImports.length) await loadEbayImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>eBay queue{ebayImports.length ? ` (${ebayImports.length})` : ""}</button>
             </div>
