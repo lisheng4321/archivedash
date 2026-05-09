@@ -771,11 +771,11 @@ export default function App({ onLogout, userEmail }) {
 
   const syncEbayOrders = useCallback(async () => {
     if (!supabase) { setEbayStatus("Supabase is not configured."); return; }
-    setEbayBusy(true); setEbayStatus("Syncing eBay orders...");
+    setEbayBusy(true); setEbayStatus("Syncing eBay orders awaiting postage...");
     const { data, error } = await supabase.functions.invoke("ebay-sync-orders", { body: { days: 30 } });
     setEbayBusy(false);
     if (error) { setEbayStatus(error.message || "Could not sync eBay orders."); return; }
-    setEbayStatus(`Synced ${data?.lineItems || 0} eBay line items. ${data?.queuedDrafts || 0} drafts waiting.`);
+    setEbayStatus(`Synced ${data?.lineItems || 0} eBay line items awaiting postage. ${data?.queuedDrafts || 0} drafts waiting.`);
     await loadEbayImports();
   }, [loadEbayImports]);
 
@@ -1833,11 +1833,11 @@ export default function App({ onLogout, userEmail }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>eBay Sales Import</div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Sync recent eBay orders into a review queue before they become dashboard sales.</p>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Sync eBay orders awaiting postage into a review queue before they become dashboard sales.</p>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
-                <button onClick={syncEbayOrders} disabled={ebayBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync orders</button>
+                <button onClick={syncEbayOrders} disabled={ebayBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync awaiting postage</button>
                 <button onClick={loadEbayImports} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Load queue</button>
               </div>
             </div>

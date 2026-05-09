@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
   const to = new Date().toISOString();
   const orderUrl = new URL("https://api.ebay.com/sell/fulfillment/v1/order");
   orderUrl.searchParams.set("limit", "50");
-  orderUrl.searchParams.set("filter", `creationdate:[${from}..${to}]`);
+  orderUrl.searchParams.set("filter", `creationdate:[${from}..${to}],orderfulfillmentstatus:{NOT_STARTED|IN_PROGRESS}`);
 
   const orderRes = await fetch(orderUrl, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
@@ -120,6 +120,12 @@ Deno.serve(async (req) => {
       });
     }
   }
+
+  await supabase
+    .from("ebay_import_queue")
+    .delete()
+    .eq("user_id", user.id)
+    .eq("status", "draft");
 
   if (rows.length) {
     const { error: upsertError } = await supabase
