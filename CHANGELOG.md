@@ -8,6 +8,18 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.5.2] — 2026-05-09
+
+### Added
+- **Sales-first recording workflow** — Sales now has `+ Add sale`, with searchable inventory selection and support for recording multiple sold items at once.
+- **Sales-page eBay queue** — eBay awaiting-postage drafts can be synced, reviewed, recorded, or ignored directly from Sales.
+
+### Changed
+- **Settings is setup-only for eBay** — Settings now keeps eBay connection controls and sends review work back to Sales.
+- **Sales filter summary** now shows the number of filtered rows instead of repeating the large profit total in the top-right.
+
+---
+
 ## [0.5.1] — 2026-05-05
 
 ### Added
