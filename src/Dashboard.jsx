@@ -83,7 +83,7 @@ const advanceDate = (dateStr, freq) => {
   else if (freq === "fortnightly") d.setDate(d.getDate() + 14);
   else if (freq === "monthly") d.setMonth(d.getMonth() + 1);
   else if (freq === "yearly") d.setFullYear(d.getFullYear() + 1);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 const monthlyEquiv = (amount, freq) => {
@@ -107,15 +107,25 @@ const preorderBadge = (bdays) => {
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const currency = (v) => { const n = Number(v); if (isNaN(n)) return "AU$0"; return (n < 0 ? "-AU$" : "AU$") + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); };
 
-const today = () => new Date().toISOString().slice(0, 10);
-const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+const sydneyDate = (date) => {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (type) => parts.find((p) => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+const today = () => sydneyDate(new Date());
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return sydneyDate(d); };
 const getFilterDate = (range) => {
-  const now = new Date();
+  const [year, month] = today().split("-");
   switch (range) {
     case "1D": return today(); case "1W": return daysAgo(7); case "1M": return daysAgo(30);
-    case "MTD": return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    case "MTD": return `${year}-${month}-01`;
     case "3M": return daysAgo(90);
-    case "YTD": return new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
+    case "YTD": return `${year}-01-01`;
     case "1Y": return daysAgo(365);
     default: return "2000-01-01";
   }

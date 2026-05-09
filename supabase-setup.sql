@@ -176,6 +176,27 @@ alter table gmail_import_queue add column if not exists line_item_key text not n
 alter table gmail_import_queue add column if not exists shipping_total numeric default 0;
 alter table gmail_import_queue add column if not exists preorder_date date;
 
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+    where conname = 'gmail_import_queue_user_id_message_id_key'
+      and conrelid = 'public.gmail_import_queue'::regclass
+  ) then
+    alter table public.gmail_import_queue drop constraint gmail_import_queue_user_id_message_id_key;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'gmail_import_queue_user_id_message_id_line_item_key_key'
+      and conrelid = 'public.gmail_import_queue'::regclass
+  ) then
+    alter table public.gmail_import_queue
+      add constraint gmail_import_queue_user_id_message_id_line_item_key_key
+      unique (user_id, message_id, line_item_key);
+  end if;
+end $$;
+
 alter table gmail_import_queue enable row level security;
 
 do $$

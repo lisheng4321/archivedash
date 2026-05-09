@@ -16,6 +16,17 @@ const money = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const sydneyDate = (date: Date) => {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
 async function refreshAccessToken(refreshToken: string) {
   const clientId = Deno.env.get("EBAY_CLIENT_ID");
   const clientSecret = Deno.env.get("EBAY_CLIENT_SECRET");
@@ -113,7 +124,7 @@ Deno.serve(async (req) => {
         shipping_price: shippingShare,
         platform_fees: 0,
         buyer_username: order?.buyer?.username || order?.buyer?.email || null,
-        sale_date: order.creationDate ? String(order.creationDate).slice(0, 10) : null,
+        sale_date: order.creationDate ? sydneyDate(new Date(order.creationDate)) : null,
         raw: { order, lineItem: li },
         status: "draft",
         updated_at: new Date().toISOString(),

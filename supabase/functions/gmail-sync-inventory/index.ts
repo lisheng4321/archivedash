@@ -16,6 +16,17 @@ const money = (v: unknown) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+const sydneyDate = (date: Date) => {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value || "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+};
+
 const decodeBase64Url = (data = "") => {
   try {
     const normalized = data.replace(/-/g, "+").replace(/_/g, "/");
@@ -67,8 +78,27 @@ const cleanSubject = (subject: string) => subject
   .trim();
 
 const toIsoDate = (value = "") => {
-  const d = new Date(value.replace(/(\d+)(st|nd|rd|th)/gi, "$1"));
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
+  const match = value
+    .replace(/(\d+)(st|nd|rd|th)/gi, "$1")
+    .match(/([0-9]{1,2})\s+([A-Za-z]+)\s+([0-9]{4})/);
+  if (!match) return null;
+  const months: Record<string, string> = {
+    jan: "01", january: "01",
+    feb: "02", february: "02",
+    mar: "03", march: "03",
+    apr: "04", april: "04",
+    may: "05",
+    jun: "06", june: "06",
+    jul: "07", july: "07",
+    aug: "08", august: "08",
+    sep: "09", sept: "09", september: "09",
+    oct: "10", october: "10",
+    nov: "11", november: "11",
+    dec: "12", december: "12",
+  };
+  const day = match[1].padStart(2, "0");
+  const month = months[match[2].toLowerCase()];
+  return month ? `${match[3]}-${month}-${day}` : null;
 };
 
 const findMoneyNearby = (lines: string[], start: number) => {
@@ -129,7 +159,7 @@ function parseDrafts(msg: any) {
     thread_id: msg.threadId,
     subject,
     sender: from,
-    email_date: Number.isNaN(emailDate.getTime()) ? null : emailDate.toISOString().slice(0, 10),
+    email_date: Number.isNaN(emailDate.getTime()) ? null : sydneyDate(emailDate),
     vendor: vendor.slice(0, 120),
     shipping_total: shippingTotal,
     order_reference: orderRef,
@@ -252,6 +282,14 @@ Deno.serve(async (req) => {
   }
 
   if (rows.length) {
+    const messageIds = [...new Set(rows.map((row) => row.message_id))];
+    await supabase
+      .from("gmail_import_queue")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("status", "draft")
+      .in("message_id", messageIds);
+
     const { error: upsertError } = await supabase
       .from("gmail_import_queue")
       .upsert(rows, { onConflict: "user_id,message_id,line_item_key", ignoreDuplicates: true });
