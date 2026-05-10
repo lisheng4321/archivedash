@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, genId, currency, today, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, renderTemplate, stripHtml, genId, currency, today, monthlyEquiv, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
 
 // ─── Edit Inv Modal ───
 function EditInvModal({ item, onSave, onClose, categories, customers }) {

@@ -8,6 +8,14 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.5] - 2026-05-10
+
+### Fixed
+- **Notepad crash after refactor** by restoring the React hook import needed by the split-out notepad editor.
+- **Subscription modal imports** restored after the dashboard module split.
+
+---
+
 ## [0.6.4] - 2026-05-10
 
 ### Changed
