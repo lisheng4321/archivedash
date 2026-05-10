@@ -8,6 +8,13 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.2] - 2026-05-10
+
+### Changed
+- **Dashboard month comparison** now uses a rolling same-period comparison, such as May 1-8 vs April 1-8, instead of comparing against the full previous month.
+
+---
+
 ## [0.6.1] - 2026-05-09
 
 ### Added

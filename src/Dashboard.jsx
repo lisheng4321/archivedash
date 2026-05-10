@@ -13,7 +13,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.1";
+const VERSION = "0.6.2";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -1462,23 +1462,26 @@ export default function App({ onLogout, userEmail }) {
   }, [inventory, sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
 
   const monthComparison = useMemo(() => {
-    const [year, month] = today().split("-").map(Number);
+    const todayStr = today();
+    const [year, month, day] = todayStr.split("-").map(Number);
     const currentStart = `${year}-${String(month).padStart(2, "0")}-01`;
     const previousMonthDate = new Date(year, month - 2, 1);
     const previousYear = previousMonthDate.getFullYear();
     const previousMonth = previousMonthDate.getMonth() + 1;
     const previousStart = `${previousYear}-${String(previousMonth).padStart(2, "0")}-01`;
-    const previousEnd = `${previousYear}-${String(previousMonth).padStart(2, "0")}-${String(new Date(previousYear, previousMonth, 0).getDate()).padStart(2, "0")}`;
+    const previousLastDay = new Date(previousYear, previousMonth, 0).getDate();
+    const previousEndDay = Math.min(day, previousLastDay);
+    const previousEnd = `${previousYear}-${String(previousMonth).padStart(2, "0")}-${String(previousEndDay).padStart(2, "0")}`;
     const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
-    const currentSalesProfit = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= today() && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
-    const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= today()).reduce((a, e) => a + (e.amount || 0), 0);
+    const currentSalesProfit = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= todayStr && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
+    const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= todayStr).reduce((a, e) => a + (e.amount || 0), 0);
     const previousSalesProfit = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
     const previousExpenses = expenses.filter((e) => e.purchaseDate >= previousStart && e.purchaseDate <= previousEnd).reduce((a, e) => a + (e.amount || 0), 0);
     const current = currentSalesProfit - currentExpenses;
     const previous = previousSalesProfit - previousExpenses;
     const delta = current - previous;
     const pct = previous !== 0 ? (delta / Math.abs(previous)) * 100 : null;
-    return { current, previous, delta, pct };
+    return { current, previous, delta, pct, currentStart, currentEnd: todayStr, previousStart, previousEnd };
   }, [sales, expenses, dashCat, dashPlat]);
 
   // ─── Preorders within the reminder window ───
@@ -1984,8 +1987,8 @@ export default function App({ onLogout, userEmail }) {
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                   <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div>
-                  <div title={`This month: ${currency(monthComparison.current)} · Previous month: ${currency(monthComparison.previous)}`} style={{ fontSize: 12, color: monthComparison.delta >= 0 ? "#34d399" : "#f87171", background: monthComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${monthComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
-                    {monthComparison.pct === null ? "new vs last month" : `${monthComparison.delta >= 0 ? "+" : ""}${monthComparison.pct.toFixed(1)}% vs last month`}
+                  <div title={`Current period ${monthComparison.currentStart} to ${monthComparison.currentEnd}: ${currency(monthComparison.current)} · Previous period ${monthComparison.previousStart} to ${monthComparison.previousEnd}: ${currency(monthComparison.previous)}`} style={{ fontSize: 12, color: monthComparison.delta >= 0 ? "#34d399" : "#f87171", background: monthComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${monthComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
+                    {monthComparison.pct === null ? "new vs same period" : `${monthComparison.delta >= 0 ? "+" : ""}${monthComparison.pct.toFixed(1)}% vs same period`}
                   </div>
                 </div>
               </div>
