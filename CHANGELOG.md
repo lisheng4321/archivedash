@@ -8,10 +8,18 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.4] - 2026-05-10
+
+### Changed
+- **Dashboard refactor** splits shared constants/helpers, modals, and Inventory/Sales/Health page views out of the main dashboard file.
+- **System Health** no longer warns about old eBay sales missing fee data or sales with zero cost stock.
+
+---
+
 ## [0.6.3] - 2026-05-10
 
 ### Added
-- **System Health page** with Supabase/account checks, eBay and Gmail queue status, and data quality warnings for missing fees, missing costs, and released preorders.
+- **System Health page** with Supabase/account checks, eBay and Gmail queue status, and preorder warnings.
 
 ### Changed
 - **Mobile navigation** now sits at the bottom of the screen instead of taking left-side space.
