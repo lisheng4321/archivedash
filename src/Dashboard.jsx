@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { load, save, supabase } from "./supabase.js";
+import { load, save, supabase, isSupabaseConfigured } from "./supabase.js";
 import Calculator from "./Calculator";
 
 const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
@@ -13,7 +13,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.2";
+const VERSION = "0.6.3";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -1501,6 +1501,31 @@ export default function App({ onLogout, userEmail }) {
     return { active, overdue, monthlyBurn, annualCost: monthlyBurn * 12 };
   }, [subs]);
 
+  const health = useMemo(() => {
+    const ebayMissingFees = sales.filter((s) => (s.platform || "").toLowerCase().includes("ebay") && !(Number(s.platformFees) > 0)).length;
+    const salesMissingCost = sales.filter((s) => !(Number(s.costPrice) > 0)).length;
+    const releasedPreorders = inventory.filter((i) => {
+      const bdays = businessDaysUntil(i.preorderDate);
+      return bdays !== null && bdays < 0;
+    }).length;
+    const emptyCategories = CATS.length === 0;
+    const emptyPlatforms = PLATS.length === 0;
+    const checks = [
+      { key: "supabase", label: "Supabase", state: isSupabaseConfigured ? "ok" : "issue", detail: isSupabaseConfigured ? "Frontend keys found." : "Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY." },
+      { key: "account", label: "Account", state: userEmail ? "ok" : "warn", detail: userEmail ? `Signed in as ${userEmail}.` : "No signed-in user detected." },
+      { key: "ebay", label: "eBay", state: !isSupabaseConfigured ? "warn" : ebayStatus.startsWith("Could not") ? "issue" : ebayImports.length > 0 ? "action" : "ok", detail: ebayImports.length > 0 ? `${ebayImports.length} sale draft${ebayImports.length === 1 ? "" : "s"} waiting.` : ebayStatus || "Ready to connect or sync." },
+      { key: "gmail", label: "Gmail", state: !isSupabaseConfigured ? "warn" : gmailStatus.startsWith("Could not") ? "issue" : gmailImports.length > 0 ? "action" : "ok", detail: gmailImports.length > 0 ? `${gmailImports.length} inventory draft${gmailImports.length === 1 ? "" : "s"} waiting.` : gmailStatus || "Ready to connect or sync." },
+      { key: "fees", label: "Sale fees", state: ebayMissingFees > 0 ? "warn" : "ok", detail: ebayMissingFees > 0 ? `${ebayMissingFees} eBay sale${ebayMissingFees === 1 ? "" : "s"} missing fee data.` : "No obvious missing eBay fees." },
+      { key: "costs", label: "Sale costs", state: salesMissingCost > 0 ? "warn" : "ok", detail: salesMissingCost > 0 ? `${salesMissingCost} sale${salesMissingCost === 1 ? "" : "s"} missing cost price.` : "Sale cost data looks filled." },
+      { key: "preorders", label: "Preorders", state: releasedPreorders > 0 ? "action" : "ok", detail: releasedPreorders > 0 ? `${releasedPreorders} preorder${releasedPreorders === 1 ? "" : "s"} may already be released.` : "No released preorder flags." },
+      { key: "settings", label: "Lists", state: emptyCategories || emptyPlatforms ? "issue" : "ok", detail: emptyCategories || emptyPlatforms ? "Categories or platforms need at least one entry." : `${CATS.length} categories and ${PLATS.length} platforms configured.` },
+    ];
+    const issues = checks.filter((c) => c.state === "issue").length;
+    const warnings = checks.filter((c) => c.state === "warn").length;
+    const actions = checks.filter((c) => c.state === "action").length;
+    return { checks, issues, warnings, actions, ebayMissingFees, salesMissingCost, releasedPreorders };
+  }, [sales, inventory, CATS, PLATS, userEmail, ebayStatus, gmailStatus, ebayImports.length, gmailImports.length]);
+
   const sortedSubs = useMemo(() => [...subs].sort((a, b) => (a.nextDue || "").localeCompare(b.nextDue || "")), [subs]);
 
   // ─── Filtered Inventory ───
@@ -1634,19 +1659,21 @@ export default function App({ onLogout, userEmail }) {
     { id: "subs", icon: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M20.49 15a9 9 0 01-14.85 3.36L1 14" },
     { id: "notepad", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" },
     { id: "calculator", icon: "M4 4a2 2 0 012-2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2z M8 6h8 M16 14v4 M16 10h0.01 M12 10h0.01 M8 10h0.01 M12 14h0.01 M8 14h0.01 M12 18h0.01 M8 18h0.01" },
+    { id: "health", icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
     { id: "backup", icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3" },
     { id: "settings", icon: "M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z M12 8a4 4 0 100 8 4 4 0 000-8z" },
   ];
 
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
   const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
-  const mainNavItems = navItems.filter((n) => !["backup", "settings"].includes(n.id));
-  const utilityNavItems = navItems.filter((n) => ["backup", "settings"].includes(n.id));
+  const mainNavItems = navItems.filter((n) => !["health", "backup", "settings"].includes(n.id));
+  const utilityNavItems = navItems.filter((n) => ["health", "backup", "settings"].includes(n.id));
   const renderNavButton = (n) => (
-    <button key={n.id} onClick={() => setPage(n.id)} title={n.id} style={{ width: 38, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative" }}>
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
+    <button key={n.id} onClick={() => setPage(n.id)} title={n.id} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0 }}>
+      <svg width={isMobile ? 17 : 18} height={isMobile ? 17 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
       {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
+      {n.id === "health" && (health.issues > 0 || health.warnings > 0 || health.actions > 0) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: health.issues > 0 ? "#ef4444" : health.warnings > 0 ? "#f59e0b" : "#60a5fa" }} />}
     </button>
   );
 
@@ -1923,18 +1950,18 @@ export default function App({ onLogout, userEmail }) {
   );
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#0b0f19", color: "#e5e7eb", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
+    <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "#0b0f19", color: "#e5e7eb", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
       <style>{`.np-edit ul,.np-edit ol{padding-left:24px;margin:6px 0}.np-edit li{margin:3px 0}.np-edit input[type="checkbox"]{margin-right:6px;cursor:pointer;accent-color:#2563eb;vertical-align:middle}.np-edit label{display:inline-flex;align-items:flex-start;gap:6px;cursor:default}.np-edit label input[type="checkbox"]:checked + *,.np-edit input[type="checkbox"]:checked ~ *{opacity:0.55}`}</style>
       {/* SIDEBAR */}
-      <div style={{ width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
-        <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>
+      <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #1f2937", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
+        {!isMobile && <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>}
         {mainNavItems.map(renderNavButton)}
-        <div style={{ width: 24, height: 1, background: "#1f2937", margin: "9px 0 7px", opacity: 0.9 }} />
+        {!isMobile && <div style={{ width: 24, height: 1, background: "#1f2937", margin: "9px 0 7px", opacity: 0.9 }} />}
         {utilityNavItems.map(renderNavButton)}
-        <div style={{ marginTop: "auto", paddingBottom: 12, fontSize: 9, color: "#374151", letterSpacing: 0.5, fontWeight: 600 }} title="Version">v{VERSION}</div>
+        {!isMobile && <div style={{ marginTop: "auto", paddingBottom: 12, fontSize: 9, color: "#374151", letterSpacing: 0.5, fontWeight: 600 }} title="Version">v{VERSION}</div>}
       </div>
 
-      <div style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
+      <div style={{ flex: 1, overflow: "auto", minWidth: 0, paddingBottom: isMobile ? 66 : 0 }}>
         <TopBar saveStatus={saveStatus} isMobile={isMobile} />
 
         {/* ══ DASHBOARD ══ */}
@@ -2264,6 +2291,79 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ CALCULATOR ══ */}
         {page === "calculator" && <Calculator isMobile={isMobile} />}
 
+        {/* ══ HEALTH ══ */}
+        {page === "health" && (<div style={{ padding: pagePad, maxWidth: 980 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>System Health</h2>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>
+                {health.issues} issue{health.issues === 1 ? "" : "s"} · {health.warnings} warning{health.warnings === 1 ? "" : "s"} · {health.actions} queue action{health.actions === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button onClick={loadEbayImports} disabled={!supabase || ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Refresh eBay</button>
+              <button onClick={loadGmailImports} disabled={!supabase || gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Refresh Gmail</button>
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12, marginBottom: 14 }}>
+            {health.checks.map((check) => {
+              const colors = check.state === "ok" ? { dot: "#34d399", bg: "#0d1f17", border: "#16653466", text: "#86efac", label: "OK" }
+                : check.state === "issue" ? { dot: "#ef4444", bg: "#1f1215", border: "#7f1d1d66", text: "#fca5a5", label: "Fix" }
+                : check.state === "action" ? { dot: "#60a5fa", bg: "#0f1a2e", border: "#2563eb55", text: "#93c5fd", label: "Review" }
+                : { dot: "#f59e0b", bg: "#241a08", border: "#92400e66", text: "#fbbf24", label: "Check" };
+              return (
+                <div key={check.key} style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
+                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: colors.dot, flexShrink: 0 }} />
+                      <span style={{ color: "#f1f5f9", fontWeight: 700, fontSize: 14 }}>{check.label}</span>
+                    </div>
+                    <span style={{ color: colors.text, background: colors.bg, border: `1px solid ${colors.border}`, borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{colors.label}</span>
+                  </div>
+                  <div style={{ color: "#6b7280", fontSize: 12, lineHeight: 1.45 }}>{check.detail}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.1fr 0.9fr", gap: 12 }}>
+            <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 18 }}>
+              <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700, marginBottom: 10 }}>Queues</div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
+                <div style={{ background: "#0d1117", border: "1px solid #1f2937", borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>eBay awaiting postage</div>
+                  <div style={{ fontSize: 24, color: ebayImports.length ? "#60a5fa" : "#f1f5f9", fontWeight: 800, marginBottom: 10 }}>{ebayImports.length}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); }} style={{ ...primaryBtn, padding: "6px 10px", fontSize: 12 }}>Open Sales</button>
+                    <button onClick={syncEbayOrders} disabled={!supabase || ebayBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync</button>
+                  </div>
+                </div>
+                <div style={{ background: "#0d1117", border: "1px solid #1f2937", borderRadius: 10, padding: 14 }}>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Gmail inventory drafts</div>
+                  <div style={{ fontSize: 24, color: gmailImports.length ? "#60a5fa" : "#f1f5f9", fontWeight: 800, marginBottom: 10 }}>{gmailImports.length}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); }} style={{ ...primaryBtn, padding: "6px 10px", fontSize: 12 }}>Open Inventory</button>
+                    <button onClick={syncGmailInventory} disabled={!supabase || gmailBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 18 }}>
+              <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700, marginBottom: 10 }}>Data Quality</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: "#6b7280" }}>Inventory items</span><span style={{ color: "#e5e7eb", fontWeight: 700 }}>{inventory.length}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: "#6b7280" }}>Recorded sales</span><span style={{ color: "#e5e7eb", fontWeight: 700 }}>{sales.length}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: "#6b7280" }}>eBay sales missing fees</span><span style={{ color: health.ebayMissingFees ? "#fbbf24" : "#34d399", fontWeight: 700 }}>{health.ebayMissingFees}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: "#6b7280" }}>Sales missing cost</span><span style={{ color: health.salesMissingCost ? "#fbbf24" : "#34d399", fontWeight: 700 }}>{health.salesMissingCost}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}><span style={{ color: "#6b7280" }}>Released preorder flags</span><span style={{ color: health.releasedPreorders ? "#60a5fa" : "#34d399", fontWeight: 700 }}>{health.releasedPreorders}</span></div>
+              </div>
+              <button onClick={() => setPage("settings")} style={{ ...ghostBtn, width: "100%", marginTop: 14, padding: "8px 10px", fontSize: 12 }}>Open Settings</button>
+            </div>
+          </div>
+        </div>)}
+
         {/* ══ BACKUP ══ */}
         {page === "backup" && (<div style={{ padding: pagePad, maxWidth: 600 }}>
           <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h2>
@@ -2353,7 +2453,7 @@ export default function App({ onLogout, userEmail }) {
         <button
           onClick={() => setNotepadOpen(true)}
           title="Quick notes"
-          style={{ position: "fixed", bottom: 18, right: 18, width: 46, height: 46, borderRadius: "50%", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", boxShadow: "0 6px 16px rgba(37,99,235,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, transition: "transform 150ms" }}
+          style={{ position: "fixed", bottom: isMobile ? 74 : 18, right: 18, width: 46, height: 46, borderRadius: "50%", background: "#2563eb", color: "#fff", border: "none", cursor: "pointer", boxShadow: "0 6px 16px rgba(37,99,235,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 80, transition: "transform 150ms" }}
           onMouseEnter={(e) => e.currentTarget.style.transform = "scale(1.05)"}
           onMouseLeave={(e) => e.currentTarget.style.transform = "scale(1)"}
         >

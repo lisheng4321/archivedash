@@ -8,6 +8,17 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.3] - 2026-05-10
+
+### Added
+- **System Health page** with Supabase/account checks, eBay and Gmail queue status, and data quality warnings for missing fees, missing costs, and released preorders.
+
+### Changed
+- **Mobile navigation** now sits at the bottom of the screen instead of taking left-side space.
+- **Quick notes button** moves above the mobile nav so it stays reachable without overlap.
+
+---
+
 ## [0.6.2] - 2026-05-10
 
 ### Changed
