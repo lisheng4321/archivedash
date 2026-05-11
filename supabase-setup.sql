@@ -98,12 +98,20 @@ create table if not exists ebay_import_queue (
   buyer_full_name text,
   buyer_email text,
   buyer_phone text,
+  buyer_company text,
   buyer_address_line1 text,
   buyer_address_line2 text,
   buyer_city text,
   buyer_state text,
   buyer_postcode text,
   buyer_country text,
+  buyer_county text,
+  buyer_contact_source text,
+  shipping_carrier_code text,
+  shipping_service_code text,
+  ship_to_reference_id text,
+  ebay_supported_fulfillment boolean default false,
+  fulfillment_instruction_type text,
   sale_date date,
   raw jsonb,
   status text default 'draft',
@@ -115,12 +123,20 @@ create table if not exists ebay_import_queue (
 alter table ebay_import_queue add column if not exists buyer_full_name text;
 alter table ebay_import_queue add column if not exists buyer_email text;
 alter table ebay_import_queue add column if not exists buyer_phone text;
+alter table ebay_import_queue add column if not exists buyer_company text;
 alter table ebay_import_queue add column if not exists buyer_address_line1 text;
 alter table ebay_import_queue add column if not exists buyer_address_line2 text;
 alter table ebay_import_queue add column if not exists buyer_city text;
 alter table ebay_import_queue add column if not exists buyer_state text;
 alter table ebay_import_queue add column if not exists buyer_postcode text;
 alter table ebay_import_queue add column if not exists buyer_country text;
+alter table ebay_import_queue add column if not exists buyer_county text;
+alter table ebay_import_queue add column if not exists buyer_contact_source text;
+alter table ebay_import_queue add column if not exists shipping_carrier_code text;
+alter table ebay_import_queue add column if not exists shipping_service_code text;
+alter table ebay_import_queue add column if not exists ship_to_reference_id text;
+alter table ebay_import_queue add column if not exists ebay_supported_fulfillment boolean default false;
+alter table ebay_import_queue add column if not exists fulfillment_instruction_type text;
 
 alter table ebay_import_queue enable row level security;
 

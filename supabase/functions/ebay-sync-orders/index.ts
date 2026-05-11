@@ -111,13 +111,17 @@ Deno.serve(async (req) => {
     const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
     const shippingTotal = money(order?.pricingSummary?.deliveryCost?.value || order?.pricingSummary?.shippingCost?.value);
     const shippingShare = lineItems.length ? shippingTotal / lineItems.length : 0;
-    const shipTo = order?.fulfillmentStartInstructions?.[0]?.shippingStep?.shipTo || {};
+    const fulfillment = order?.fulfillmentStartInstructions?.[0] || {};
+    const shippingStep = fulfillment?.shippingStep || {};
+    const shipTo = shippingStep?.shipTo || {};
     const buyerContact = order?.buyer?.buyerRegistrationAddress || {};
-    const contact = Object.keys(shipTo || {}).length ? shipTo : buyerContact;
+    const contactSource = Object.keys(shipTo || {}).length ? "shipTo" : Object.keys(buyerContact || {}).length ? "buyerRegistrationAddress" : null;
+    const contact = contactSource === "shipTo" ? shipTo : buyerContact;
     const address = contact?.contactAddress || buyerContact?.contactAddress || {};
     const phone = contact?.primaryPhone?.phoneNumber || buyerContact?.primaryPhone?.phoneNumber || null;
     const email = contact?.email || buyerContact?.email || order?.buyer?.email || null;
     const fullName = contact?.fullName || buyerContact?.fullName || null;
+    const companyName = contact?.companyName || buyerContact?.companyName || null;
     for (const li of lineItems) {
       const lineId = String(li.lineItemId || li.legacyItemId || `${order.orderId}-${rows.length}`);
       rows.push({
@@ -134,12 +138,20 @@ Deno.serve(async (req) => {
         buyer_full_name: fullName,
         buyer_email: email,
         buyer_phone: phone,
+        buyer_company: companyName,
         buyer_address_line1: address?.addressLine1 || null,
         buyer_address_line2: address?.addressLine2 || null,
         buyer_city: address?.city || null,
         buyer_state: address?.stateOrProvince || null,
         buyer_postcode: address?.postalCode || null,
         buyer_country: address?.countryCode || null,
+        buyer_county: address?.county || null,
+        buyer_contact_source: contactSource,
+        shipping_carrier_code: shippingStep?.shippingCarrierCode || null,
+        shipping_service_code: shippingStep?.shippingServiceCode || null,
+        ship_to_reference_id: shippingStep?.shipToReferenceId || null,
+        ebay_supported_fulfillment: Boolean(fulfillment?.ebaySupportedFulfillment || false),
+        fulfillment_instruction_type: fulfillment?.fulfillmentInstructionsType || null,
         sale_date: order.creationDate ? sydneyDate(new Date(order.creationDate)) : null,
         raw: { order, lineItem: li },
         status: "draft",

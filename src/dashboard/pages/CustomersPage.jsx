@@ -119,7 +119,7 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, setAddSaleO
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || customer.name}</div>
-          <div style={{ color: "#6b7280", fontSize: 12 }}>{customer.orderCount} orders - {currency(customer.averageOrder)} avg order</div>
+        <div style={{ color: "#6b7280", fontSize: 12 }}>{customer.orderCount} orders - {currency(customer.averageOrder)} avg order{p.contactSource ? ` - ${p.contactSource}` : ""}</div>
         </div>
         <button onClick={() => setAddSaleOpen(true)} style={{ ...primaryBtn, padding: "7px 10px", fontSize: 12, flexShrink: 0 }}>Record Sale</button>
       </div>
@@ -138,15 +138,32 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, setAddSaleO
       </Section>
 
       <Section title="Contact">
+        <Field label="Company"><input value={p.companyName || ""} onChange={(e) => update("companyName", e.target.value)} style={inp} placeholder="Company / shipping partner" /></Field>
         <Field label="Email"><input value={p.email || ""} onChange={(e) => update("email", e.target.value)} style={inp} placeholder="buyer@email.com" /></Field>
         <Field label="Phone"><input value={p.phone || ""} onChange={(e) => update("phone", e.target.value)} style={inp} placeholder="Phone number" /></Field>
         <Field label="Address"><textarea value={p.address || ""} onChange={(e) => update("address", e.target.value)} style={{ ...inp, minHeight: 72, resize: "vertical" }} placeholder="Shipping/contact address" /></Field>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+          <Field label="Suburb / city"><input value={p.city || ""} onChange={(e) => update("city", e.target.value)} style={inp} /></Field>
+          <Field label="State"><input value={p.state || ""} onChange={(e) => update("state", e.target.value)} style={inp} /></Field>
+          <Field label="Postcode"><input value={p.postcode || ""} onChange={(e) => update("postcode", e.target.value)} style={inp} /></Field>
+          <Field label="Country"><input value={p.country || ""} onChange={(e) => update("country", e.target.value)} style={inp} /></Field>
+        </div>
       </Section>
 
       <Section title="Platform IDs">
         <Field label="eBay username"><input value={p.ebayUsername || ""} onChange={(e) => update("ebayUsername", e.target.value)} style={inp} /></Field>
+        <Field label="eBay buyer ID"><input value={p.ebayBuyerId || ""} onChange={(e) => update("ebayBuyerId", e.target.value)} style={inp} /></Field>
         <Field label="Facebook name"><input value={p.facebookName || ""} onChange={(e) => update("facebookName", e.target.value)} style={inp} /></Field>
         <Field label="Discord handle"><input value={p.discordHandle || ""} onChange={(e) => update("discordHandle", e.target.value)} style={inp} /></Field>
+      </Section>
+
+      <Section title="eBay Fulfillment">
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 8 }}>
+          <Field label="Carrier"><input value={p.shippingCarrier || ""} onChange={(e) => update("shippingCarrier", e.target.value)} style={inp} /></Field>
+          <Field label="Service"><input value={p.shippingService || ""} onChange={(e) => update("shippingService", e.target.value)} style={inp} /></Field>
+          <Field label="Reference ID"><input value={p.shipToReferenceId || ""} onChange={(e) => update("shipToReferenceId", e.target.value)} style={inp} /></Field>
+          <Field label="Last order"><input value={p.lastEbayOrderId || ""} onChange={(e) => update("lastEbayOrderId", e.target.value)} style={inp} /></Field>
+        </div>
       </Section>
 
       <Section title="Notes">

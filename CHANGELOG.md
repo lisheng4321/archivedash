@@ -8,6 +8,15 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.9] - 2026-05-11
+
+### Added
+- **Drag-to-reorder module icons** in the left sidebar/top mobile navigation, persisted in settings.
+- **Richer eBay customer capture** for company, city, state, postcode, county, shipping carrier/service, fulfillment type, and shipment reference fields when eBay returns them.
+- **Expanded customer profiles** with editable company, address parts, eBay buyer ID, shipping service details, and last eBay order reference.
+
+---
+
 ## [0.6.8] - 2026-05-11
 
 ### Added

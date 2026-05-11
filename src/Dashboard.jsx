@@ -19,7 +19,7 @@ export default function App({ onLogout, userEmail }) {
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {} });
+  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [] });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -72,6 +72,7 @@ export default function App({ onLogout, userEmail }) {
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
   const [backupStatus, setBackupStatus] = useState("");
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
+  const [navDragId, setNavDragId] = useState(null);
 
   // Settings UI
   const [newCat, setNewCat] = useState(""); const [newPlat, setNewPlat] = useState(""); const [newCust, setNewCust] = useState("");
@@ -130,7 +131,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {} }),
+        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [] }),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
@@ -156,7 +157,7 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {} });
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [] });
       setNotes(initialNotes);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
@@ -521,9 +522,26 @@ export default function App({ onLogout, userEmail }) {
       name: draft.buyer_full_name || shared.customer,
       defaultPlatform: "eBay",
       ebayUsername: draft.buyer_username || shared.customer,
+      ebayBuyerId: draft.buyer_username || shared.customer,
       email: draft.buyer_email,
       phone: draft.buyer_phone,
+      companyName: draft.buyer_company,
       address: [draft.buyer_address_line1, draft.buyer_address_line2, draft.buyer_city, draft.buyer_state, draft.buyer_postcode, draft.buyer_country].filter(Boolean).join(", "),
+      addressLine1: draft.buyer_address_line1,
+      addressLine2: draft.buyer_address_line2,
+      city: draft.buyer_city,
+      state: draft.buyer_state,
+      postcode: draft.buyer_postcode,
+      country: draft.buyer_country,
+      county: draft.buyer_county,
+      shippingCarrier: draft.shipping_carrier_code,
+      shippingService: draft.shipping_service_code,
+      shipToReferenceId: draft.ship_to_reference_id,
+      fulfillmentType: draft.fulfillment_instruction_type,
+      ebaySupportedFulfillment: draft.ebay_supported_fulfillment,
+      contactSource: draft.buyer_contact_source,
+      lastEbayOrderId: draft.order_id,
+      lastImportedAt: new Date().toISOString(),
     }).filter(([, value]) => value));
     if (shared.customer || eBayProfile.name) await addCustomer(shared.customer || eBayProfile.name, eBayProfile);
     await markEbayImport(draft.id, "imported");
@@ -1001,8 +1019,19 @@ export default function App({ onLogout, userEmail }) {
         row.name,
         row.profile.email,
         row.profile.phone,
+        row.profile.companyName,
         row.profile.address,
+        row.profile.addressLine1,
+        row.profile.addressLine2,
+        row.profile.city,
+        row.profile.state,
+        row.profile.postcode,
+        row.profile.country,
         row.profile.ebayUsername,
+        row.profile.ebayBuyerId,
+        row.profile.shippingCarrier,
+        row.profile.shippingService,
+        row.profile.shipToReferenceId,
         row.profile.facebookName,
         row.profile.discordHandle,
         row.profile.notes,
@@ -1108,10 +1137,23 @@ export default function App({ onLogout, userEmail }) {
 
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
   const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
-  const mainNavItems = navItems.filter((n) => !["health", "backup", "settings"].includes(n.id));
-  const utilityNavItems = navItems.filter((n) => ["health", "backup", "settings"].includes(n.id));
+  const navRank = new Map((Array.isArray(settings.navOrder) ? settings.navOrder : []).map((id, index) => [id, index]));
+  const orderedNavItems = [...navItems].sort((a, b) => (navRank.has(a.id) ? navRank.get(a.id) : navItems.findIndex((n) => n.id === a.id) + 1000) - (navRank.has(b.id) ? navRank.get(b.id) : navItems.findIndex((n) => n.id === b.id) + 1000));
+  const moveNavItem = (fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+    const ids = orderedNavItems.map((n) => n.id);
+    const fromIndex = ids.indexOf(fromId);
+    const toIndex = ids.indexOf(toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...ids];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    persistSettings({ ...settings, navOrder: next });
+  };
+  const mainNavItems = orderedNavItems.filter((n) => !["health", "backup", "settings"].includes(n.id));
+  const utilityNavItems = orderedNavItems.filter((n) => ["health", "backup", "settings"].includes(n.id));
   const renderNavButton = (n) => (
-    <button key={n.id} onClick={() => setPage(n.id)} title={n.id} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0 }}>
+    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => setPage(n.id)} title={`${n.id} - drag to reorder`} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       <svg width={isMobile ? 17 : 18} height={isMobile ? 17 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
       {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
