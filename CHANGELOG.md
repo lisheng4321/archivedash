@@ -8,6 +8,29 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.7] - 2026-05-11
+
+### Added
+- **Editable fee calculators** for eBay categories and other selling platforms.
+- **Calculator manager** with add, edit, duplicate, delete, and reset-defaults controls.
+- **Saved calculator presets** using the app data layer with a browser fallback under `arch-fee-calculators`.
+
+### Changed
+- **Calculator page** is now a general Fee Calculator instead of a fixed eBay-only calculator.
+
+---
+
+## [0.6.6] - 2026-05-10
+
+### Added
+- **Dashboard action strip** for eBay queue, Gmail queue, preorders, overdue subscriptions, and aged stock.
+- **Inventory aging card** with average days held, 90+ day count, aged value, and oldest stock list.
+- **Inventory velocity card** with 30-day sold count, sell-through, stock cover, and fastest categories.
+- **Reports page** with P&L, tax snapshot, platform/category/expense breakdowns, and CSV export.
+- **Dashboard card controls** so cards can be hidden or restored from the Dashboard.
+
+---
+
 ## [0.6.5] - 2026-05-10
 
 ### Fixed

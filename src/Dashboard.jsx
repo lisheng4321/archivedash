@@ -3,6 +3,7 @@ import { load, save, supabase, isSupabaseConfigured } from "./supabase.js";
 import Calculator from "./Calculator";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
 import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
+import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
 import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
@@ -17,7 +18,7 @@ export default function App({ onLogout, userEmail }) {
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [] });
+  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], dashboardCards: {} });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -68,6 +69,7 @@ export default function App({ onLogout, userEmail }) {
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
   const [backupStatus, setBackupStatus] = useState("");
+  const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
 
   // Settings UI
   const [newCat, setNewCat] = useState(""); const [newPlat, setNewPlat] = useState(""); const [newCust, setNewCust] = useState("");
@@ -78,6 +80,46 @@ export default function App({ onLogout, userEmail }) {
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0] };
   const [expForm, setExpForm] = useState(emptyExp);
+  const dashboardCardDefaults = {
+    actionStrip: true,
+    preorderAlerts: true,
+    netProfitGraph: true,
+    salesIncome: true,
+    netProfit: true,
+    grossProfit: true,
+    inventoryValue: true,
+    salesCount: true,
+    avgOrderValue: true,
+    netMargin: true,
+    grossMargin: true,
+    totalExpenses: true,
+    platformFees: true,
+    monthlySubs: true,
+    aging: true,
+    velocity: true,
+    recentSales: true,
+    recentInventory: true,
+  };
+  const dashboardCardLabels = [
+    ["actionStrip", "Action strip"],
+    ["preorderAlerts", "Preorder alerts"],
+    ["netProfitGraph", "Net profit graph"],
+    ["salesIncome", "Sales income"],
+    ["netProfit", "Net profit"],
+    ["grossProfit", "Gross profit"],
+    ["inventoryValue", "Inventory value"],
+    ["salesCount", "Sales count"],
+    ["avgOrderValue", "Avg. order value"],
+    ["netMargin", "Net margin"],
+    ["grossMargin", "Gross margin"],
+    ["totalExpenses", "Total expenses"],
+    ["platformFees", "Platform fees"],
+    ["monthlySubs", "Monthly subs"],
+    ["aging", "Aging"],
+    ["velocity", "Velocity"],
+    ["recentSales", "Recent sales"],
+    ["recentInventory", "Recent inventory"],
+  ];
 
   useEffect(() => {
     (async () => {
@@ -86,7 +128,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [] }),
+        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], dashboardCards: {} }),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
@@ -112,7 +154,7 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings(st);
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], dashboardCards: st.dashboardCards || {} });
       setNotes(initialNotes);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
@@ -143,6 +185,8 @@ export default function App({ onLogout, userEmail }) {
   const persistExp = useCallback(async (d) => persist("arch-exp2", d, setExpenses), [persist]);
   const persistSubs = useCallback(async (d) => persist("arch-subs", d, setSubs), [persist]);
   const persistSettings = useCallback(async (d) => { await save("arch-settings", d); setSettings(d); }, []);
+  const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
+  const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
 
   const loadEbayImports = useCallback(async () => {
     if (!supabase) return;
@@ -621,6 +665,14 @@ export default function App({ onLogout, userEmail }) {
     input.click();
   };
 
+  const daysHeld = (dateStr) => {
+    if (!dateStr) return 0;
+    const start = new Date(`${dateStr}T00:00:00`);
+    const end = new Date(`${today()}T00:00:00`);
+    if (isNaN(start.getTime())) return 0;
+    return Math.max(0, Math.floor((end - start) / 86400000));
+  };
+
   // ─── Dashboard Stats ───
   const stats = useMemo(() => {
     const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
@@ -665,6 +717,106 @@ export default function App({ onLogout, userEmail }) {
     const pct = previous !== 0 ? (delta / Math.abs(previous)) * 100 : null;
     return { current, previous, delta, pct, currentStart, currentEnd: todayStr, previousStart, previousEnd };
   }, [sales, expenses, dashCat, dashPlat]);
+
+  const agingStats = useMemo(() => {
+    const aged90 = inventory.filter((i) => daysHeld(i.purchaseDate) >= 90);
+    const aged180 = inventory.filter((i) => daysHeld(i.purchaseDate) >= 180);
+    const oldest = [...inventory]
+      .map((i) => ({ ...i, _daysHeld: daysHeld(i.purchaseDate) }))
+      .sort((a, b) => b._daysHeld - a._daysHeld)
+      .slice(0, 6);
+    const avgDays = inventory.length ? Math.round(inventory.reduce((a, i) => a + daysHeld(i.purchaseDate), 0) / inventory.length) : 0;
+    const agedValue = aged90.reduce((a, i) => a + (Number(i.price) || 0), 0);
+    return { aged90, aged180, oldest, avgDays, agedValue };
+  }, [inventory]);
+
+  const velocityStats = useMemo(() => {
+    const since30 = daysAgo(30);
+    const since90 = daysAgo(90);
+    const sold30 = sales.filter((s) => s.saleDate >= since30);
+    const sold90 = sales.filter((s) => s.saleDate >= since90);
+    const monthlySellThrough = (inventory.length + sold30.length) > 0 ? sold30.length / (inventory.length + sold30.length) : 0;
+    const dailyRate = sold30.length / 30;
+    const daysCover = dailyRate > 0 ? Math.round(inventory.length / dailyRate) : null;
+    const categoryMap = new Map();
+    sold90.forEach((s) => {
+      const key = s.category || "Other";
+      const prev = categoryMap.get(key) || { category: key, count: 0, revenue: 0, profit: 0 };
+      prev.count += 1;
+      prev.revenue += Number(s.salePrice) || 0;
+      prev.profit += Number(s.profit) || 0;
+      categoryMap.set(key, prev);
+    });
+    const topCategories = [...categoryMap.values()].sort((a, b) => b.count - a.count || b.profit - a.profit).slice(0, 5);
+    return { sold30, sold90, monthlySellThrough, daysCover, topCategories };
+  }, [inventory.length, sales]);
+
+  const reportStats = useMemo(() => {
+    const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
+    const cutTo = range === "Custom" ? customTo : "2099-12-31";
+    let fs = sales.filter((s) => s.saleDate >= cutFrom && s.saleDate <= cutTo);
+    let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
+    if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
+    if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
+    const revenue = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
+    const cogs = fs.reduce((a, s) => a + (Number(s.costPrice) || 0), 0);
+    const shipping = fs.reduce((a, s) => a + (Number(s.shippingPrice) || 0), 0);
+    const fees = fs.reduce((a, s) => a + (Number(s.platformFees) || 0), 0);
+    const grossProfit = revenue - cogs - shipping - fees;
+    const operatingExpenses = fe.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    const netProfit = grossProfit - operatingExpenses;
+    const group = (items, keyFn, amountFn) => {
+      const map = new Map();
+      items.forEach((item) => {
+        const key = keyFn(item) || "Other";
+        const row = map.get(key) || { name: key, count: 0, amount: 0 };
+        row.count += 1;
+        row.amount += amountFn(item);
+        map.set(key, row);
+      });
+      return [...map.values()].sort((a, b) => b.amount - a.amount);
+    };
+    return {
+      cutFrom,
+      cutTo,
+      sales: fs,
+      expenses: fe,
+      revenue,
+      cogs,
+      shipping,
+      fees,
+      grossProfit,
+      operatingExpenses,
+      netProfit,
+      platformRows: group(fs, (s) => s.platform, (s) => Number(s.salePrice) || 0),
+      categoryRows: group(fs, (s) => s.category, (s) => Number(s.profit) || 0),
+      expenseRows: group(fe, (e) => e.expCategory, (e) => Number(e.amount) || 0),
+    };
+  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
+
+  const exportReportCSV = () => {
+    const headers = ["Section", "Name", "Count", "Amount"];
+    const rows = [
+      ["P&L", "Revenue", reportStats.sales.length, reportStats.revenue],
+      ["P&L", "Cost of goods", reportStats.sales.length, reportStats.cogs],
+      ["P&L", "Shipping", reportStats.sales.length, reportStats.shipping],
+      ["P&L", "Platform fees", reportStats.sales.length, reportStats.fees],
+      ["P&L", "Gross profit", reportStats.sales.length, reportStats.grossProfit],
+      ["P&L", "Operating expenses", reportStats.expenses.length, reportStats.operatingExpenses],
+      ["P&L", "Net profit", reportStats.sales.length, reportStats.netProfit],
+      ...reportStats.platformRows.map((r) => ["Platform revenue", r.name, r.count, r.amount]),
+      ...reportStats.categoryRows.map((r) => ["Category profit", r.name, r.count, r.amount]),
+      ...reportStats.expenseRows.map((r) => ["Expense category", r.name, r.count, r.amount]),
+    ];
+    const csv = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `archivedash-profit-report-${today()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // ─── Preorders within the reminder window ───
   const upcomingPreorders = useMemo(() => {
@@ -835,6 +987,7 @@ export default function App({ onLogout, userEmail }) {
     { id: "sales", icon: "M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01" },
     { id: "expenses", icon: "M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" },
     { id: "subs", icon: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M20.49 15a9 9 0 01-14.85 3.36L1 14" },
+    { id: "reports", icon: "M3 3v18h18 M7 15l3-3 3 2 4-6 M7 19h10" },
     { id: "notepad", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" },
     { id: "calculator", icon: "M4 4a2 2 0 012-2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2z M8 6h8 M16 14v4 M16 10h0.01 M12 10h0.01 M8 10h0.01 M12 14h0.01 M8 14h0.01 M12 18h0.01 M8 18h0.01" },
     { id: "health", icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
@@ -1146,14 +1299,52 @@ export default function App({ onLogout, userEmail }) {
         {page === "dashboard" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventory.length} in stock · {sales.length} total sales</p></div>
-            <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button onClick={() => setDashboardCustomizeOpen((v) => !v)} style={{ ...ghostBtn, padding: "7px 12px", fontSize: 12 }}>Cards</button>
+              <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
+            </div>
           </div>
+          {dashboardCustomizeOpen && (
+            <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Dashboard cards</div>
+                <button onClick={() => persistSettings({ ...settings, dashboardCards: {} })} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11 }}>Reset</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(6, minmax(130px, 1fr))", gap: 8 }}>
+                {dashboardCardLabels.map(([key, label]) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: "#9ca3af", cursor: "pointer", minWidth: 0 }}>
+                    <input type="checkbox" checked={dashboardCards[key]} onChange={(e) => setDashboardCard(key, e.target.checked)} style={cb} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "#6b7280" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#6b7280" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
             <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
           </div>
-          {upcomingPreorders.length > 0 && (
+          {dashboardCards.actionStrip && (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5, 1fr)", gap: 10, marginBottom: 12 }}>
+              {[
+                { label: "eBay queue", value: ebayImports.length, detail: "awaiting postage", tone: ebayImports.length ? "#60a5fa" : "#6b7280", onClick: async () => { setPage("sales"); setEbayQueueOpen(true); if (!ebayImports.length) await loadEbayImports(); } },
+                { label: "Gmail queue", value: gmailImports.length, detail: "inventory drafts", tone: gmailImports.length ? "#60a5fa" : "#6b7280", onClick: async () => { setPage("inventory"); setGmailQueueOpen(true); if (!gmailImports.length) await loadGmailImports(); } },
+                { label: "Preorders", value: upcomingPreorders.length, detail: "release window", tone: upcomingPreorders.length ? "#60a5fa" : "#6b7280", onClick: () => setPage("inventory") },
+                { label: "Overdue subs", value: subStats.overdue.length, detail: "due now", tone: subStats.overdue.length ? "#f87171" : "#6b7280", onClick: () => setPage("subs") },
+                { label: "Aged stock", value: agingStats.aged90.length, detail: "90+ days held", tone: agingStats.aged90.length ? "#f59e0b" : "#6b7280", onClick: () => setPage("inventory") },
+              ].map((a) => (
+                <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{a.label}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: a.tone }}>{a.value}</span>
+                    <span style={{ fontSize: 11, color: "#4b5563" }}>{a.detail}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {dashboardCards.preorderAlerts && upcomingPreorders.length > 0 && (
             <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #111827 100%)", border: "1px solid #2563eb55", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1186,7 +1377,7 @@ export default function App({ onLogout, userEmail }) {
               <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
             </div>
           )}
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "18px 20px", marginBottom: 14 }}>
+          {dashboardCards.netProfitGraph && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "18px 20px", marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
               <div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div>
@@ -1200,22 +1391,74 @@ export default function App({ onLogout, userEmail }) {
               <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Inventory value</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{currency(stats.invValue)}</div></div>
             </div>
             <Spark data={stats.spark.length>1?stats.spark:undefined} color={stats.netProfit>=0?"#3b82f6":"#ef4444"} />
-          </div>
+          </div>}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10, marginBottom: 10 }}>
-            <KPI label="Sales income" value={currency(stats.salesIncome)} /><KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} /><KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} /><KPI label="Inventory value" value={currency(stats.invValue)} /><KPI label="Sales count" value={stats.cnt} />
+            {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
+            {dashboardCards.netProfit && <KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} />}
+            {dashboardCards.grossProfit && <KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />}
+            {dashboardCards.inventoryValue && <KPI label="Inventory value" value={currency(stats.invValue)} />}
+            {dashboardCards.salesCount && <KPI label="Sales count" value={stats.cnt} />}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: 10, marginBottom: 18 }}>
-            <KPI label="Avg. order value" value={currency(stats.aov)} /><KPI label="Net margin" value={(stats.netMargin * 100).toFixed(1) + "%"} accent={stats.netMargin>=0?"#34d399":"#f87171"} /><KPI label="Gross margin" value={(stats.grossMargin * 100).toFixed(1) + "%"} accent={stats.grossMargin>=0?"#34d399":"#f87171"} /><KPI label="Total expenses" value={currency(stats.totalExpenses)} accent="#f59e0b" /><KPI label="Platform fees" value={currency(stats.totalFees)} accent="#f59e0b" /><KPI label="Monthly subs" value={currency(subStats.monthlyBurn)} accent="#f59e0b" />
+            {dashboardCards.avgOrderValue && <KPI label="Avg. order value" value={currency(stats.aov)} />}
+            {dashboardCards.netMargin && <KPI label="Net margin" value={(stats.netMargin * 100).toFixed(1) + "%"} accent={stats.netMargin>=0?"#34d399":"#f87171"} />}
+            {dashboardCards.grossMargin && <KPI label="Gross margin" value={(stats.grossMargin * 100).toFixed(1) + "%"} accent={stats.grossMargin>=0?"#34d399":"#f87171"} />}
+            {dashboardCards.totalExpenses && <KPI label="Total expenses" value={currency(stats.totalExpenses)} accent="#f59e0b" />}
+            {dashboardCards.platformFees && <KPI label="Platform fees" value={currency(stats.totalFees)} accent="#f59e0b" />}
+            {dashboardCards.monthlySubs && <KPI label="Monthly subs" value={currency(subStats.monthlyBurn)} accent="#f59e0b" />}
           </div>
+          {(dashboardCards.aging || dashboardCards.velocity) && (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14 }}>
+              {dashboardCards.aging && (
+                <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 }}>Inventory Aging</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+                    <KPI label="Avg. held" value={`${agingStats.avgDays}d`} />
+                    <KPI label="90+ days" value={agingStats.aged90.length} accent={agingStats.aged90.length ? "#f59e0b" : undefined} />
+                    <KPI label="Aged value" value={currency(agingStats.agedValue)} accent={agingStats.agedValue ? "#f59e0b" : undefined} />
+                  </div>
+                  {agingStats.oldest.length === 0 ? <div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No inventory yet</div> : agingStats.oldest.slice(0, 4).map((i) => (
+                    <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid #1f293722" }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</div>
+                        <div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} - bought {i.purchaseDate || "unknown"}</div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 700 }}>{i._daysHeld}d</div>
+                        <div style={{ fontSize: 11, color: "#6b7280" }}>{currency(i.price)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {dashboardCards.velocity && (
+                <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 }}>Inventory Velocity</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+                    <KPI label="Sold 30d" value={velocityStats.sold30.length} />
+                    <KPI label="Sell-through" value={`${(velocityStats.monthlySellThrough * 100).toFixed(1)}%`} accent="#60a5fa" />
+                    <KPI label="Stock cover" value={velocityStats.daysCover === null ? "n/a" : `${velocityStats.daysCover}d`} />
+                  </div>
+                  {velocityStats.topCategories.length === 0 ? <div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No recent sales data</div> : velocityStats.topCategories.map((r) => (
+                    <div key={r.category} style={{ display: "grid", gridTemplateColumns: "1fr 60px 90px", gap: 8, padding: "7px 0", borderBottom: "1px solid #1f293722", fontSize: 12, alignItems: "center" }}>
+                      <span style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.category}</span>
+                      <span style={{ color: "#9ca3af" }}>{r.count} sold</span>
+                      <span style={{ color: r.profit >= 0 ? "#34d399" : "#f87171", textAlign: "right", fontWeight: 700 }}>{currency(r.profit)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-            <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+            {dashboardCards.recentSales && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Sales</div>
               {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
-            </div>
-            <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+            </div>}
+            {dashboardCards.recentInventory && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Inventory</div>
               {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{i.inTransit&&<span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
-            </div>
+            </div>}
           </div>
         </div>)}
 
@@ -1224,6 +1467,9 @@ export default function App({ onLogout, userEmail }) {
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+
+        {/* REPORTS */}
+        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
 
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
@@ -1432,7 +1678,7 @@ export default function App({ onLogout, userEmail }) {
                 <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
                 <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
               </div>
-            </div>
+            </div>}
             {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{ebayStatus}</div>}
             <div style={{ fontSize: 12, color: "#4b5563" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
           </div>
