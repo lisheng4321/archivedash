@@ -111,6 +111,13 @@ Deno.serve(async (req) => {
     const lineItems = Array.isArray(order.lineItems) ? order.lineItems : [];
     const shippingTotal = money(order?.pricingSummary?.deliveryCost?.value || order?.pricingSummary?.shippingCost?.value);
     const shippingShare = lineItems.length ? shippingTotal / lineItems.length : 0;
+    const shipTo = order?.fulfillmentStartInstructions?.[0]?.shippingStep?.shipTo || {};
+    const buyerContact = order?.buyer?.buyerRegistrationAddress || {};
+    const contact = Object.keys(shipTo || {}).length ? shipTo : buyerContact;
+    const address = contact?.contactAddress || buyerContact?.contactAddress || {};
+    const phone = contact?.primaryPhone?.phoneNumber || buyerContact?.primaryPhone?.phoneNumber || null;
+    const email = contact?.email || buyerContact?.email || order?.buyer?.email || null;
+    const fullName = contact?.fullName || buyerContact?.fullName || null;
     for (const li of lineItems) {
       const lineId = String(li.lineItemId || li.legacyItemId || `${order.orderId}-${rows.length}`);
       rows.push({
@@ -123,7 +130,16 @@ Deno.serve(async (req) => {
         sale_price: money(li?.lineItemCost?.value || li?.discountedLineItemCost?.value),
         shipping_price: shippingShare,
         platform_fees: 0,
-        buyer_username: order?.buyer?.username || order?.buyer?.email || null,
+        buyer_username: order?.buyer?.username || email || fullName || null,
+        buyer_full_name: fullName,
+        buyer_email: email,
+        buyer_phone: phone,
+        buyer_address_line1: address?.addressLine1 || null,
+        buyer_address_line2: address?.addressLine2 || null,
+        buyer_city: address?.city || null,
+        buyer_state: address?.stateOrProvince || null,
+        buyer_postcode: address?.postalCode || null,
+        buyer_country: address?.countryCode || null,
         sale_date: order.creationDate ? sydneyDate(new Date(order.creationDate)) : null,
         raw: { order, lineItem: li },
         status: "draft",

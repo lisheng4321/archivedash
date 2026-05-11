@@ -95,6 +95,15 @@ create table if not exists ebay_import_queue (
   shipping_price numeric default 0,
   platform_fees numeric default 0,
   buyer_username text,
+  buyer_full_name text,
+  buyer_email text,
+  buyer_phone text,
+  buyer_address_line1 text,
+  buyer_address_line2 text,
+  buyer_city text,
+  buyer_state text,
+  buyer_postcode text,
+  buyer_country text,
   sale_date date,
   raw jsonb,
   status text default 'draft',
@@ -102,6 +111,16 @@ create table if not exists ebay_import_queue (
   updated_at timestamptz default now(),
   unique(user_id, order_id, line_item_id)
 );
+
+alter table ebay_import_queue add column if not exists buyer_full_name text;
+alter table ebay_import_queue add column if not exists buyer_email text;
+alter table ebay_import_queue add column if not exists buyer_phone text;
+alter table ebay_import_queue add column if not exists buyer_address_line1 text;
+alter table ebay_import_queue add column if not exists buyer_address_line2 text;
+alter table ebay_import_queue add column if not exists buyer_city text;
+alter table ebay_import_queue add column if not exists buyer_state text;
+alter table ebay_import_queue add column if not exists buyer_postcode text;
+alter table ebay_import_queue add column if not exists buyer_country text;
 
 alter table ebay_import_queue enable row level security;
 

@@ -8,6 +8,16 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.8] - 2026-05-11
+
+### Added
+- **Customers page** with customer totals, repeat buyer stats, platform filtering, editable contact details, platform IDs, notes, tags, and linked sales history.
+- **Customer profiles** layered over existing sales/customer data using `settings.customerProfiles`.
+- **eBay customer contact capture** for buyer name, email, phone, and shipping address fields when eBay returns them.
+- **Calculator preset reordering** in the Manage calculators panel.
+
+---
+
 ## [0.6.7] - 2026-05-11
 
 ### Added

@@ -45,6 +45,7 @@ const card = { background: "#111827", borderRadius: 12, border: "1px solid #1f29
 const labelStyle = { fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 5, fontWeight: 500 };
 const primaryBtn = { padding: "9px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
 const ghostBtn = { padding: "9px 16px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
+const miniIconBtn = (disabled) => ({ width: 22, height: 22, border: "none", borderRadius: 5, background: "#1f2937", color: disabled ? "#374151" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, lineHeight: "22px", padding: 0 });
 
 function cleanPreset(preset) {
   return {
@@ -209,6 +210,17 @@ export default function Calculator({ isMobile = false }) {
     if (editingId === id) setEditingId(null);
   };
 
+  const moveCalculator = (id, direction) => {
+    setCalculators((prev) => {
+      const index = prev.findIndex((c) => c.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
   const resetDefaults = () => {
     setCalculators(DEFAULT_CALCULATORS);
     setSelectedId(DEFAULT_CALCULATORS[3].id);
@@ -253,6 +265,7 @@ export default function Calculator({ isMobile = false }) {
           updateCalculator={updateCalculator}
           duplicateCalculator={duplicateCalculator}
           deleteCalculator={deleteCalculator}
+          moveCalculator={moveCalculator}
           resetDefaults={resetDefaults}
           isMobile={isMobile}
         />
@@ -360,7 +373,7 @@ export default function Calculator({ isMobile = false }) {
   );
 }
 
-function CalculatorManager({ calculators, selectedId, editing, setSelectedId, setEditingId, updateCalculator, duplicateCalculator, deleteCalculator, resetDefaults, isMobile }) {
+function CalculatorManager({ calculators, selectedId, editing, setSelectedId, setEditingId, updateCalculator, duplicateCalculator, deleteCalculator, moveCalculator, resetDefaults, isMobile }) {
   return (
     <div style={{ ...card, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
@@ -377,9 +390,15 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
             <div key={calc.id} onClick={() => { setSelectedId(calc.id); setEditingId(calc.id); }} style={{ padding: "9px 11px", cursor: "pointer", background: calc.id === selectedId ? "#1e293b" : idx % 2 === 0 ? "#0d131f" : "#111827", borderBottom: "1px solid #1f293722" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ color: "#e5e7eb", fontSize: 13, fontWeight: calc.id === selectedId ? 700 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.name}</span>
-                <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{pct(calc.rate)}</span>
+                <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{pct(calc.rate)}</span>
               </div>
-              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>{calc.platform} - {calc.category}</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginTop: 2 }}>
+                <div style={{ color: "#6b7280", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.platform} - {calc.category}</div>
+                <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                  <button onClick={(e) => { e.stopPropagation(); moveCalculator(calc.id, -1); }} disabled={idx === 0} title="Move up" style={miniIconBtn(idx === 0)}>↑</button>
+                  <button onClick={(e) => { e.stopPropagation(); moveCalculator(calc.id, 1); }} disabled={idx === calculators.length - 1} title="Move down" style={miniIconBtn(idx === calculators.length - 1)}>↓</button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -399,6 +418,8 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
               <Field label="Notes"><input value={editing.notes || ""} onChange={(e) => updateCalculator(editing.id, { notes: e.target.value })} style={inp} /></Field>
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+              <button onClick={() => moveCalculator(editing.id, -1)} disabled={calculators[0]?.id === editing.id} style={{ ...ghostBtn, opacity: calculators[0]?.id === editing.id ? 0.5 : 1 }}>Move Up</button>
+              <button onClick={() => moveCalculator(editing.id, 1)} disabled={calculators[calculators.length - 1]?.id === editing.id} style={{ ...ghostBtn, opacity: calculators[calculators.length - 1]?.id === editing.id ? 0.5 : 1 }}>Move Down</button>
               <button onClick={() => duplicateCalculator(editing)} style={ghostBtn}>Duplicate</button>
               <button onClick={() => deleteCalculator(editing.id)} disabled={calculators.length <= 1} style={{ ...ghostBtn, color: "#f87171", opacity: calculators.length <= 1 ? 0.5 : 1 }}>Delete</button>
             </div>

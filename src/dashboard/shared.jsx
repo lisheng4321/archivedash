@@ -11,7 +11,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.7";
+const VERSION = "0.6.8";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
@@ -221,9 +221,10 @@ function TopBar({ saveStatus, isMobile }) {
         <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{`${dateStr}, ${timeStr} ${tz}`}</span>
         {!isMobile && <span style={{ color: "#4b5563" }}>· Sydney</span>}
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: dot, transition: "background 200ms" }} />
         {!isMobile && <span>{dotLabel}</span>}
+        <span title="Version" style={{ marginLeft: isMobile ? 0 : 6, padding: "2px 6px", borderRadius: 999, border: "1px solid #1f2937", background: "#111827", color: "#93c5fd", fontSize: 10, fontWeight: 800, lineHeight: 1.2, letterSpacing: 0.2 }}>v{VERSION}</span>
       </div>
     </div>
   );

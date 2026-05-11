@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { load, save, supabase, isSupabaseConfigured } from "./supabase.js";
 import Calculator from "./Calculator";
+import CustomersPage from "./dashboard/pages/CustomersPage.jsx";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
 import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
@@ -18,7 +19,7 @@ export default function App({ onLogout, userEmail }) {
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], dashboardCards: {} });
+  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {} });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -67,6 +68,7 @@ export default function App({ onLogout, userEmail }) {
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
+  const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
   const [backupStatus, setBackupStatus] = useState("");
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
@@ -128,7 +130,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], dashboardCards: {} }),
+        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {} }),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
@@ -154,7 +156,7 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], dashboardCards: st.dashboardCards || {} });
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {} });
       setNotes(initialNotes);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
@@ -187,6 +189,14 @@ export default function App({ onLogout, userEmail }) {
   const persistSettings = useCallback(async (d) => { await save("arch-settings", d); setSettings(d); }, []);
   const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
+  const customerProfiles = settings.customerProfiles || {};
+  const updateCustomerProfile = (key, updates) => persistSettings({
+    ...settings,
+    customerProfiles: {
+      ...customerProfiles,
+      [key]: { ...(customerProfiles[key] || {}), ...updates, updatedAt: Date.now() },
+    },
+  });
 
   const loadEbayImports = useCallback(async () => {
     if (!supabase) return;
@@ -386,9 +396,16 @@ export default function App({ onLogout, userEmail }) {
   }, []);
 
   // Auto-save customer on sell
-  const addCustomer = useCallback(async (name) => {
-    if (!name || CUSTS.includes(name)) return;
-    const ns = { ...settings, customers: [...CUSTS, name] };
+  const addCustomer = useCallback(async (name, profileUpdates = {}) => {
+    if (!name && !profileUpdates.name) return;
+    const displayName = name || profileUpdates.name;
+    const key = String(displayName || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+    const nextCustomers = displayName && !CUSTS.includes(displayName) ? [...CUSTS, displayName] : CUSTS;
+    const nextProfiles = Object.keys(profileUpdates).length ? {
+      ...(settings.customerProfiles || {}),
+      [key]: { ...((settings.customerProfiles || {})[key] || {}), ...profileUpdates, updatedAt: Date.now() },
+    } : (settings.customerProfiles || {});
+    const ns = { ...settings, customers: nextCustomers, customerProfiles: nextProfiles };
     await persistSettings(ns);
   }, [settings, CUSTS, persistSettings]);
 
@@ -500,7 +517,15 @@ export default function App({ onLogout, userEmail }) {
     const soldIds = new Set(matches.map((i) => i.id));
     await persistSales([...newSales, ...sales]);
     await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
-    if (shared.customer) await addCustomer(shared.customer);
+    const eBayProfile = Object.fromEntries(Object.entries({
+      name: draft.buyer_full_name || shared.customer,
+      defaultPlatform: "eBay",
+      ebayUsername: draft.buyer_username || shared.customer,
+      email: draft.buyer_email,
+      phone: draft.buyer_phone,
+      address: [draft.buyer_address_line1, draft.buyer_address_line2, draft.buyer_city, draft.buyer_state, draft.buyer_postcode, draft.buyer_country].filter(Boolean).join(", "),
+    }).filter(([, value]) => value));
+    if (shared.customer || eBayProfile.name) await addCustomer(shared.customer || eBayProfile.name, eBayProfile);
     await markEbayImport(draft.id, "imported");
     setEbayReviewOpen(null);
   };
@@ -914,6 +939,91 @@ export default function App({ onLogout, userEmail }) {
     return sorted;
   }, [sales, saleSearch, saleCat, salePlat, saleSort]);
 
+  const customerRows = useMemo(() => {
+    const platformGroup = (platform = "") => {
+      const p = String(platform).toLowerCase();
+      if (p.includes("ebay")) return "eBay";
+      if (p.includes("facebook")) return "Facebook";
+      if (p.includes("discord")) return "Discord";
+      return "Other";
+    };
+    const keyFor = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+    const rows = new Map();
+    const ensure = (rawName, forcedKey) => {
+      const key = forcedKey || keyFor(rawName);
+      const profile = customerProfiles[key] || {};
+      if (!rows.has(key)) {
+        rows.set(key, {
+          key,
+          name: profile.name || rawName || "Unknown customer",
+          profile,
+          sales: [],
+          platforms: new Set(),
+          platformGroups: new Set(),
+          categories: new Set(),
+          brands: new Set(),
+          orderCount: 0,
+          revenue: 0,
+          profit: 0,
+          lastPurchase: "",
+        });
+      }
+      return rows.get(key);
+    };
+    CUSTS.forEach((name) => ensure(name));
+    Object.entries(customerProfiles).forEach(([key, profile]) => {
+      if (!rows.has(key)) ensure(profile.name || key, key);
+    });
+    sales.forEach((sale) => {
+      const row = ensure(sale.customer || "Unknown customer");
+      row.sales.push(sale);
+      row.orderCount += 1;
+      row.revenue += Number(sale.salePrice) || 0;
+      row.profit += Number(sale.profit) || 0;
+      if (sale.platform) row.platforms.add(sale.platform);
+      row.platformGroups.add(platformGroup(sale.platform));
+      if (sale.category) row.categories.add(sale.category);
+      if (sale.brand) row.brands.add(sale.brand);
+      if (sale.saleDate && sale.saleDate > row.lastPurchase) row.lastPurchase = sale.saleDate;
+    });
+    let result = [...rows.values()].map((row) => ({
+      ...row,
+      averageOrder: row.orderCount ? row.revenue / row.orderCount : 0,
+      platformsList: [...row.platforms],
+      platformGroupsList: [...row.platformGroups],
+      categoriesList: [...row.categories],
+      brandsList: [...row.brands],
+      defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
+    }));
+    const q = customerSearch.trim().toLowerCase();
+    if (q) {
+      result = result.filter((row) => [
+        row.name,
+        row.profile.email,
+        row.profile.phone,
+        row.profile.address,
+        row.profile.ebayUsername,
+        row.profile.facebookName,
+        row.profile.discordHandle,
+        row.profile.notes,
+        row.profile.tags,
+        ...row.platformsList,
+      ].some((v) => String(v || "").toLowerCase().includes(q)));
+    }
+    if (customerPlatform !== "All") {
+      result = result.filter((row) => row.platformGroupsList.includes(customerPlatform) || row.defaultPlatform === customerPlatform);
+    }
+    switch (customerSort) {
+      case "name_asc": result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "last_desc": result.sort((a, b) => (b.lastPurchase || "").localeCompare(a.lastPurchase || "")); break;
+      case "orders_desc": result.sort((a, b) => b.orderCount - a.orderCount); break;
+      case "revenue_desc": result.sort((a, b) => b.revenue - a.revenue); break;
+      case "profit_desc":
+      default: result.sort((a, b) => b.profit - a.profit); break;
+    }
+    return result;
+  }, [sales, CUSTS, customerProfiles, customerSearch, customerPlatform, customerSort]);
+
   const filteredExp = useMemo(() => {
     let f = expenses;
     if (expSearch) f = f.filter((e) => e.name.toLowerCase().includes(expSearch.toLowerCase()));
@@ -985,6 +1095,7 @@ export default function App({ onLogout, userEmail }) {
     { id: "dashboard", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
     { id: "inventory", icon: "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12" },
     { id: "sales", icon: "M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01" },
+    { id: "customers", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75" },
     { id: "expenses", icon: "M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" },
     { id: "subs", icon: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M20.49 15a9 9 0 01-14.85 3.36L1 14" },
     { id: "reports", icon: "M3 3v18h18 M7 15l3-3 3 2 4-6 M7 19h10" },
@@ -1289,7 +1400,6 @@ export default function App({ onLogout, userEmail }) {
         {mainNavItems.map(renderNavButton)}
         {!isMobile && <div style={{ width: 24, height: 1, background: "#1f2937", margin: "9px 0 7px", opacity: 0.9 }} />}
         {utilityNavItems.map(renderNavButton)}
-        {!isMobile && <div style={{ marginTop: "auto", paddingBottom: 12, fontSize: 9, color: "#374151", letterSpacing: 0.5, fontWeight: 600 }} title="Version">v{VERSION}</div>}
       </div>
 
       <div style={{ flex: 1, overflow: "auto", minWidth: 0, paddingBottom: isMobile ? 66 : 0 }}>
@@ -1467,6 +1577,9 @@ export default function App({ onLogout, userEmail }) {
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+
+        {/* CUSTOMERS */}
+        {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, setAddSaleOpen }} />}
 
         {/* REPORTS */}
         {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
