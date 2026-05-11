@@ -8,6 +8,13 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.11] - 2026-05-11
+
+### Added
+- **Customer management inside Customers** with add customer and remove saved customer/profile actions.
+
+---
+
 ## [0.6.10] - 2026-05-11
 
 ### Changed

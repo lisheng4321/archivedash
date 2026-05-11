@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { currency, ghostBtn, inp, KPI, primaryBtn, sel } from "../shared.jsx";
 
 const PLATFORM_FILTERS = ["All", "eBay", "Facebook", "Discord", "Other"];
@@ -16,9 +17,12 @@ export default function CustomersPage({ ctx }) {
     activeCustomerKey,
     setActiveCustomerKey,
     updateCustomerProfile,
+    addCustomer,
+    removeCustomer,
     setAddSaleOpen,
   } = ctx;
 
+  const [addOpen, setAddOpen] = useState(false);
   const active = customerRows.find((c) => c.key === activeCustomerKey) || customerRows[0] || null;
   const repeatCustomers = customerRows.filter((c) => c.orderCount > 1).length;
   const totalRevenue = customerRows.reduce((a, c) => a + c.revenue, 0);
@@ -31,7 +35,10 @@ export default function CustomersPage({ ctx }) {
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Customers</h2>
           <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{customerRows.length} customers - {repeatCustomers} repeat - {currency(totalRevenue)} revenue</p>
         </div>
-        <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Record Sale</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => setAddOpen(true)} style={ghostBtn}>+ Add Customer</button>
+          <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Record Sale</button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
@@ -73,8 +80,10 @@ export default function CustomersPage({ ctx }) {
           ))}
         </div>
 
-        <CustomerDetail customer={active} isMobile={isMobile} updateCustomerProfile={updateCustomerProfile} setAddSaleOpen={setAddSaleOpen} />
+        <CustomerDetail customer={active} isMobile={isMobile} updateCustomerProfile={updateCustomerProfile} removeCustomer={removeCustomer} setActiveCustomerKey={setActiveCustomerKey} setAddSaleOpen={setAddSaleOpen} />
       </div>
+
+      {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onSave={async (profile) => { const key = await addCustomer(profile.name, profile); setActiveCustomerKey(key); setAddOpen(false); }} />}
     </div>
   );
 }
@@ -108,7 +117,7 @@ function CustomerRow({ customer, active, index, isMobile, onClick }) {
   );
 }
 
-function CustomerDetail({ customer, isMobile, updateCustomerProfile, setAddSaleOpen }) {
+function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCustomer, setActiveCustomerKey, setAddSaleOpen }) {
   if (!customer) {
     return <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 24, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a customer</div>;
   }
@@ -121,7 +130,10 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, setAddSaleO
           <div style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || customer.name}</div>
         <div style={{ color: "#6b7280", fontSize: 12 }}>{customer.orderCount} orders - {currency(customer.averageOrder)} avg order{p.contactSource ? ` - ${p.contactSource}` : ""}</div>
         </div>
-        <button onClick={() => setAddSaleOpen(true)} style={{ ...primaryBtn, padding: "7px 10px", fontSize: 12, flexShrink: 0 }}>Record Sale</button>
+        <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+          <button onClick={() => setAddSaleOpen(true)} style={{ ...primaryBtn, padding: "7px 10px", fontSize: 12 }}>Record Sale</button>
+          <button onClick={async () => { if (window.confirm(`Remove ${p.name || customer.name} from saved customers? Sales history will stay intact.`)) { await removeCustomer(customer.key); setActiveCustomerKey(null); } }} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: "#f87171" }}>Remove</button>
+        </div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
@@ -200,4 +212,34 @@ function Section({ title, children }) {
 
 function Mini({ label, value, color }) {
   return <div style={{ background: "#0d1117", borderRadius: 8, padding: "9px 10px", minWidth: 0 }}><div style={{ color: "#4b5563", fontSize: 10, marginBottom: 2 }}>{label}</div><div style={{ color: color || "#f1f5f9", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div></div>;
+}
+
+function AddCustomerModal({ onClose, onSave }) {
+  const [form, setForm] = useState({ name: "", defaultPlatform: "eBay", email: "", phone: "", address: "", notes: "" });
+  const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
+  const canSave = form.name.trim();
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.68)", zIndex: 220, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div style={{ width: "100%", maxWidth: 520, background: "#111827", border: "1px solid #253047", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.45)" }}>
+        <div style={{ padding: "16px 18px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 800 }}>Add Customer</div>
+          <button onClick={onClose} style={{ ...ghostBtn, padding: "6px 10px" }}>Close</button>
+        </div>
+        <div style={{ padding: 18 }}>
+          <Field label="Name"><input value={form.name} onChange={(e) => set("name", e.target.value)} style={inp} autoFocus /></Field>
+          <Field label="Default platform"><select value={form.defaultPlatform} onChange={(e) => set("defaultPlatform", e.target.value)} style={sel}>{PLATFORM_FILTERS.filter((x) => x !== "All").map((x) => <option key={x}>{x}</option>)}</select></Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <Field label="Email"><input value={form.email} onChange={(e) => set("email", e.target.value)} style={inp} /></Field>
+            <Field label="Phone"><input value={form.phone} onChange={(e) => set("phone", e.target.value)} style={inp} /></Field>
+          </div>
+          <Field label="Address"><textarea value={form.address} onChange={(e) => set("address", e.target.value)} style={{ ...inp, minHeight: 74, resize: "vertical" }} /></Field>
+          <Field label="Notes"><textarea value={form.notes} onChange={(e) => set("notes", e.target.value)} style={{ ...inp, minHeight: 74, resize: "vertical" }} /></Field>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            <button onClick={onClose} style={ghostBtn}>Cancel</button>
+            <button onClick={() => canSave && onSave(form)} disabled={!canSave} style={{ ...primaryBtn, opacity: canSave ? 1 : 0.5, cursor: canSave ? "pointer" : "not-allowed" }}>Save Customer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

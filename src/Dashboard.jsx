@@ -12,6 +12,7 @@ import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSiz
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
 const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
+const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
 
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
@@ -200,6 +201,15 @@ export default function App({ onLogout, userEmail }) {
       [key]: { ...(customerProfiles[key] || {}), ...updates, updatedAt: Date.now() },
     },
   });
+  const removeCustomer = (key) => {
+    const nextProfiles = { ...customerProfiles };
+    delete nextProfiles[key];
+    return persistSettings({
+      ...settings,
+      customers: CUSTS.filter((name) => customerKey(name) !== key),
+      customerProfiles: nextProfiles,
+    });
+  };
 
   const loadEbayImports = useCallback(async () => {
     if (!supabase) return;
@@ -402,7 +412,7 @@ export default function App({ onLogout, userEmail }) {
   const addCustomer = useCallback(async (name, profileUpdates = {}) => {
     if (!name && !profileUpdates.name) return;
     const displayName = name || profileUpdates.name;
-    const key = String(displayName || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+    const key = customerKey(displayName);
     const nextCustomers = displayName && !CUSTS.includes(displayName) ? [...CUSTS, displayName] : CUSTS;
     const nextProfiles = Object.keys(profileUpdates).length ? {
       ...(settings.customerProfiles || {}),
@@ -410,6 +420,7 @@ export default function App({ onLogout, userEmail }) {
     } : (settings.customerProfiles || {});
     const ns = { ...settings, customers: nextCustomers, customerProfiles: nextProfiles };
     await persistSettings(ns);
+    return key;
   }, [settings, CUSTS, persistSettings]);
 
   const updateInvForm = (u) => { setInvForm({ ...invForm, ...u }); setAddDirty(true); };
@@ -967,7 +978,7 @@ export default function App({ onLogout, userEmail }) {
       if (p.includes("discord")) return "Discord";
       return "Other";
     };
-    const keyFor = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+    const keyFor = customerKey;
     const rows = new Map();
     const ensure = (rawName, forcedKey) => {
       const key = forcedKey || keyFor(rawName);
@@ -1632,7 +1643,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* CUSTOMERS */}
-        {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, setAddSaleOpen }} />}
+        {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen }} />}
 
         {/* REPORTS */}
         {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
