@@ -8,6 +8,13 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.12] - 2026-05-11
+
+### Fixed
+- **Customer removal** now hides sales-derived customer buckets, including `Unknown customer`, without deleting historical sales.
+
+---
+
 ## [0.6.11] - 2026-05-11
 
 ### Added

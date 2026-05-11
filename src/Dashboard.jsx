@@ -22,7 +22,7 @@ export default function App({ onLogout, userEmail }) {
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS });
+  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -134,7 +134,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS }),
+        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS }),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
@@ -160,7 +160,7 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [], navUtilityIds: Array.isArray(st.navUtilityIds) ? st.navUtilityIds : DEFAULT_NAV_UTILITY_IDS });
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, hiddenCustomerKeys: Array.isArray(st.hiddenCustomerKeys) ? st.hiddenCustomerKeys : [], dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [], navUtilityIds: Array.isArray(st.navUtilityIds) ? st.navUtilityIds : DEFAULT_NAV_UTILITY_IDS });
       setNotes(initialNotes);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
@@ -194,6 +194,7 @@ export default function App({ onLogout, userEmail }) {
   const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
   const customerProfiles = settings.customerProfiles || {};
+  const hiddenCustomerKeys = Array.isArray(settings.hiddenCustomerKeys) ? settings.hiddenCustomerKeys : [];
   const updateCustomerProfile = (key, updates) => persistSettings({
     ...settings,
     customerProfiles: {
@@ -204,10 +205,13 @@ export default function App({ onLogout, userEmail }) {
   const removeCustomer = (key) => {
     const nextProfiles = { ...customerProfiles };
     delete nextProfiles[key];
+    const hidden = new Set(hiddenCustomerKeys);
+    hidden.add(key);
     return persistSettings({
       ...settings,
       customers: CUSTS.filter((name) => customerKey(name) !== key),
       customerProfiles: nextProfiles,
+      hiddenCustomerKeys: [...hidden],
     });
   };
 
@@ -418,7 +422,7 @@ export default function App({ onLogout, userEmail }) {
       ...(settings.customerProfiles || {}),
       [key]: { ...((settings.customerProfiles || {})[key] || {}), ...profileUpdates, updatedAt: Date.now() },
     } : (settings.customerProfiles || {});
-    const ns = { ...settings, customers: nextCustomers, customerProfiles: nextProfiles };
+    const ns = { ...settings, customers: nextCustomers, customerProfiles: nextProfiles, hiddenCustomerKeys: (settings.hiddenCustomerKeys || []).filter((hiddenKey) => hiddenKey !== key) };
     await persistSettings(ns);
     return key;
   }, [settings, CUSTS, persistSettings]);
@@ -1025,7 +1029,7 @@ export default function App({ onLogout, userEmail }) {
       categoriesList: [...row.categories],
       brandsList: [...row.brands],
       defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
-    }));
+    })).filter((row) => !hiddenCustomerKeys.includes(row.key));
     const q = customerSearch.trim().toLowerCase();
     if (q) {
       result = result.filter((row) => [
@@ -1064,7 +1068,7 @@ export default function App({ onLogout, userEmail }) {
       default: result.sort((a, b) => b.profit - a.profit); break;
     }
     return result;
-  }, [sales, CUSTS, customerProfiles, customerSearch, customerPlatform, customerSort]);
+  }, [sales, CUSTS, customerProfiles, hiddenCustomerKeys, customerSearch, customerPlatform, customerSort]);
 
   const filteredExp = useMemo(() => {
     let f = expenses;

@@ -11,7 +11,7 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.11";
+const VERSION = "0.6.12";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
