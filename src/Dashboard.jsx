@@ -11,6 +11,8 @@ import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSiz
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
+const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
+
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
   const isMobile = useIsMobile();
@@ -19,7 +21,7 @@ export default function App({ onLogout, userEmail }) {
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [] });
+  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS });
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -131,7 +133,7 @@ export default function App({ onLogout, userEmail }) {
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [] }),
+        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS }),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
@@ -157,7 +159,7 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [] });
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [], navUtilityIds: Array.isArray(st.navUtilityIds) ? st.navUtilityIds : DEFAULT_NAV_UTILITY_IDS });
       setNotes(initialNotes);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
@@ -1137,23 +1139,32 @@ export default function App({ onLogout, userEmail }) {
 
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
   const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
+  const defaultUtilityIds = DEFAULT_NAV_UTILITY_IDS;
   const navRank = new Map((Array.isArray(settings.navOrder) ? settings.navOrder : []).map((id, index) => [id, index]));
   const orderedNavItems = [...navItems].sort((a, b) => (navRank.has(a.id) ? navRank.get(a.id) : navItems.findIndex((n) => n.id === a.id) + 1000) - (navRank.has(b.id) ? navRank.get(b.id) : navItems.findIndex((n) => n.id === b.id) + 1000));
-  const moveNavItem = (fromId, toId) => {
-    if (!fromId || !toId || fromId === toId) return;
+  const utilityIds = Array.isArray(settings.navUtilityIds) ? settings.navUtilityIds : defaultUtilityIds;
+  const utilityIdSet = new Set(utilityIds);
+  const moveNavItem = (fromId, toId, zone) => {
+    if (!fromId || (toId && fromId === toId)) return;
     const ids = orderedNavItems.map((n) => n.id);
     const fromIndex = ids.indexOf(fromId);
-    const toIndex = ids.indexOf(toId);
+    const firstUtilityIndex = ids.findIndex((id) => utilityIdSet.has(id));
+    const toIndex = toId ? ids.indexOf(toId) : zone === "utility" && firstUtilityIndex >= 0 ? firstUtilityIndex : ids.length;
     if (fromIndex < 0 || toIndex < 0) return;
     const next = [...ids];
     const [moved] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, moved);
-    persistSettings({ ...settings, navOrder: next });
+    const adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    next.splice(adjustedToIndex, 0, moved);
+    const nextUtilityIds = new Set(utilityIds);
+    const targetZone = zone || (toId && utilityIdSet.has(toId) ? "utility" : "main");
+    if (targetZone === "utility") nextUtilityIds.add(fromId);
+    if (targetZone === "main") nextUtilityIds.delete(fromId);
+    persistSettings({ ...settings, navOrder: next, navUtilityIds: [...nextUtilityIds].filter((id) => next.includes(id)) });
   };
-  const mainNavItems = orderedNavItems.filter((n) => !["health", "backup", "settings"].includes(n.id));
-  const utilityNavItems = orderedNavItems.filter((n) => ["health", "backup", "settings"].includes(n.id));
-  const renderNavButton = (n) => (
-    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => setPage(n.id)} title={`${n.id} - drag to reorder`} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+  const mainNavItems = orderedNavItems.filter((n) => !utilityIdSet.has(n.id));
+  const utilityNavItems = orderedNavItems.filter((n) => utilityIdSet.has(n.id));
+  const renderNavButton = (n, zone) => (
+    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => setPage(n.id)} title={`${n.id} - drag to reorder`} style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       <svg width={isMobile ? 17 : 18} height={isMobile ? 17 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
       {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
@@ -1439,9 +1450,9 @@ export default function App({ onLogout, userEmail }) {
       {/* SIDEBAR */}
       <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #1f2937", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
         {!isMobile && <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>}
-        {mainNavItems.map(renderNavButton)}
-        {!isMobile && <div style={{ width: 24, height: 1, background: "#1f2937", margin: "9px 0 7px", opacity: 0.9 }} />}
-        {utilityNavItems.map(renderNavButton)}
+        {mainNavItems.map((n) => renderNavButton(n, "main"))}
+        {!isMobile && <div onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => { e.preventDefault(); moveNavItem(e.dataTransfer.getData("text/plain") || navDragId, null, "utility"); setNavDragId(null); }} title="Drop here to move below the separator" style={{ width: 24, height: 1, background: navDragId ? "#60a5fa" : "#1f2937", margin: "9px 0 7px", opacity: navDragId ? 1 : 0.9 }} />}
+        {utilityNavItems.map((n) => renderNavButton(n, "utility"))}
       </div>
 
       <div style={{ flex: 1, overflow: "auto", minWidth: 0, paddingBottom: isMobile ? 66 : 0 }}>

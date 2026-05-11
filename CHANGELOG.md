@@ -8,6 +8,13 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.10] - 2026-05-11
+
+### Changed
+- **Sidebar icon ordering** now lets modules move across the separator line instead of being locked into the top or bottom group.
+
+---
+
 ## [0.6.9] - 2026-05-11
 
 ### Added
