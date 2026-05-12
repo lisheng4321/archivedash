@@ -8,6 +8,31 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.15] - 2026-05-12
+
+### Added
+- **Custom subscription frequencies** with day-based billing cycles like every 28 days.
+- **Foreign-currency subscriptions** can be stored in their original currency and converted into AUD for dashboard burn, overdue totals, and logged expenses.
+
+---
+
+## [0.6.14] - 2026-05-12
+
+### Fixed
+- **Services fee calculation** now separates the AU$44 flat Services category fee from the AU$0.33 fixed order fee.
+- **Fee calculator manager** now exposes an editable flat category fee field for platforms/categories that charge a fixed category amount.
+
+---
+
+## [0.6.13] - 2026-05-12
+
+### Changed
+- **eBay Pro Basic calculator defaults** refreshed to the 27 March 2026 AU fee table: Tier 1 `8.03%`, Tier 2 `10.34%`, Tier 3 `11.22%`, Tier 4 `11.77%`, `2.75%` above AU$4,000, and AU$0.33 fixed order fee.
+- **Added eBay NFT and Services presets** for `5.5%` NFT category fees and AU$44 Services category fee.
+- **eBay import fee estimates** now use Pro Basic Tier 4 `11.77% + AU$0.33` instead of the old `11.65%` flat estimate.
+
+---
+
 ## [0.6.12] - 2026-05-11
 
 ### Fixed

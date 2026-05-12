@@ -2,16 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { load as loadData, save as saveData } from "./supabase.js";
 
 const STORAGE_KEY = "arch-fee-calculators";
+const DEFAULT_REVISION = "ebay-pro-basic-au-2026-03-27";
 
 const DEFAULT_CALCULATORS = [
-  { id: "ebay-au-tier-1", name: "eBay AU - Tier 1", platform: "eBay AU", category: "Tech Devices / Home Appliances", rate: 8.03, fixedFee: 0.33, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Pro Basic, incl. GST" },
-  { id: "ebay-au-tier-2", name: "eBay AU - Tier 2", platform: "eBay AU", category: "General / Most items", rate: 10.34, fixedFee: 0.33, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Pro Basic, incl. GST" },
-  { id: "ebay-au-tier-3", name: "eBay AU - Tier 3", platform: "eBay AU", category: "Vehicle Parts & Accessories", rate: 11.22, fixedFee: 0.33, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Pro Basic, incl. GST" },
-  { id: "ebay-au-tier-4", name: "eBay AU - Tier 4", platform: "eBay AU", category: "Collectables / Fashion / Media", rate: 11.77, fixedFee: 0.33, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Pro Basic, incl. GST" },
-  { id: "facebook-marketplace", name: "Facebook Marketplace", platform: "Facebook Marketplace", category: "Local / Manual", rate: 0, fixedFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "No platform fee by default" },
-  { id: "discord-manual", name: "Discord / Direct", platform: "Discord", category: "Manual", rate: 0, fixedFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "Manual private sale" },
-  { id: "stockx-basic", name: "StockX - Basic estimate", platform: "StockX", category: "Standard", rate: 12, fixedFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "Editable placeholder" },
+  { id: "ebay-au-tier-1", name: "eBay AU Pro Basic - Tier 1", platform: "eBay AU", category: "Home Appliances / Technology Devices", rate: 8.03, fixedFee: 0.33, flatFee: 0, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Updated 27 Mar 2026, incl. GST" },
+  { id: "ebay-au-tier-2", name: "eBay AU Pro Basic - Tier 2", platform: "eBay AU", category: "Most categories", rate: 10.34, fixedFee: 0.33, flatFee: 0, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Updated 27 Mar 2026, incl. GST" },
+  { id: "ebay-au-tier-3", name: "eBay AU Pro Basic - Tier 3", platform: "eBay AU", category: "Vehicle Parts & Accessories", rate: 11.22, fixedFee: 0.33, flatFee: 0, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Updated 27 Mar 2026, incl. GST" },
+  { id: "ebay-au-tier-4", name: "eBay AU Pro Basic - Tier 4", platform: "eBay AU", category: "Business, Collectables, Fashion, Media, Sporting Goods, Tech Accessories", rate: 11.77, fixedFee: 0.33, flatFee: 0, cliff: 4000, aboveCliffRate: 2.75, intlRate: 1.1, belowStdRate: 5.5, notes: "Updated 27 Mar 2026, incl. GST" },
+  { id: "ebay-au-nft", name: "eBay AU Pro Basic - NFTs", platform: "eBay AU", category: "Non-fungible tokens", rate: 5.5, fixedFee: 0.33, flatFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 1.1, belowStdRate: 5.5, notes: "Flat NFT category rate, incl. GST" },
+  { id: "ebay-au-services", name: "eBay AU Pro Basic - Services", platform: "eBay AU", category: "Services", rate: 0, fixedFee: 0.33, flatFee: 44, cliff: 0, aboveCliffRate: 0, intlRate: 1.1, belowStdRate: 5.5, notes: "AU$44 flat Services fee + order fee, incl. GST" },
+  { id: "facebook-marketplace", name: "Facebook Marketplace", platform: "Facebook Marketplace", category: "Local / Manual", rate: 0, fixedFee: 0, flatFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "No platform fee by default" },
+  { id: "discord-manual", name: "Discord / Direct", platform: "Discord", category: "Manual", rate: 0, fixedFee: 0, flatFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "Manual private sale" },
+  { id: "stockx-basic", name: "StockX - Basic estimate", platform: "StockX", category: "Standard", rate: 12, fixedFee: 0, flatFee: 0, cliff: 0, aboveCliffRate: 0, intlRate: 0, belowStdRate: 0, notes: "Editable placeholder" },
 ];
+const DEFAULT_BY_ID = new Map(DEFAULT_CALCULATORS.map((c) => [c.id, c]));
+const EBAY_DEFAULT_IDS = new Set(DEFAULT_CALCULATORS.filter((c) => c.id.startsWith("ebay-au-")).map((c) => c.id));
 
 const blankPreset = () => ({
   id: genId(),
@@ -20,6 +25,7 @@ const blankPreset = () => ({
   category: "Custom",
   rate: 0,
   fixedFee: 0,
+  flatFee: 0,
   cliff: 0,
   aboveCliffRate: 0,
   intlRate: 0,
@@ -53,6 +59,7 @@ function cleanPreset(preset) {
     ...preset,
     rate: clampNum(preset.rate),
     fixedFee: clampNum(preset.fixedFee),
+    flatFee: clampNum(preset.flatFee),
     cliff: clampNum(preset.cliff),
     aboveCliffRate: clampNum(preset.aboveCliffRate),
     intlRate: clampNum(preset.intlRate),
@@ -60,15 +67,31 @@ function cleanPreset(preset) {
   };
 }
 
+function refreshBuiltInCalculators(calculators) {
+  const seen = new Set();
+  const refreshed = calculators.map((preset) => {
+    const latest = DEFAULT_BY_ID.get(preset.id);
+    if (latest && EBAY_DEFAULT_IDS.has(preset.id)) {
+      seen.add(preset.id);
+      return cleanPreset({ ...preset, ...latest, revision: DEFAULT_REVISION });
+    }
+    return cleanPreset(preset);
+  });
+  DEFAULT_CALCULATORS.forEach((preset) => {
+    if (!seen.has(preset.id) && EBAY_DEFAULT_IDS.has(preset.id)) refreshed.push(cleanPreset({ ...preset, revision: DEFAULT_REVISION }));
+  });
+  return refreshed;
+}
+
 function loadCalculators() {
   if (typeof window === "undefined") return DEFAULT_CALCULATORS;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_CALCULATORS;
-    return parsed.map(cleanPreset);
+    if (!Array.isArray(parsed) || parsed.length === 0) return refreshBuiltInCalculators(DEFAULT_CALCULATORS);
+    return refreshBuiltInCalculators(parsed);
   } catch {
-    return DEFAULT_CALCULATORS;
+    return refreshBuiltInCalculators(DEFAULT_CALCULATORS);
   }
 }
 
@@ -95,16 +118,17 @@ function calcFees({ salePrice, shipping, calculator, isIntl, isBelowStd, adRate 
   const belowStdFee = isBelowStd ? total * rateToDecimal(calculator.belowStdRate) : 0;
   const adFee = adRate > 0 ? total * rateToDecimal(adRate) : 0;
   const fixedFee = clampNum(calculator.fixedFee);
-  const totalFees = platformFee + fixedFee + intlFee + belowStdFee + adFee;
+  const flatFee = clampNum(calculator.flatFee);
+  const totalFees = platformFee + fixedFee + flatFee + intlFee + belowStdFee + adFee;
   const netPayout = total - totalFees;
   const effRate = totalFees / total;
 
-  return { total, platformFee, fixedFee, intlFee, belowStdFee, adFee, totalFees, netPayout, effRate };
+  return { total, platformFee, fixedFee, flatFee, intlFee, belowStdFee, adFee, totalFees, netPayout, effRate };
 }
 
 function reverseCalc({ targetNet, calculator, isIntl, isBelowStd, adRate }) {
   const baseRate = rateToDecimal(calculator.rate);
-  const fixedFee = clampNum(calculator.fixedFee);
+  const fixedFee = clampNum(calculator.fixedFee) + clampNum(calculator.flatFee);
   const intl = isIntl ? rateToDecimal(calculator.intlRate) : 0;
   const belowStd = isBelowStd ? rateToDecimal(calculator.belowStdRate) : 0;
   const ad = adRate > 0 ? rateToDecimal(adRate) : 0;
@@ -142,7 +166,7 @@ export default function Calculator({ isMobile = false }) {
       const remote = await loadData(STORAGE_KEY, null);
       if (!alive) return;
       if (Array.isArray(remote) && remote.length > 0) {
-        const cleaned = remote.map(cleanPreset);
+        const cleaned = refreshBuiltInCalculators(remote);
         setCalculators(cleaned);
         setSelectedId((prev) => cleaned.some((c) => c.id === prev) ? prev : cleaned[0].id);
       }
@@ -222,8 +246,9 @@ export default function Calculator({ isMobile = false }) {
   };
 
   const resetDefaults = () => {
-    setCalculators(DEFAULT_CALCULATORS);
-    setSelectedId(DEFAULT_CALCULATORS[3].id);
+    const defaults = refreshBuiltInCalculators(DEFAULT_CALCULATORS);
+    setCalculators(defaults);
+    setSelectedId(defaults.find((c) => c.id === "ebay-au-tier-4")?.id || defaults[0].id);
     setEditingId(null);
   };
 
@@ -330,6 +355,7 @@ export default function Calculator({ isMobile = false }) {
               <div style={{ fontSize: 13 }}>
                 <Line label="Total sale" value={currency(result.total)} bold />
                 <Line label={`Platform fee (${pct(calculator.rate)}${calculator.cliff && result.total > calculator.cliff ? " + cliff" : ""})`} value={"-" + currency(result.platformFee)} negative />
+                {result.flatFee > 0 && <Line label="Flat category fee" value={"-" + currency(result.flatFee)} negative />}
                 {result.fixedFee > 0 && <Line label="Fixed order fee" value={"-" + currency(result.fixedFee)} negative />}
                 {result.adFee > 0 && <Line label={`Promoted / ad fee (${adRate}%)`} value={"-" + currency(result.adFee)} negative />}
                 {result.intlFee > 0 && <Line label={`International fee (${pct(calculator.intlRate)})`} value={"-" + currency(result.intlFee)} negative />}
@@ -362,6 +388,7 @@ export default function Calculator({ isMobile = false }) {
             <Ref label="Category" value={calculator.category} />
             <Ref label="Base fee" value={pct(calculator.rate)} />
             <Ref label="Fixed fee" value={currency(calculator.fixedFee)} />
+            <Ref label="Flat fee" value={calculator.flatFee ? currency(calculator.flatFee) : "None"} />
             <Ref label="Cliff" value={calculator.cliff ? currency(calculator.cliff) : "None"} />
             <Ref label="Above cliff" value={calculator.aboveCliffRate ? pct(calculator.aboveCliffRate) : "None"} />
             <Ref label="International" value={calculator.intlRate ? pct(calculator.intlRate) : "None"} />
@@ -411,6 +438,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
               <Field label="Category / tier"><input value={editing.category} onChange={(e) => updateCalculator(editing.id, { category: e.target.value })} style={inp} /></Field>
               <Field label="Base fee rate (%)"><input type="number" step="0.01" value={editing.rate} onChange={(e) => updateCalculator(editing.id, { rate: e.target.value })} style={inp} /></Field>
               <Field label="Fixed fee (AU$)"><input type="number" step="0.01" value={editing.fixedFee} onChange={(e) => updateCalculator(editing.id, { fixedFee: e.target.value })} style={inp} /></Field>
+              <Field label="Flat category fee (AU$)"><input type="number" step="0.01" value={editing.flatFee || 0} onChange={(e) => updateCalculator(editing.id, { flatFee: e.target.value })} style={inp} /></Field>
               <Field label="Cliff amount (AU$)"><input type="number" step="0.01" value={editing.cliff} onChange={(e) => updateCalculator(editing.id, { cliff: e.target.value })} style={inp} /></Field>
               <Field label="Rate above cliff (%)"><input type="number" step="0.01" value={editing.aboveCliffRate} onChange={(e) => updateCalculator(editing.id, { aboveCliffRate: e.target.value })} style={inp} /></Field>
               <Field label="International extra (%)"><input type="number" step="0.01" value={editing.intlRate} onChange={(e) => updateCalculator(editing.id, { intlRate: e.target.value })} style={inp} /></Field>

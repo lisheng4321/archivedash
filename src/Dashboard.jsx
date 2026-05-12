@@ -7,7 +7,7 @@ import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -21,6 +21,7 @@ export default function App({ onLogout, userEmail }) {
   const [sales, setSales] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [subs, setSubs] = useState([]);
+  const [fxRates, setFxRates] = useState({ AUD: 1 });
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
   const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS });
   const [loading, setLoading] = useState(true);
@@ -182,6 +183,27 @@ export default function App({ onLogout, userEmail }) {
       setLoading(false);
     })();
   }, []);
+
+  useEffect(() => {
+    const codes = [...new Set(subs.map((s) => String(s.currency || "AUD").toUpperCase()).filter((c) => c && c !== "AUD"))];
+    if (!codes.length) {
+      setFxRates({ AUD: 1 });
+      return;
+    }
+    let alive = true;
+    Promise.all(codes.map((code) =>
+      fetch(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(code)}/AUD`)
+        .then((res) => res.ok ? res.json() : null)
+        .then((data) => [code, Number(data?.rate)])
+        .catch(() => [code, 0])
+    )).then((entries) => {
+      if (!alive) return;
+      const next = { AUD: 1 };
+      entries.forEach(([code, rate]) => { if (rate) next[code] = rate; });
+      setFxRates(next);
+    });
+    return () => { alive = false; };
+  }, [subs]);
 
   const persist = useCallback(async (key, data, setter) => {
     setSaveStatus("saving"); await save(key, data); setter(data); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
@@ -524,7 +546,7 @@ export default function App({ onLogout, userEmail }) {
     const shared = review?.shared || { platform: "eBay AU", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
     const rows = review?.rows || matches.map((item) => {
       const qty = Math.max(1, Number(draft.quantity || 1));
-      const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : Number((Number(draft.sale_price || 0) * EBAY_AU_FEE_RATE).toFixed(2));
+      const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : Number((Number(draft.sale_price || 0) * EBAY_AU_FEE_RATE + EBAY_AU_FIXED_ORDER_FEE).toFixed(2));
       return { id: item.id, salePrice: Number(draft.sale_price || 0) / qty, shippingPrice: Number(draft.shipping_price || 0) / qty, platformFees: feeTotal / qty };
     });
     const newSales = matches.map((item) => {
@@ -617,9 +639,11 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const logSub = async (sub) => {
-    const newExp = { id: genId(), name: sub.name, amount: sub.amount, purchaseDate: sub.nextDue, tags: sub.tags || "", expCategory: "Software & Subs" };
+    const subCurrency = String(sub.currency || "AUD").toUpperCase();
+    const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
+    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: sub.nextDue, tags: [sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
     await persistExp([newExp, ...expenses]);
-    await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, nextDue: advanceDate(s.nextDue, s.frequency), lastLogged: sub.nextDue } : s));
+    await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(s.nextDue, s.frequency, s.customDays), lastLogged: sub.nextDue } : s));
   };
 
   const logAllOverdue = async () => {
@@ -631,12 +655,14 @@ export default function App({ onLogout, userEmail }) {
     for (const sub of dueSubs) {
       let cur = sub.nextDue;
       let lastLogged = sub.lastLogged;
+      const subCurrency = String(sub.currency || "AUD").toUpperCase();
       while (cur <= t) {
-        newExpenses.push({ id: genId(), name: sub.name, amount: sub.amount, purchaseDate: cur, tags: sub.tags || "", expCategory: "Software & Subs" });
+        const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
+        newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" });
         lastLogged = cur;
-        cur = advanceDate(cur, sub.frequency);
+        cur = advanceDate(cur, sub.frequency, sub.customDays);
       }
-      updatedSubs = updatedSubs.map((s) => s.id === sub.id ? { ...s, nextDue: cur, lastLogged } : s);
+      updatedSubs = updatedSubs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: cur, lastLogged } : s);
     }
     await persistExp([...newExpenses, ...expenses]);
     await persistSubs(updatedSubs);
@@ -891,9 +917,9 @@ export default function App({ onLogout, userEmail }) {
     const t = today();
     const active = subs.filter((s) => s.active);
     const overdue = active.filter((s) => s.nextDue && s.nextDue <= t);
-    const monthlyBurn = active.reduce((a, s) => a + monthlyEquiv(s.amount, s.frequency), 0);
+    const monthlyBurn = active.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0);
     return { active, overdue, monthlyBurn, annualCost: monthlyBurn * 12 };
-  }, [subs]);
+  }, [subs, fxRates]);
 
   const health = useMemo(() => {
     const releasedPreorders = inventory.filter((i) => {
@@ -1551,7 +1577,7 @@ export default function App({ onLogout, userEmail }) {
           )}
           {subStats.overdue.length > 0 && (
             <div style={{ background: "#111827", border: "1px solid #ef444455", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600 }}>{subStats.overdue.length} subscription{subStats.overdue.length === 1 ? "" : "s"} overdue · {currency(subStats.overdue.reduce((a, s) => a + s.amount, 0))}</span>
+              <span style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600 }}>{subStats.overdue.length} subscription{subStats.overdue.length === 1 ? "" : "s"} overdue · {currency(subStats.overdue.reduce((a, s) => a + subAmountAud(s, fxRates), 0))}</span>
               <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
             </div>
           )}
@@ -1708,7 +1734,7 @@ export default function App({ onLogout, userEmail }) {
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 90px 100px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600 }}>
                 <span>Name</span><span>Amount</span><span>Frequency</span><span>Monthly</span><span>Next due</span><span>Actions</span>
               </div>
             )}
@@ -1716,15 +1742,19 @@ export default function App({ onLogout, userEmail }) {
             {sortedSubs.map((s) => {
               const t = today();
               const isOverdue = s.active && s.nextDue && s.nextDue <= t;
-              const me = monthlyEquiv(s.amount, s.frequency);
+              const me = subMonthlyAud(s, fxRates);
+              const amountAud = subAmountAud(s, fxRates);
+              const code = String(s.currency || "AUD").toUpperCase();
+              const amountLabel = code === "AUD" ? currency(s.amount) : `${formatMoney(s.amount, code)} (${currency(amountAud)})`;
+              const freqText = frequencyLabel(s.frequency, s.customDays);
               if (isMobile) {
                 return (
                   <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                       <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
-                      <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>{currency(s.amount)}</div>
+                      <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>{amountLabel}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{FREQ_LABEL[s.frequency]} · {currency(me)}/mo · due {s.nextDue}</div>
+                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</div>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Log</button>}
                       <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
@@ -1735,10 +1765,10 @@ export default function App({ onLogout, userEmail }) {
                 );
               }
               return (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 90px 100px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
+                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
                   <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 10, color: "#6b7280" }}>{s.tags}</div>}</div>
-                  <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(s.amount)}</span>
-                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{FREQ_LABEL[s.frequency]}</span>
+                  <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{amountLabel}</span>
+                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{freqText}</span>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>{currency(me)}</span>
                   <span style={{ color: isOverdue ? "#f87171" : "#6b7280", fontSize: 12 }}>{s.nextDue || "—"}</span>
                   <div style={{ display: "flex", gap: 3 }}>

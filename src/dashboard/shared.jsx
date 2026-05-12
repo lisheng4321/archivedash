@@ -11,11 +11,13 @@ const getDefaultSize = (cat) => DEF_SIZE_MAP[cat]?.[0] || "OS";
 const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 
-const VERSION = "0.6.12";
+const VERSION = "0.6.15";
 const PREORDER_THRESHOLD = 40; // business days before release that triggers a reminder
-const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly"];
-const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly" };
-const EBAY_AU_FEE_RATE = 0.1165;
+const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly", "custom"];
+const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly", custom: "Custom days" };
+const CURRENCY_OPTIONS = ["AUD", "GBP", "EUR", "USD", "NZD", "JPY", "HKD", "CAD", "SGD"];
+const EBAY_AU_FEE_RATE = 0.1177;
+const EBAY_AU_FIXED_ORDER_FEE = 0.33;
 
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
@@ -75,19 +77,40 @@ const businessDaysUntil = (dateStr) => {
   return sign * count;
 };
 
-const advanceDate = (dateStr, freq) => {
+const frequencyDays = (freq, customDays) => {
+  if (freq === "weekly") return 7;
+  if (freq === "fortnightly") return 14;
+  if (freq === "monthly") return 365.2425 / 12;
+  if (freq === "yearly") return 365.2425;
+  if (freq === "custom") {
+    const days = parseInt(customDays, 10) || 0;
+    return days > 0 ? days : 365.2425 / 12;
+  }
+  return 365.2425 / 12;
+};
+
+const frequencyLabel = (freq, customDays) => {
+  if (freq === "custom") {
+    const days = parseInt(customDays, 10) || 0;
+    return days > 0 ? `Every ${days} day${days === 1 ? "" : "s"}` : "Custom days";
+  }
+  return FREQ_LABEL[freq] || "Monthly";
+};
+
+const advanceDate = (dateStr, freq, customDays) => {
   const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return today();
   if (freq === "weekly") d.setDate(d.getDate() + 7);
   else if (freq === "fortnightly") d.setDate(d.getDate() + 14);
   else if (freq === "monthly") d.setMonth(d.getMonth() + 1);
   else if (freq === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else if (freq === "custom") d.setDate(d.getDate() + frequencyDays(freq, customDays));
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const monthlyEquiv = (amount, freq) => {
+const monthlyEquiv = (amount, freq, customDays) => {
   const a = parseFloat(amount) || 0;
-  if (freq === "weekly") return a * 52 / 12;
-  if (freq === "fortnightly") return a * 26 / 12;
+  if (freq === "weekly" || freq === "fortnightly" || freq === "custom") return a * (365.2425 / frequencyDays(freq, customDays)) / 12;
   if (freq === "monthly") return a;
   if (freq === "yearly") return a / 12;
   return a;
@@ -103,7 +126,21 @@ const preorderBadge = (bdays) => {
 };
 
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-const currency = (v) => { const n = Number(v); if (isNaN(n)) return "AU$0"; return (n < 0 ? "-AU$" : "AU$") + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ","); };
+const formatMoney = (v, code = "AUD") => {
+  const n = Number(v);
+  const c = String(code || "AUD").toUpperCase();
+  if (isNaN(n)) return c === "AUD" ? "AU$0" : `${c} 0`;
+  if (c === "AUD") return (n < 0 ? "-AU$" : "AU$") + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return `${c} ${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+const currency = (v) => formatMoney(v, "AUD");
+const subFxRate = (sub, liveRates = {}) => {
+  const code = String(sub?.currency || "AUD").toUpperCase();
+  if (code === "AUD") return 1;
+  return Number(liveRates[code]) || Number(sub?.fxRateToAud) || 1;
+};
+const subAmountAud = (sub, liveRates = {}) => (parseFloat(sub?.amount) || 0) * subFxRate(sub, liveRates);
+const subMonthlyAud = (sub, liveRates = {}) => monthlyEquiv(subAmountAud(sub, liveRates), sub?.frequency, sub?.customDays);
 
 const sydneyDate = (date) => {
   const parts = new Intl.DateTimeFormat("en-AU", {
@@ -253,17 +290,25 @@ export {
   PREORDER_THRESHOLD,
   FREQ_OPTIONS,
   FREQ_LABEL,
+  CURRENCY_OPTIONS,
   EBAY_AU_FEE_RATE,
+  EBAY_AU_FIXED_ORDER_FEE,
   FONT_SIZES,
   TEMPLATES,
   renderTemplate,
   stripHtml,
   businessDaysUntil,
+  frequencyDays,
+  frequencyLabel,
   advanceDate,
   monthlyEquiv,
   preorderBadge,
   genId,
+  formatMoney,
   currency,
+  subFxRate,
+  subAmountAud,
+  subMonthlyAud,
   sydneyDate,
   today,
   daysAgo,
