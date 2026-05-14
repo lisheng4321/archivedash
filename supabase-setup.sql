@@ -13,6 +13,10 @@ create table if not exists app_data (
 -- 2. Enable Row Level Security
 alter table app_data enable row level security;
 
+revoke all on table public.app_data from anon;
+grant select, insert, update, delete on table public.app_data to authenticated;
+grant select, insert, update, delete on table public.app_data to service_role;
+
 -- 3. Create policies so users can only access their own data
 do $$
 begin
@@ -83,6 +87,14 @@ create table if not exists ebay_tokens (
   updated_at timestamptz default now()
 );
 
+alter table ebay_oauth_states enable row level security;
+alter table ebay_tokens enable row level security;
+
+revoke all on table public.ebay_oauth_states from anon, authenticated;
+revoke all on table public.ebay_tokens from anon, authenticated;
+grant select, insert, update, delete on table public.ebay_oauth_states to service_role;
+grant select, insert, update, delete on table public.ebay_tokens to service_role;
+
 create table if not exists ebay_import_queue (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users on delete cascade not null,
@@ -140,6 +152,10 @@ alter table ebay_import_queue add column if not exists fulfillment_instruction_t
 
 alter table ebay_import_queue enable row level security;
 
+revoke all on table public.ebay_import_queue from anon;
+grant select, update on table public.ebay_import_queue to authenticated;
+grant select, insert, update, delete on table public.ebay_import_queue to service_role;
+
 do $$
 begin
   if not exists (
@@ -182,6 +198,14 @@ create table if not exists gmail_tokens (
   expires_at timestamptz,
   updated_at timestamptz default now()
 );
+
+alter table gmail_oauth_states enable row level security;
+alter table gmail_tokens enable row level security;
+
+revoke all on table public.gmail_oauth_states from anon, authenticated;
+revoke all on table public.gmail_tokens from anon, authenticated;
+grant select, insert, update, delete on table public.gmail_oauth_states to service_role;
+grant select, insert, update, delete on table public.gmail_tokens to service_role;
 
 create table if not exists gmail_import_queue (
   id uuid primary key default gen_random_uuid(),
@@ -233,6 +257,10 @@ begin
 end $$;
 
 alter table gmail_import_queue enable row level security;
+
+revoke all on table public.gmail_import_queue from anon;
+grant select, update on table public.gmail_import_queue to authenticated;
+grant select, insert, update, delete on table public.gmail_import_queue to service_role;
 
 do $$
 begin

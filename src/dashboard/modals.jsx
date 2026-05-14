@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, renderTemplate, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
+import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
 
 // ─── Edit Inv Modal ───
 function EditInvModal({ item, onSave, onClose, categories, customers }) {
@@ -496,7 +496,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
 
 // ─── Subscription Modal ───
 function SubModal({ sub, onSave, onClose }) {
-  const [sf, setSf] = useState(sub ? { currency: "AUD", fxRateToAud: 1, customDays: "", ...sub } : { name: "", amount: "", currency: "AUD", fxRateToAud: 1, fxUpdatedAt: "", frequency: "monthly", customDays: "", nextDue: today(), tags: "", active: true });
+  const [sf, setSf] = useState(sub ? { category: "Other", currency: "AUD", fxRateToAud: 1, customDays: "", ...sub } : { name: "", category: "Other", amount: "", currency: "AUD", fxRateToAud: 1, fxUpdatedAt: "", frequency: "monthly", customDays: "", nextDue: today(), tags: "", active: true });
   const [dirty, setDirty] = useState(false);
   const [showU, setShowU] = useState(false);
   const [fxStatus, setFxStatus] = useState("");
@@ -530,6 +530,7 @@ function SubModal({ sub, onSave, onClose }) {
     if (sf.frequency === "custom" && !customDays) return;
     onSave({
       ...sf,
+      category: SUB_CATEGORIES.includes(sf.category) ? sf.category : "Other",
       amount: parseFloat(sf.amount),
       currency: currencyCode,
       fxRateToAud: isForeign ? (parseFloat(sf.fxRateToAud) || 1) : 1,
@@ -545,7 +546,8 @@ function SubModal({ sub, onSave, onClose }) {
       <Field label="AUD rate"><input type="number" step="0.0001" disabled={!isForeign} value={isForeign ? sf.fxRateToAud : 1} onChange={(e) => up({ fxRateToAud: e.target.value, fxUpdatedAt: today() })} style={{ ...inp, opacity: isForeign ? 1 : 0.55 }} placeholder="1.0000" /></Field>
     </Row>
     {isForeign && <div style={{ margin: "-4px 0 10px", fontSize: 11, color: fxStatus.startsWith("Could") ? "#fbbf24" : "#6b7280" }}>{fxStatus || "Rate is stored on this subscription and can be edited per charge."}</div>}
-    <Row>
+    <Row cols={3}>
+      <Field label="Category"><select value={sf.category || "Other"} onChange={(e) => up({ category: e.target.value })} style={sel}>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
       <Field label="Frequency"><select value={sf.frequency} onChange={(e) => up({ frequency: e.target.value })} style={sel}>{FREQ_OPTIONS.map((f) => <option key={f} value={f}>{FREQ_LABEL[f]}</option>)}</select></Field>
       <Field label={sf.frequency === "custom" ? "Every X days" : "Next due"} req>{sf.frequency === "custom" ? <input type="number" min="1" step="1" value={sf.customDays} onChange={(e) => up({ customDays: e.target.value })} style={inp} placeholder="28" /> : <input type="date" value={sf.nextDue} onChange={(e) => up({ nextDue: e.target.value })} style={inp} />}</Field>
     </Row>

@@ -8,6 +8,20 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.17] - 2026-05-14
+
+### Added
+- **Subscription categories and sorting** with compact category choices, category chips, category burn summaries, category/search filters, and sortable subscription table headers.
+
+---
+
+## [0.6.16] - 2026-05-14
+
+### Fixed
+- **Supabase public table security** now enables RLS on OAuth state/token tables, revokes browser-role access to stored integration tokens, and adds explicit Data API grants for app tables used by authenticated users and Edge Functions.
+
+---
+
 ## [0.6.15] - 2026-05-12
 
 ### Added

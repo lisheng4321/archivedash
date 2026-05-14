@@ -7,12 +7,22 @@ import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
 const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
 const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+const subCategory = (sub) => SUB_CATEGORIES.includes(sub?.category) ? sub.category : "Other";
+const subCategoryColor = (cat) => ({
+  Botting: ["#1e3a5f", "#93c5fd"],
+  AI: ["#312e81", "#c4b5fd"],
+  Marketplaces: ["#1f3b2d", "#86efac"],
+  Domains: ["#3b2f1f", "#fbbf24"],
+  Infrastructure: ["#1f2937", "#cbd5e1"],
+  Finance: ["#3b1f2b", "#f9a8d4"],
+  Other: ["#111827", "#9ca3af"],
+}[cat] || ["#111827", "#9ca3af"]);
 
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
@@ -74,6 +84,7 @@ export default function App({ onLogout, userEmail }) {
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
+  const [subSearch, setSubSearch] = useState(""); const [subCatFilter, setSubCatFilter] = useState("All"); const [subSort, setSubSort] = useState("nextDue_asc");
   const [backupStatus, setBackupStatus] = useState("");
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
   const [navDragId, setNavDragId] = useState(null);
@@ -641,7 +652,7 @@ export default function App({ onLogout, userEmail }) {
   const logSub = async (sub) => {
     const subCurrency = String(sub.currency || "AUD").toUpperCase();
     const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
-    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: sub.nextDue, tags: [sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
+    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: sub.nextDue, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
     await persistExp([newExp, ...expenses]);
     await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(s.nextDue, s.frequency, s.customDays), lastLogged: sub.nextDue } : s));
   };
@@ -658,7 +669,7 @@ export default function App({ onLogout, userEmail }) {
       const subCurrency = String(sub.currency || "AUD").toUpperCase();
       while (cur <= t) {
         const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
-        newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" });
+        newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" });
         lastLogged = cur;
         cur = advanceDate(cur, sub.frequency, sub.customDays);
       }
@@ -918,7 +929,15 @@ export default function App({ onLogout, userEmail }) {
     const active = subs.filter((s) => s.active);
     const overdue = active.filter((s) => s.nextDue && s.nextDue <= t);
     const monthlyBurn = active.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0);
-    return { active, overdue, monthlyBurn, annualCost: monthlyBurn * 12 };
+    const byCategory = SUB_CATEGORIES
+      .map((category) => {
+        const categorySubs = active.filter((s) => subCategory(s) === category);
+        const monthly = categorySubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0);
+        return { category, count: categorySubs.length, monthly };
+      })
+      .filter((row) => row.count > 0)
+      .sort((a, b) => b.monthly - a.monthly);
+    return { active, overdue, monthlyBurn, annualCost: monthlyBurn * 12, byCategory };
   }, [subs, fxRates]);
 
   const health = useMemo(() => {
@@ -942,7 +961,47 @@ export default function App({ onLogout, userEmail }) {
     return { checks, issues, warnings, actions, releasedPreorders };
   }, [inventory, CATS, PLATS, userEmail, ebayStatus, gmailStatus, ebayImports.length, gmailImports.length]);
 
-  const sortedSubs = useMemo(() => [...subs].sort((a, b) => (a.nextDue || "").localeCompare(b.nextDue || "")), [subs]);
+  const sortedSubs = useMemo(() => {
+    const term = subSearch.trim().toLowerCase();
+    const filtered = subs.filter((s) => {
+      const cat = subCategory(s);
+      const matchesCat = subCatFilter === "All" || cat === subCatFilter;
+      const matchesSearch = !term || [s.name, s.tags, s.currency, s.frequency, cat].some((v) => String(v || "").toLowerCase().includes(term));
+      return matchesCat && matchesSearch;
+    });
+    const sorted = [...filtered];
+    const dir = subSort.endsWith("_desc") ? -1 : 1;
+    const field = subSort.replace(/_(asc|desc)$/, "");
+    sorted.sort((a, b) => {
+      if (field === "name") return dir * String(a.name || "").localeCompare(String(b.name || ""));
+      if (field === "category") return dir * subCategory(a).localeCompare(subCategory(b));
+      if (field === "amount") return dir * (subAmountAud(a, fxRates) - subAmountAud(b, fxRates));
+      if (field === "monthly") return dir * (subMonthlyAud(a, fxRates) - subMonthlyAud(b, fxRates));
+      if (field === "frequency") return dir * frequencyLabel(a.frequency, a.customDays).localeCompare(frequencyLabel(b.frequency, b.customDays));
+      if (field === "status") return dir * Number(Boolean(a.active)).toString().localeCompare(Number(Boolean(b.active)).toString());
+      return dir * String(a.nextDue || "").localeCompare(String(b.nextDue || ""));
+    });
+    return sorted;
+  }, [subs, subSearch, subCatFilter, subSort, fxRates]);
+
+  const setSubSortField = (field) => {
+    setSubSort((prev) => {
+      const prevField = prev.replace(/_(asc|desc)$/, "");
+      const prevDir = prev.endsWith("_desc") ? "desc" : "asc";
+      const nextDir = prevField === field && prevDir === "asc" ? "desc" : "asc";
+      return `${field}_${nextDir}`;
+    });
+  };
+  const subSortIcon = (field) => subSort.startsWith(`${field}_`) ? (subSort.endsWith("_asc") ? " ↑" : " ↓") : "";
+  const subHeaderBtn = (field, label) => (
+    <button onClick={() => setSubSortField(field)} style={{ background: "transparent", border: "none", color: subSort.startsWith(`${field}_`) ? "#93c5fd" : "#4b5563", padding: 0, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+      {label}{subSortIcon(field)}
+    </button>
+  );
+  const subCatChip = (cat) => {
+    const [bg, fg] = subCategoryColor(cat);
+    return <span style={{ display: "inline-flex", alignItems: "center", width: "fit-content", padding: "2px 7px", borderRadius: 999, background: bg, color: fg, fontSize: 10, fontWeight: 700, lineHeight: 1.2 }}>{cat}</span>;
+  };
 
   // ─── Filtered Inventory ───
   const filteredInv = useMemo(() => {
@@ -1732,10 +1791,33 @@ export default function App({ onLogout, userEmail }) {
             <KPI label="Annual cost" value={currency(subStats.annualCost)} accent="#f59e0b" />
             <KPI label="Overdue" value={subStats.overdue.length} accent={subStats.overdue.length > 0 ? "#f87171" : undefined} />
           </div>
+          {subStats.byCategory.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 12 }}>
+              {subStats.byCategory.map(({ category, count, monthly }) => {
+                const [bg, fg] = subCategoryColor(category);
+                return (
+                  <button key={category} onClick={() => setSubCatFilter(category)} style={{ background: subCatFilter === category ? bg : "#111827", border: `1px solid ${subCatFilter === category ? fg : "#1f2937"}`, borderRadius: 8, padding: "9px 12px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <span style={{ color: fg, fontSize: 12, fontWeight: 800 }}>{category}</span>
+                      <span style={{ color: "#6b7280", fontSize: 10 }}>{count}</span>
+                    </div>
+                    <div style={{ marginTop: 4, color: "#f1f5f9", fontSize: 14, fontWeight: 800 }}>{currency(monthly)}<span style={{ color: "#6b7280", fontSize: 10, fontWeight: 600 }}> /mo</span></div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <input placeholder="Search subscriptions..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} style={{ ...inp, maxWidth: 210 }} />
+            <select value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+            <select value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="category_asc">Category A-Z</option><option value="name_asc">Name A-Z</option></select>
+            {(subSearch || subCatFilter !== "All" || subSort !== "nextDue_asc") && <button onClick={() => { setSubSearch(""); setSubCatFilter("All"); setSubSort("nextDue_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
+          </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600 }}>
-                <span>Name</span><span>Amount</span><span>Frequency</span><span>Monthly</span><span>Next due</span><span>Actions</span>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600 }}>
+                {subHeaderBtn("name", "Name")}{subHeaderBtn("category", "Category")}{subHeaderBtn("amount", "Amount")}{subHeaderBtn("frequency", "Frequency")}{subHeaderBtn("monthly", "Monthly")}{subHeaderBtn("nextDue", "Next due")}<span>Actions</span>
               </div>
             )}
             {sortedSubs.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No subscriptions yet. Add eBay Pro, software subs, etc.</div>}
@@ -1747,6 +1829,7 @@ export default function App({ onLogout, userEmail }) {
               const code = String(s.currency || "AUD").toUpperCase();
               const amountLabel = code === "AUD" ? currency(s.amount) : `${formatMoney(s.amount, code)} (${currency(amountAud)})`;
               const freqText = frequencyLabel(s.frequency, s.customDays);
+              const category = subCategory(s);
               if (isMobile) {
                 return (
                   <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
@@ -1754,7 +1837,7 @@ export default function App({ onLogout, userEmail }) {
                       <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
                       <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>{amountLabel}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 6 }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#6b7280" }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</span></div>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                       {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Log</button>}
                       <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
@@ -1765,8 +1848,9 @@ export default function App({ onLogout, userEmail }) {
                 );
               }
               return (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
+                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
                   <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 10, color: "#6b7280" }}>{s.tags}</div>}</div>
+                  <span>{subCatChip(category)}</span>
                   <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{amountLabel}</span>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>{freqText}</span>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>{currency(me)}</span>
