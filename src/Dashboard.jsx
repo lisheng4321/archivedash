@@ -13,6 +13,14 @@ import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, Bu
 
 const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
 const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
+const listedPlatformsFor = (item = {}) => Array.isArray(item.listedPlatforms) ? item.listedPlatforms.filter(Boolean) : [];
+const platformShortName = (platform = "") => {
+  const p = String(platform).toLowerCase();
+  if (p.includes("facebook")) return "FB";
+  if (p.includes("ebay")) return "eBay";
+  if (p.includes("instagram")) return "IG";
+  return String(platform || "Listed").replace(/\s+marketplace/i, "");
+};
 const subCategory = (sub) => SUB_CATEGORIES.includes(sub?.category) ? sub.category : "Other";
 const subCategoryColor = (cat) => ({
   Botting: ["#1e3a5f", "#93c5fd"],
@@ -80,7 +88,7 @@ export default function App({ onLogout, userEmail }) {
   const [gmailReviewOpen, setGmailReviewOpen] = useState(null);
 
   // Filters
-  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
+  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
@@ -93,8 +101,9 @@ export default function App({ onLogout, userEmail }) {
   const [newCat, setNewCat] = useState(""); const [newPlat, setNewPlat] = useState(""); const [newCust, setNewCust] = useState("");
 
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
+  const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
-  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", inTransit: false, tags: "", customer: "" };
+  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", inTransit: false, listedPlatforms: [], tags: "", customer: "" };
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0] };
   const [expForm, setExpForm] = useState(emptyExp);
@@ -466,7 +475,7 @@ export default function App({ onLogout, userEmail }) {
   const addInventory = async () => {
     if (!invForm.name || !invForm.price) return;
     const qty = Math.max(1, parseInt(invForm.quantity) || 1);
-    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, inTransit: invForm.inTransit, tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
+    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, inTransit: invForm.inTransit, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
     await persistInv([...items, ...inventory]);
     setInvForm(emptyInv); setAddInvOpen(false); setAddDirty(false);
   };
@@ -685,7 +694,14 @@ export default function App({ onLogout, userEmail }) {
 
   const handleBulkEdit = async (updates) => {
     const ids = selectedInv;
-    await persistInv(inventory.map((i) => ids.has(i.id) ? { ...i, ...updates } : i));
+    const { addListedPlatform, clearListingPlatforms, ...rest } = updates;
+    await persistInv(inventory.map((i) => {
+      if (!ids.has(i.id)) return i;
+      const next = { ...i, ...rest };
+      if (clearListingPlatforms) next.listedPlatforms = [];
+      if (addListedPlatform) next.listedPlatforms = [...new Set([...listedPlatformsFor(next), addListedPlatform])];
+      return next;
+    }));
     setBulkEditOpen(false); setSelectedInv(new Set());
   };
 
@@ -1006,8 +1022,25 @@ export default function App({ onLogout, userEmail }) {
   // ─── Filtered Inventory ───
   const filteredInv = useMemo(() => {
     let f = inventory;
-    if (invSearch) f = f.filter((i) => i.name.toLowerCase().includes(invSearch.toLowerCase()) || (i.brand||"").toLowerCase().includes(invSearch.toLowerCase()));
+    if (invSearch) {
+      const q = invSearch.toLowerCase();
+      f = f.filter((i) => [i.name, i.brand, i.tags, ...listedPlatformsFor(i)].some((v) => String(v || "").toLowerCase().includes(q)));
+    }
     if (invCat !== "All") f = f.filter((i) => i.category === invCat);
+    if (invStatus !== "All") {
+      f = f.filter((i) => {
+        const listed = listedPlatformsFor(i);
+        const hasPreorder = Boolean(i.preorderDate);
+        if (invStatus === "Preorders") return hasPreorder;
+        if (invStatus === "Released") return hasPreorder && businessDaysUntil(i.preorderDate) < 0;
+        if (invStatus === "In transit") return Boolean(i.inTransit);
+        if (invStatus === "Listed") return listed.length > 0;
+        if (invStatus === "Unlisted") return listed.length === 0;
+        if (invStatus === "Facebook") return listed.some((p) => String(p).toLowerCase().includes("facebook"));
+        if (invStatus === "eBay") return listed.some((p) => String(p).toLowerCase().includes("ebay"));
+        return true;
+      });
+    }
     const sorted = [...f];
     switch (invSort) {
       case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
@@ -1018,7 +1051,7 @@ export default function App({ onLogout, userEmail }) {
       case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"")); break;
     }
     return sorted;
-  }, [inventory, invSearch, invCat, invSort]);
+  }, [inventory, invSearch, invCat, invStatus, invSort]);
 
   const groupedInv = useMemo(() => {
     if (!invCollapse) return filteredInv.map((i) => ({ ...i, _group: false }));
@@ -1173,6 +1206,9 @@ export default function App({ onLogout, userEmail }) {
   }, [expenses, expSearch, expCatFilter, expFrom, expTo, expSort]);
 
   const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
+  const preorderInvCount = useMemo(() => inventory.filter((i) => i.preorderDate).length, [inventory]);
+  const listedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).length > 0).length, [inventory]);
+  const facebookListedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).some((p) => String(p).toLowerCase().includes("facebook"))).length, [inventory]);
   const toggleSel = (id) => setSelectedInv((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const toggleAll = () => { if (selectedInv.size === filteredInv.length) setSelectedInv(new Set()); else setSelectedInv(new Set(filteredInv.map((i) => i.id))); };
   const toggleGroupSelection = (items = []) => setSelectedInv((p) => {
@@ -1279,6 +1315,14 @@ export default function App({ onLogout, userEmail }) {
     if (!b) return null;
     return <span style={badge(b.bg, b.fg)}>{b.text}</span>;
   };
+  const renderListingBadges = (item) => {
+    const platforms = listedPlatformsFor(item);
+    if (!platforms.length) return null;
+    return platforms.map((p) => {
+      const isFacebook = String(p).toLowerCase().includes("facebook");
+      return <span key={p} style={badge(isFacebook ? "#123326" : "#1f2937", isFacebook ? "#86efac" : "#93c5fd")}>{platformShortName(p)}</span>;
+    });
+  };
 
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
@@ -1303,6 +1347,7 @@ export default function App({ onLogout, userEmail }) {
                 {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
                 {item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}
                 {renderPreBadge(item)}
+                {renderListingBadges(item)}
               </div>
               <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
                 <button onClick={() => setSellOpen(item)} style={{ padding: "5px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
@@ -1317,7 +1362,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(item)}{renderListingBadges(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500 }}>{item.size||"OS"}</span>
         <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item.price)}</span>
@@ -1726,7 +1771,7 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, setInvForm, emptyInv, CATS, setAddDirty, setAddInvOpen, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, setInvForm, emptyInv, CATS, listingPlatforms, setAddDirty, setAddInvOpen, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
@@ -1973,7 +2018,7 @@ export default function App({ onLogout, userEmail }) {
                 <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
                 <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
               </div>
-            </div>}
+            </div>
             {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{ebayStatus}</div>}
             <div style={{ fontSize: 12, color: "#4b5563" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
           </div>
@@ -2075,6 +2120,7 @@ export default function App({ onLogout, userEmail }) {
         <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Price (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
         <Row><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={invForm.preorderDate} onChange={(e) => updateInvForm({ preorderDate: e.target.value })} style={inp} /></Field></Row>
+        <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         <Row><Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field><Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={invForm.inTransit} onChange={(e) => updateInvForm({ inTransit: e.target.checked })} style={cb} /> In Transit</label></Field></Row>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}><button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button><button onClick={addInventory} style={primaryBtn}>Add {parseInt(invForm.quantity)>1?`${invForm.quantity} items`:"item"}</button></div>
       </Modal>
@@ -2091,10 +2137,10 @@ export default function App({ onLogout, userEmail }) {
       {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} />}
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} />}
       {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
-      {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} />}
+      {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
       {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} />}
-      {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} />}
+      {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
       {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}
       {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} />}

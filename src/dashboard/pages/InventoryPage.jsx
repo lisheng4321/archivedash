@@ -16,6 +16,7 @@ export default function InventoryPage({ ctx }) {
     setInvForm,
     emptyInv,
     CATS,
+    listingPlatforms,
     setAddDirty,
     setAddInvOpen,
     gmailQueueOpen,
@@ -24,12 +25,17 @@ export default function InventoryPage({ ctx }) {
     setInvSearch,
     invCat,
     setInvCat,
+    invStatus,
+    setInvStatus,
     invSort,
     setInvSort,
     invCollapse,
     setInvCollapse,
     filteredInv,
     selectedValue,
+    preorderInvCount,
+    listedInvCount,
+    facebookListedInvCount,
     isMobile,
     toggleAll,
     mobileSelectAll,
@@ -46,16 +52,26 @@ export default function InventoryPage({ ctx }) {
               {selectedInv.size > 0 && <><button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button><button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button><button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button></>}
               <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync Gmail</button>
               <button onClick={async () => { setGmailQueueOpen((v) => !v); if (!gmailImports.length) await loadGmailImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Gmail queue{gmailImports.length ? ` (${gmailImports.length})` : ""}</button>
-              <button onClick={() => { setInvForm({ ...emptyInv, category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||"") }); setAddDirty(false); setAddInvOpen(true); }} style={primaryBtn}>+ Add inventory</button>
+              <button onClick={() => { setInvForm({ ...emptyInv, category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), listedPlatforms: [] }); setAddDirty(false); setAddInvOpen(true); }} style={primaryBtn}>+ Add inventory</button>
             </div>
           </div>
           {gmailQueueOpen && gmailQueuePanel()}
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
             <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+            <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: 140 }}>
+              <option value="All">All Status</option>
+              <option value="Preorders">Preorders</option>
+              <option value="Released">Released</option>
+              <option value="In transit">In transit</option>
+              <option value="Listed">Listed</option>
+              <option value="Unlisted">Unlisted</option>
+              {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
+              {listingPlatforms.some((p) => String(p).toLowerCase().includes("ebay")) && <option value="eBay">eBay</option>}
+            </select>
             <select value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option><option value="price_desc">Price ↓</option><option value="price_asc">Price ↑</option><option value="date_desc">Newest</option><option value="date_asc">Oldest</option></select>
             <label style={{ fontSize: 12, color: "#6b7280", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
-            {(invSearch||invCat!=="All"||invSort!=="name_asc")&&<button onClick={() => { setInvSearch(""); setInvCat("All"); setInvSort("name_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+            {(invSearch||invCat!=="All"||invStatus!=="All"||invSort!=="name_asc")&&<button onClick={() => { setInvSearch(""); setInvCat("All"); setInvStatus("All"); setInvSort("name_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
             <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredInv.length} items{selectedInv.size>0&&` · ${selectedInv.size} selected · ${currency(selectedValue)}`}</span>
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>

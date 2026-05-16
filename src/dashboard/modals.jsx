@@ -2,10 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
 
 // ─── Edit Inv Modal ───
-function EditInvModal({ item, onSave, onClose, categories, customers }) {
-  const [ef, setEf] = useState({ name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price, brand: item.brand || "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", inTransit: item.inTransit || false, tags: item.tags || "", customer: item.customer || "" });
+function EditInvModal({ item, onSave, onClose, categories, customers, platforms = [] }) {
+  const [ef, setEf] = useState({ name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price, brand: item.brand || "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", inTransit: item.inTransit || false, listedPlatforms: Array.isArray(item.listedPlatforms) ? item.listedPlatforms : [], tags: item.tags || "", customer: item.customer || "" });
   const [showU, setShowU] = useState(false);
   const up = (u) => { setEf({ ...ef, ...u }); };
+  const listed = Array.isArray(ef.listedPlatforms) ? ef.listedPlatforms : [];
+  const toggleListedPlatform = (platform, checked) => {
+    const next = new Set(listed);
+    checked ? next.add(platform) : next.delete(platform);
+    up({ listedPlatforms: [...next] });
+  };
   const gc = () => { setShowU(true); };
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit item">
     <Field label="Product name" req><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field>
@@ -14,6 +20,7 @@ function EditInvModal({ item, onSave, onClose, categories, customers }) {
     <Field label="Price (AU$)"><input type="number" step="0.01" value={ef.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={ef.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Preorder date"><input type="date" value={ef.preorderDate} onChange={(e) => up({ preorderDate: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={ef.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
+    <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{platforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listed.includes(p)} onChange={(e) => toggleListedPlatform(p, e.target.checked)} style={cb} /> {p}</label>)}</div></Field>
     <Row><Field label="Customer"><input list="cust-list" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-list">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field>
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={ef.inTransit} onChange={(e) => up({ inTransit: e.target.checked })} style={cb} /> In Transit</label></Field></Row>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => onSave({ ...ef, price: parseFloat(ef.price) })} style={primaryBtn}>Save</button></div>
@@ -68,15 +75,17 @@ function SellModal({ item, onSell, onClose, platforms, customers }) {
 }
 
 // ─── Bulk Edit Modal ───
-function BulkEditModal({ items, onSave, onClose, categories }) {
-  const [cat, setCat] = useState(""); const [transit, setTransit] = useState(""); const [brand, setBrand] = useState("");
+function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
+  const [cat, setCat] = useState(""); const [transit, setTransit] = useState(""); const [brand, setBrand] = useState(""); const [addListedPlatform, setAddListedPlatform] = useState(""); const [clearListingPlatforms, setClearListingPlatforms] = useState(false);
   return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} items`}>
     <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
     <Field label="Category (all selected)"><select value={cat} onChange={(e) => setCat(e.target.value)} style={sel}><option value="">— No change —</option>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field>
     <Field label="Brand"><input value={brand} onChange={(e) => setBrand(e.target.value)} style={inp} placeholder="Leave blank to keep current" /></Field>
+    <Row><Field label="Add listed platform"><select value={addListedPlatform} onChange={(e) => setAddListedPlatform(e.target.value)} style={sel}><option value="">No change</option>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field>
+    <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearListingPlatforms} onChange={(e) => setClearListingPlatforms(e.target.checked)} style={cb} /> Clear listed platforms</label></Field></Row>
     <Field label="In Transit"><select value={transit} onChange={(e) => setTransit(e.target.value)} style={sel}><option value="">— No change —</option><option value="true">Yes</option><option value="false">No</option></select></Field>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={onClose} style={ghostBtn}>Cancel</button>
-    <button onClick={() => { const updates = {}; if (cat) updates.category = cat; if (brand) updates.brand = brand; if (transit) updates.inTransit = transit === "true"; onSave(updates); }} style={primaryBtn}>Apply to {items.length} items</button></div>
+    <button onClick={() => { const updates = {}; if (cat) updates.category = cat; if (brand) updates.brand = brand; if (transit) updates.inTransit = transit === "true"; if (addListedPlatform) updates.addListedPlatform = addListedPlatform; if (clearListingPlatforms) updates.clearListingPlatforms = true; onSave(updates); }} style={primaryBtn}>Apply to {items.length} items</button></div>
   </Modal>);
 }
 
