@@ -443,11 +443,11 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     }
   };
 
-  const tBtn = { width: 30, height: 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
+  const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, minHeight: 0 }}>
-      <div style={{ display: "flex", gap: 4, padding: "8px 12px", borderBottom: "1px solid #1f2937", flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: isMobile ? 3 : 4, padding: isMobile ? "6px 8px" : "8px 12px", borderBottom: "1px solid #1f2937", flexWrap: "wrap", alignItems: "center" }}>
         <button onMouseDown={(e) => { e.preventDefault(); undoRedo("undo"); }} title="Undo" style={tBtn}>↶</button>
         <button onMouseDown={(e) => { e.preventDefault(); undoRedo("redo"); }} title="Redo" style={tBtn}>↷</button>
         <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
@@ -457,7 +457,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         <button onMouseDown={(e) => { e.preventDefault(); exec("insertUnorderedList"); }} title="Bullet list" style={{ ...tBtn, fontSize: 16, lineHeight: 1 }}>•</button>
         <button onMouseDown={(e) => { e.preventDefault(); insertCheckbox(); }} title="Insert checkbox" style={{ ...tBtn, fontSize: 12 }}>☑</button>
 
-        {!compact && (<>
+        {!compact && !isMobile && (<>
           <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
           <button onMouseDown={(e) => { e.preventDefault(); bumpFont(-1); }} title="Smaller text" style={{ ...tBtn, fontWeight: 700 }}>A−</button>
           <select value={fontSize} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} title="Font size" style={{ ...sel, height: 28, padding: "0 6px", fontSize: 12, width: 64, flexShrink: 0 }}>
@@ -466,7 +466,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
           <button onMouseDown={(e) => { e.preventDefault(); bumpFont(1); }} title="Bigger text" style={{ ...tBtn, fontSize: 15, fontWeight: 700 }}>A+</button>
         </>)}
 
-        {showTemplates && templates.length > 0 && (
+        {showTemplates && !isMobile && templates.length > 0 && (
           <div style={{ position: "relative", marginLeft: 4 }}>
             <button onMouseDown={(e) => { e.preventDefault(); setTplOpen((o) => !o); }} title="Insert template" style={{ ...tBtn, width: "auto", padding: "0 10px", fontSize: 11 }}>+ Template ▾</button>
             {tplOpen && (
@@ -486,7 +486,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
           </div>
         )}
 
-        {!compact && onExport && (
+        {!compact && !isMobile && onExport && (
           <button onClick={onExport} title="Export this note as .txt" style={{ ...tBtn, width: "auto", padding: "0 10px", fontSize: 11, marginLeft: "auto" }}>Export .txt</button>
         )}
       </div>

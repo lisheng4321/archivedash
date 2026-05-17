@@ -8,6 +8,17 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.19] - 2026-05-17
+
+### Added
+- **Preorder inventory sorting and visibility** with preorder-date sorting, business-day badges in inventory rows, and grouped size labels like `US 9 - 14` or `OS`.
+
+### Changed
+- **Dashboard preorder summaries** now group repeated preorder items and route the preorder card straight into the preorder-sorted inventory view.
+- **Mobile and utility polish** for navigation, notepad controls, backup restore history, and customer quick management.
+
+---
+
 ## [0.6.17] - 2026-05-14
 
 ### Added
