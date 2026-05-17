@@ -12,6 +12,19 @@ import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSiz
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
 const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
+const DEFAULT_BACKUP_SETTINGS = { autoWeekly: false, destination: "supabase", retention: 12, lastRunAt: "" };
+const defaultSettings = () => ({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS, backup: DEFAULT_BACKUP_SETTINGS });
+const normalizeSettings = (settings = {}) => ({
+  categories: settings.categories || DEF_CATEGORIES,
+  platforms: settings.platforms || DEF_PLATFORMS,
+  customers: settings.customers || [],
+  customerProfiles: settings.customerProfiles || {},
+  hiddenCustomerKeys: Array.isArray(settings.hiddenCustomerKeys) ? settings.hiddenCustomerKeys : [],
+  dashboardCards: settings.dashboardCards || {},
+  navOrder: Array.isArray(settings.navOrder) ? settings.navOrder : [],
+  navUtilityIds: Array.isArray(settings.navUtilityIds) ? settings.navUtilityIds : DEFAULT_NAV_UTILITY_IDS,
+  backup: { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) },
+});
 const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
 const listedPlatformsFor = (item = {}) => Array.isArray(item.listedPlatforms) ? item.listedPlatforms.filter(Boolean) : [];
 const platformShortName = (platform = "") => {
@@ -20,6 +33,20 @@ const platformShortName = (platform = "") => {
   if (p.includes("ebay")) return "eBay";
   if (p.includes("instagram")) return "IG";
   return String(platform || "Listed").replace(/\s+marketplace/i, "");
+};
+const sortedListedPlatformsFor = (item = {}) => {
+  const items = Array.isArray(item._items) ? item._items : [item];
+  const platforms = new Map();
+  items.forEach((source) => {
+    listedPlatformsFor(source).forEach((platform) => {
+      const key = platformShortName(platform).toLowerCase();
+      if (!platforms.has(key)) platforms.set(key, platform);
+    });
+  });
+  return [...platforms.values()].sort((a, b) => (
+    platformShortName(a).localeCompare(platformShortName(b), undefined, { sensitivity: "base" }) ||
+    String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
+  ));
 };
 const subCategory = (sub) => SUB_CATEGORIES.includes(sub?.category) ? sub.category : "Other";
 const subCategoryColor = (cat) => ({
@@ -41,7 +68,7 @@ export default function App({ onLogout, userEmail }) {
   const [subs, setSubs] = useState([]);
   const [fxRates, setFxRates] = useState({ AUD: 1 });
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
-  const [settings, setSettings] = useState({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS });
+  const [settings, setSettings] = useState(defaultSettings());
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
@@ -94,6 +121,8 @@ export default function App({ onLogout, userEmail }) {
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
   const [subSearch, setSubSearch] = useState(""); const [subCatFilter, setSubCatFilter] = useState("All"); const [subSort, setSubSort] = useState("nextDue_asc");
   const [backupStatus, setBackupStatus] = useState("");
+  const [backups, setBackups] = useState([]);
+  const autoBackupAttemptRef = useRef("");
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
   const [navDragId, setNavDragId] = useState(null);
 
@@ -150,16 +179,17 @@ export default function App({ onLogout, userEmail }) {
 
   useEffect(() => {
     (async () => {
-      const [i, s, e, sb, st, existingNotes, oldNotepad, savedActiveId, existingTpls] = await Promise.all([
+      const [i, s, e, sb, st, existingNotes, oldNotepad, savedActiveId, existingTpls, existingBackups] = await Promise.all([
         load("arch-inv2", []),
         load("arch-sales2", []),
         load("arch-exp2", []),
         load("arch-subs", []),
-        load("arch-settings", { categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS }),
+        load("arch-settings", defaultSettings()),
         load("arch-notes", null),
         load("arch-notepad", null),
         load("arch-notes-active", null),
         load("arch-templates", null),
+        load("arch-backups", []),
       ]);
 
       // Migrate old single-notepad → first note in multi-note model
@@ -181,8 +211,9 @@ export default function App({ onLogout, userEmail }) {
         await save("arch-notes", initialNotes);
       }
 
-      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings({ categories: st.categories || DEF_CATEGORIES, platforms: st.platforms || DEF_PLATFORMS, customers: st.customers || [], customerProfiles: st.customerProfiles || {}, hiddenCustomerKeys: Array.isArray(st.hiddenCustomerKeys) ? st.hiddenCustomerKeys : [], dashboardCards: st.dashboardCards || {}, navOrder: Array.isArray(st.navOrder) ? st.navOrder : [], navUtilityIds: Array.isArray(st.navUtilityIds) ? st.navUtilityIds : DEFAULT_NAV_UTILITY_IDS });
+      setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings(normalizeSettings(st));
       setNotes(initialNotes);
+      setBackups(Array.isArray(existingBackups) ? existingBackups : []);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
       let initialTpls = existingTpls;
@@ -234,6 +265,7 @@ export default function App({ onLogout, userEmail }) {
   const persistSubs = useCallback(async (d) => persist("arch-subs", d, setSubs), [persist]);
   const persistSettings = useCallback(async (d) => { await save("arch-settings", d); setSettings(d); }, []);
   const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
+  const backupSettings = { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
   const customerProfiles = settings.customerProfiles || {};
   const hiddenCustomerKeys = Array.isArray(settings.hiddenCustomerKeys) ? settings.hiddenCustomerKeys : [];
@@ -706,6 +738,48 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Export ───
+  const buildBackupSnapshot = (reason = "manual") => ({
+    id: genId(),
+    reason,
+    createdAt: new Date().toISOString(),
+    version: 6,
+    appVersion: VERSION,
+    counts: { inventory: inventory.length, sales: sales.length, expenses: expenses.length, subs: subs.length, notes: notes.length },
+    data: { inventory, sales, expenses, subs, notes, settings, templates: userTemplates || [] },
+  });
+
+  const createSupabaseBackup = useCallback(async (reason = "manual") => {
+    if (!supabase) {
+      setBackupStatus("Supabase backups need Supabase to be configured.");
+      setTimeout(() => setBackupStatus(""), 4000);
+      return false;
+    }
+    const snapshot = buildBackupSnapshot(reason);
+    const retention = Math.max(1, Number(backupSettings.retention) || DEFAULT_BACKUP_SETTINGS.retention);
+    const nextBackups = [snapshot, ...backups].slice(0, retention);
+    await save("arch-backups", nextBackups);
+    setBackups(nextBackups);
+    await persistSettings({ ...settings, backup: { ...backupSettings, lastRunAt: snapshot.createdAt } });
+    setBackupStatus(`${reason === "auto" ? "Weekly" : "Supabase"} backup saved: ${snapshot.counts.inventory} items, ${snapshot.counts.sales} sales, ${snapshot.counts.expenses} expenses.`);
+    setTimeout(() => setBackupStatus(""), 5000);
+    return true;
+  }, [inventory, sales, expenses, subs, notes, settings, userTemplates, backups, backupSettings, persistSettings]);
+
+  const updateBackupSettings = async (updates) => {
+    await persistSettings({ ...settings, backup: { ...backupSettings, ...updates } });
+  };
+
+  useEffect(() => {
+    if (loading || !backupSettings.autoWeekly) return;
+    const todayKey = today();
+    if (autoBackupAttemptRef.current === todayKey) return;
+    const lastRun = backupSettings.lastRunAt ? new Date(backupSettings.lastRunAt) : null;
+    const due = !lastRun || Number.isNaN(lastRun.getTime()) || (Date.now() - lastRun.getTime()) >= 7 * 86400000;
+    if (!due) return;
+    autoBackupAttemptRef.current = todayKey;
+    createSupabaseBackup("auto");
+  }, [loading, backupSettings.autoWeekly, backupSettings.lastRunAt, createSupabaseBackup]);
+
   const exportJSON = () => {
     const data = JSON.stringify({ inventory, sales, expenses, subs, notes, settings, exportedAt: new Date().toISOString(), version: 5, appVersion: VERSION }, null, 2);
     const blob = new Blob([data], { type: "application/json" }); const url = URL.createObjectURL(blob);
@@ -1316,7 +1390,7 @@ export default function App({ onLogout, userEmail }) {
     return <span style={badge(b.bg, b.fg)}>{b.text}</span>;
   };
   const renderListingBadges = (item) => {
-    const platforms = listedPlatformsFor(item);
+    const platforms = sortedListedPlatformsFor(item);
     if (!platforms.length) return null;
     return platforms.map((p) => {
       const isFacebook = String(p).toLowerCase().includes("facebook");
@@ -1387,7 +1461,7 @@ export default function App({ onLogout, userEmail }) {
           <span style={{ color: "#6b7280", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name} <span style={badge("#1f2937","#60a5fa")}>×{item._count}</span></span>
+              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name} <span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{renderListingBadges(item)}</span>
               <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
             </div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 3 }}>{item.category}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
@@ -1401,7 +1475,7 @@ export default function App({ onLogout, userEmail }) {
           <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
-        <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{renderListingBadges(item)}{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12 }}></span>
         <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item._totalValue)}</span>
@@ -1989,6 +2063,30 @@ export default function App({ onLogout, userEmail }) {
           <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h2>
           <p style={{ margin: "0 0 20px", fontSize: 13, color: "#4b5563" }}>Export or import your data.</p>
           {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
+          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 12 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Weekly Supabase backup</div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Saves a full snapshot when ArchiveDash opens after 7 days.</p>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer" }}>
+                <input type="checkbox" checked={backupSettings.autoWeekly} onChange={(e) => updateBackupSettings({ autoWeekly: e.target.checked })} style={cb} />
+                Enabled
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Destination<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>Supabase</span></div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Last backup<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backupSettings.lastRunAt ? new Date(backupSettings.lastRunAt).toLocaleString() : "Never"}</span></div>
+              <label style={{ fontSize: 12, color: "#6b7280" }}>Keep snapshots
+                <input type="number" min="1" max="52" value={backupSettings.retention} onChange={(e) => updateBackupSettings({ retention: Math.max(1, Math.min(52, Number(e.target.value) || DEFAULT_BACKUP_SETTINGS.retention)) })} style={{ ...inp, marginTop: 5, maxWidth: 90 }} />
+              </label>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Saved snapshots<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backups.length}</span></div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => createSupabaseBackup("manual")} disabled={!supabase} style={primaryBtn}>Run backup now</button>
+              {!supabase && <span style={{ fontSize: 12, color: "#f59e0b", alignSelf: "center" }}>Supabase is not configured.</span>}
+            </div>
+          </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Export</div>
             <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>{inventory.length} items · {sales.length} sales · {expenses.length} expenses · {subs.length} subs · {notes.length} notes</p>
