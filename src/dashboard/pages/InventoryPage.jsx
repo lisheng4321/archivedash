@@ -62,8 +62,6 @@ export default function InventoryPage({ ctx }) {
             <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: 140 }}>
               <option value="All">All Status</option>
               <option value="Preorders">Preorders</option>
-              <option value="Released">Released</option>
-              <option value="In transit">In transit</option>
               <option value="Listed">Listed</option>
               <option value="Unlisted">Unlisted</option>
               {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
@@ -76,8 +74,8 @@ export default function InventoryPage({ ctx }) {
           </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
-                <input type="checkbox" checked={selectedInv.size===filteredInv.length&&filteredInv.length>0} onChange={toggleAll} style={cb} /><span>Name</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Actions</span>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 115px 0.7fr 55px 85px 100px 55px 130px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
+                <input type="checkbox" checked={selectedInv.size===filteredInv.length&&filteredInv.length>0} onChange={toggleAll} style={cb} /><span>Name</span><span>Listed</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Qty</span><span>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedInv.size===filteredInv.length&&filteredInv.length>0, toggleAll, filteredInv.length)}

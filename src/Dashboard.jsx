@@ -1106,8 +1106,6 @@ export default function App({ onLogout, userEmail }) {
         const listed = listedPlatformsFor(i);
         const hasPreorder = Boolean(i.preorderDate);
         if (invStatus === "Preorders") return hasPreorder;
-        if (invStatus === "Released") return hasPreorder && businessDaysUntil(i.preorderDate) < 0;
-        if (invStatus === "In transit") return Boolean(i.inTransit);
         if (invStatus === "Listed") return listed.length > 0;
         if (invStatus === "Unlisted") return listed.length === 0;
         if (invStatus === "Facebook") return listed.some((p) => String(p).toLowerCase().includes("facebook"));
@@ -1401,9 +1399,15 @@ export default function App({ onLogout, userEmail }) {
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
+  const inventoryGridColumns = "48px 2fr 115px 0.7fr 55px 85px 100px 55px 130px";
   const rowBg = (index, selected = false) => selected ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827");
   const groupAccent = { boxShadow: "inset 3px 0 0 #2563eb66" };
   const childAccent = { boxShadow: "inset 3px 0 0 #1f2937" };
+  const groupDateLabel = (items = []) => {
+    const dates = [...new Set(items.map((i) => i.purchaseDate).filter(Boolean))].sort();
+    if (dates.length <= 1) return dates[0] || "";
+    return `${dates[0]} - ${dates[dates.length - 1]}`;
+  };
 
   // ─── Inventory row (mobile + desktop) ───
   const invRow = (item, isGroupChild, index = 0) => {
@@ -1419,8 +1423,6 @@ export default function App({ onLogout, userEmail }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
                 {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
-                {item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}
-                {renderPreBadge(item)}
                 {renderListingBadges(item)}
               </div>
               <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
@@ -1434,13 +1436,15 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
+      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{item.inTransit && <span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(item)}{renderListingBadges(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500 }}>{item.size||"OS"}</span>
         <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item.price)}</span>
         <span style={{ color: "#6b7280", fontSize: 11 }}>{item.purchaseDate}</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>1</span>
         <div style={{ display: "flex", gap: 3 }}>
           <button onClick={() => setSellOpen(item)} style={{ padding: "4px 7px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
           <button onClick={() => setEditInvOpen(item)} style={{ padding: "4px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
@@ -1461,7 +1465,7 @@ export default function App({ onLogout, userEmail }) {
           <span style={{ color: "#6b7280", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name} <span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{renderListingBadges(item)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}</span>
               <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
             </div>
             <div style={{ fontSize: 10, color: "#6b7280", marginTop: 3 }}>{item.category}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
@@ -1470,16 +1474,18 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 0.7fr 55px 85px 85px 140px", gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: rowBg(index, false), ...groupAccent }}>
+      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: rowBg(index, false), ...groupAccent }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
-        <div><span style={{ color: "#e5e7eb" }}>{item.name}</span><span style={badge("#1f2937","#60a5fa")}>×{item._count}</span>{renderListingBadges(item)}{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div><span style={{ color: "#e5e7eb" }}>{item.name}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12 }}></span>
         <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item._totalValue)}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{item._count} units</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{groupDateLabel(item._items || [])}</span>
+        <span style={{ color: "#6b7280", fontSize: 11 }}>{item._count}</span>
         <span style={{ fontSize: 11, color: "#4b5563" }}>{isExpanded ? "Collapse" : "Expand"}</span>
       </div>
     );
