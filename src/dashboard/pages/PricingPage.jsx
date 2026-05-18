@@ -1,0 +1,721 @@
+import { useMemo, useState } from "react";
+import { isSupabaseConfigured, supabase } from "../../supabase.js";
+import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices } from "../../pricing/pricingEngine.js";
+import { currency, ghostBtn, KPI, primaryBtn } from "../shared.jsx";
+
+const panel = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8 };
+const muted = { color: "#6b7280" };
+const smallCaps = { color: "#4b5563", fontSize: 10, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
+const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
+const tweakStorageKey = "archivedash-pricing-tweaks-v1";
+const decisionStorageKey = "archivedash-pricing-decisions-v1";
+const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
+const defaultExclude = "acrylic, empty, box only, case only, damaged, custom, replica, proxy, bundle, lot, combo";
+
+const splitTerms = (value) => String(value || "")
+  .split(",")
+  .map((term) => term.trim())
+  .filter(Boolean);
+
+const joinTerms = (terms) => Array.isArray(terms) ? terms.join(", ") : "";
+
+const loadTweaks = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(tweakStorageKey) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveTweaks = (next) => {
+  try {
+    window.localStorage.setItem(tweakStorageKey, JSON.stringify(next));
+  } catch {
+    // Local review tweaks are optional; ignore private-mode storage failures.
+  }
+};
+
+const loadDecisions = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(decisionStorageKey) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveDecisions = (next) => {
+  try {
+    window.localStorage.setItem(decisionStorageKey, JSON.stringify(next));
+  } catch {
+    // Review decisions are local quality-of-life state.
+  }
+};
+
+const loadCustomCards = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(customCardsStorageKey) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const saveCustomCards = (next) => {
+  try {
+    window.localStorage.setItem(customCardsStorageKey, JSON.stringify(next));
+  } catch {
+    // Custom market cards are local-only review helpers.
+  }
+};
+
+const slugish = (value) => String(value || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "")
+  .slice(0, 72) || "card";
+
+const wordsFor = (value) => String(value || "")
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, " ")
+  .split(/\s+/)
+  .filter((word) => word.length > 2)
+  .slice(0, 8);
+
+const cardToProfile = (card) => ({
+  id: card.id,
+  name: card.name,
+  query: card.query || card.name,
+  market: card.market || "Custom",
+  strategy: "Top true AU active comps",
+  demoCurrentPrice: Number(card.currentPrice) || 0,
+  currentPriceSource: Number(card.currentPrice) > 0 ? "manualOverride" : "notListed",
+  floorBuffer: 5,
+  source: "custom",
+  inventoryId: card.inventoryId || null,
+  inventoryName: card.inventoryName || "",
+  required: splitTerms(card.required).length ? splitTerms(card.required) : wordsFor(card.name),
+  excludeTerms: splitTerms(card.exclude || defaultExclude),
+});
+
+const withTweaks = (profiles, tweaks) => profiles
+  .map((profile) => {
+    const tweak = tweaks[profile.id] || {};
+    if (tweak.hidden) return null;
+    const priceOverride = Number(tweak.priceOverride);
+    return {
+      ...profile,
+      query: tweak.query?.trim() || profile.query,
+      required: tweak.required !== undefined ? splitTerms(tweak.required) : profile.required,
+      excludeTerms: tweak.exclude !== undefined ? splitTerms(tweak.exclude) : profile.excludeTerms,
+      targetMode: tweak.targetMode || profile.targetMode,
+      demoCurrentPrice: Number.isFinite(priceOverride) && priceOverride > 0 ? priceOverride : profile.demoCurrentPrice,
+      currentPriceSource: Number.isFinite(priceOverride) && priceOverride > 0 ? "manualOverride" : profile.currentPriceSource,
+    };
+  })
+  .filter(Boolean);
+
+const statusStyle = (status) => {
+  if (status === "Competitive") return { bg: "#123326", fg: "#86efac" };
+  if (status === "Ready to list") return { bg: "#172554", fg: "#93c5fd" };
+  if (status === "Review price") return { bg: "#3b2f1f", fg: "#fbbf24" };
+  if (status === "Needs eBay price") return { bg: "#3b1f2b", fg: "#f9a8d4" };
+  if (status === "Needs tuning") return { bg: "#2f243d", fg: "#c4b5fd" };
+  return { bg: "#1e3a5f", fg: "#93c5fd" };
+};
+
+const reviewOrder = (review) => {
+  const priorities = {
+    missing_price: 0,
+    lower: 1,
+    raise: 2,
+    list: 3,
+    manual: 0.5,
+    hold: 5,
+  };
+  return priorities[review.action] ?? 9;
+};
+
+const filterMatches = (review, filter) => {
+  if (filter === "all") return true;
+  if (filter === "price") return ["lower", "raise"].includes(review.action);
+  if (filter === "reviewed") return Boolean(review.decision?.decision === "approved");
+  if (filter === "skipped") return Boolean(review.decision?.decision === "ignored");
+  return review.action === filter;
+};
+
+const sortedReviews = (reviews, sort) => {
+  const rows = [...reviews];
+  if (sort === "name") return rows.sort((a, b) => a.profile.name.localeCompare(b.profile.name));
+  if (sort === "comps") return rows.sort((a, b) => b.activeCount - a.activeCount || reviewOrder(a) - reviewOrder(b));
+  if (sort === "suggestion") return rows.sort((a, b) => Math.abs((b.currentPrice || 0) - (b.suggestedPrice || 0)) - Math.abs((a.currentPrice || 0) - (a.suggestedPrice || 0)));
+  return rows.sort((a, b) => reviewOrder(a) - reviewOrder(b) || b.activeCount - a.activeCount || a.profile.name.localeCompare(b.profile.name));
+};
+
+const badge = (label, tone) => (
+  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 86, minHeight: 24, padding: "2px 7px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 800, lineHeight: 1.05, textAlign: "center", boxSizing: "border-box" }}>
+    {label}
+  </span>
+);
+
+const suggestionText = (review) => {
+  if (review.action === "hold") return "Hold";
+  if (review.action === "missing_price") return "Add price";
+  if (review.action === "manual") return "Needs comps";
+  return currency(review.suggestedPrice);
+};
+
+const listingText = (review) => {
+  if (review.currentPriceSource === "notListed") return "Not listed";
+  return review.currentPrice ? currency(review.currentPrice) : "Missing";
+};
+
+const compSubtitle = (comp) => {
+  const bits = [];
+  if (comp.soldDate) bits.push(comp.soldDate);
+  if (comp.seller) bits.push(comp.seller);
+  if (comp.watchers) bits.push(`${comp.watchers} watchers`);
+  if (comp.soldCount) bits.push(`${comp.soldCount} sold`);
+  return bits.join(" - ");
+};
+
+function CompTable({ title, rows, empty, isMobile, onHide }) {
+  return (
+    <div style={{ ...panel, overflow: "hidden" }}>
+      <div style={{ padding: "11px 14px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>{title}</div>
+        <span style={{ color: "#4b5563", fontSize: 11 }}>{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>{empty}</div>
+      ) : (
+        <div>
+          {!isMobile && (
+            <div style={{ display: "grid", gridTemplateColumns: onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: 10, padding: "8px 14px", borderBottom: "1px solid #1f293711", ...smallCaps }}>
+              <span>Comp</span>
+              <span>Total</span>
+              <span>Signal</span>
+              {onHide && <span />}
+            </div>
+          )}
+          {rows.map((comp) => (
+            <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #1f293711", alignItems: "center" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: "#e5e7eb", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
+                <div style={{ color: "#4b5563", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
+              </div>
+              <div style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 800 }}>
+                {currency(comp.total)}
+                {comp.couponPrice !== undefined && <div style={{ color: "#60a5fa", fontSize: 10, fontWeight: 700 }}>coupon</div>}
+              </div>
+              <div style={{ color: "#9ca3af", fontSize: 11 }}>{comp.scope.toUpperCase()}</div>
+              {onHide && <button onClick={() => onHide(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10 }}>Hide</button>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExcludedTable({ rows, isMobile, onInclude }) {
+  return (
+    <div style={{ ...panel, overflow: "hidden" }}>
+      <div style={{ padding: "11px 14px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Excluded comps</div>
+        <span style={{ color: "#4b5563", fontSize: 11 }}>{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>No rejected comps.</div>
+      ) : (
+        rows.map((comp) => (
+          <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onInclude ? "1fr 150px 86px 66px" : "1fr 150px 86px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #1f293711", alignItems: "center" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#9ca3af", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
+              <div style={{ color: "#4b5563", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
+            </div>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {comp.reasons.map((reason) => (
+                <span key={reason} style={{ padding: "2px 6px", borderRadius: 5, background: "#3b1f1f", color: "#fca5a5", fontSize: 10, fontWeight: 800 }}>{reason}</span>
+              ))}
+            </div>
+            <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 700 }}>{currency(comp.total)}</div>
+            {onInclude && <button onClick={() => onInclude(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10, color: "#86efac" }}>Include</button>}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+export default function PricingPage({ ctx }) {
+  const { pagePad, inventory, isMobile, connectEbay } = ctx;
+  const [selectedId, setSelectedId] = useState("");
+  const [decisions, setDecisions] = useState(loadDecisions);
+  const [tweaks, setTweaks] = useState(loadTweaks);
+  const [customCards, setCustomCards] = useState(loadCustomCards);
+  const [showTuning, setShowTuning] = useState(false);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [cardSource, setCardSource] = useState("manual");
+  const [cardDraft, setCardDraft] = useState({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
+  const [cardFilter, setCardFilter] = useState("all");
+  const [cardSort, setCardSort] = useState("recommended");
+  const [cardSearch, setCardSearch] = useState("");
+  const [liveActiveComps, setLiveActiveComps] = useState(null);
+  const [ebayListings, setEbayListings] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("");
+  const [syncBusy, setSyncBusy] = useState(false);
+  const pricedInventory = useMemo(() => inventoryWithEbayListingPrices(inventory, ebayListings || []), [inventory, ebayListings]);
+  const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)], [pricedInventory, customCards]);
+  const profiles = useMemo(() => withTweaks(baseProfiles, tweaks), [baseProfiles, tweaks]);
+  const pricingComps = useMemo(() => {
+    if (!Array.isArray(liveActiveComps)) return [];
+    const liveGroups = new Set(liveActiveComps.map((comp) => `${comp.profileId}:${comp.scope}:${comp.type}`));
+    const raw = liveActiveComps.filter((comp) => liveGroups.has(`${comp.profileId}:${comp.scope}:${comp.type}`));
+    return raw.map((comp) => {
+      const decision = tweaks[comp.profileId]?.comps?.[comp.id];
+      if (!decision) return comp;
+      return {
+        ...comp,
+        manualIncluded: decision === "include",
+        manualExcluded: decision === "hide",
+      };
+    });
+  }, [liveActiveComps, tweaks]);
+  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: "2026-05-17" })
+    .map((review) => ({ ...review, decision: decisions[review.profile.id] || null })), "recommended"), [pricedInventory, pricingComps, profiles, decisions]);
+  const visibleReviews = useMemo(() => {
+    const q = cardSearch.trim().toLowerCase();
+    return sortedReviews(reviews, cardSort).filter((review) => (
+      filterMatches(review, cardFilter)
+      && (!q || [review.profile.name, review.profile.query, review.profile.market].some((value) => String(value || "").toLowerCase().includes(q)))
+    ));
+  }, [reviews, cardFilter, cardSearch, cardSort]);
+  const selected = reviews.find((review) => review.profile.id === selectedId) || reviews[0];
+  const reviewCount = reviews.length;
+  const reviewNeeded = reviews.filter((review) => review.action !== "hold").length;
+  const includedCount = reviews.reduce((sum, review) => sum + review.included.length, 0);
+  const excludedCount = reviews.reduce((sum, review) => sum + review.excluded.length, 0);
+  const hiddenCount = baseProfiles.filter((profile) => tweaks[profile.id]?.hidden).length;
+
+  const updateTweak = (profileId, patch) => {
+    setTweaks((prev) => {
+      const next = {
+        ...prev,
+        [profileId]: {
+          ...(prev[profileId] || {}),
+          ...patch,
+        },
+      };
+      saveTweaks(next);
+      return next;
+    });
+  };
+
+  const updateCompTweak = (comp, decision) => {
+    setTweaks((prev) => {
+      const profileTweak = prev[comp.profileId] || {};
+      const compTweaks = { ...(profileTweak.comps || {}) };
+      if (decision) compTweaks[comp.id] = decision;
+      else delete compTweaks[comp.id];
+      const next = {
+        ...prev,
+        [comp.profileId]: {
+          ...profileTweak,
+          comps: compTweaks,
+        },
+      };
+      saveTweaks(next);
+      return next;
+    });
+  };
+
+  const resetSelectedTweaks = () => {
+    if (!selected) return;
+    setTweaks((prev) => {
+      const next = { ...prev };
+      delete next[selected.profile.id];
+      saveTweaks(next);
+      return next;
+    });
+  };
+
+  const restoreHiddenProducts = () => {
+    setTweaks((prev) => {
+      const next = Object.fromEntries(Object.entries(prev).map(([id, tweak]) => [id, { ...tweak, hidden: false }]));
+      saveTweaks(next);
+      return next;
+    });
+  };
+
+  const setDecision = (review, decision) => {
+    setDecisions((prev) => {
+      const next = { ...prev };
+      if (!decision) delete next[review.profile.id];
+      else {
+        next[review.profile.id] = {
+            decision,
+            price: review.suggestedPrice,
+            at: new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" }),
+          };
+      }
+      saveDecisions(next);
+      return next;
+    });
+  };
+
+  const applyInventoryCard = (id) => {
+    const item = inventory.find((row) => row.id === id);
+    setCardDraft({
+      name: item?.name || "",
+      query: item?.name || "",
+      currentPrice: item?.ebayListedPrice || "",
+      required: wordsFor(item?.name).join(", "),
+      exclude: defaultExclude,
+      inventoryId: id,
+    });
+  };
+
+  const addCustomCard = () => {
+    const name = cardDraft.name.trim();
+    if (!name) return;
+    const item = inventory.find((row) => row.id === cardDraft.inventoryId);
+    const nextCard = {
+      id: `custom-${Date.now()}-${slugish(name)}`,
+      name,
+      query: cardDraft.query.trim() || name,
+      currentPrice: cardDraft.currentPrice,
+      required: cardDraft.required,
+      exclude: cardDraft.exclude || defaultExclude,
+      market: item?.category || "Custom",
+      inventoryId: item?.id || "",
+      inventoryName: item?.name || "",
+    };
+    setCustomCards((prev) => {
+      const next = [nextCard, ...prev];
+      saveCustomCards(next);
+      return next;
+    });
+    setSelectedId(nextCard.id);
+    setShowAddCard(false);
+    setCardDraft({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
+  };
+
+  const removeCustomCard = (id) => {
+    setCustomCards((prev) => {
+      const next = prev.filter((card) => card.id !== id);
+      saveCustomCards(next);
+      return next;
+    });
+    setSelectedId(reviews.find((review) => review.profile.id !== id)?.profile.id || "");
+  };
+
+  const syncLiveComps = async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setSyncStatus("Supabase is not configured, so live comps cannot be fetched.");
+      return;
+    }
+    setSyncBusy(true);
+    setSyncStatus("Fetching live AU active comps...");
+    const maxProfiles = 50;
+    const syncProfiles = profiles.slice(0, maxProfiles).map((profile) => ({ id: profile.id, query: profile.query }));
+    const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
+      body: { profiles: syncProfiles, postcode: "2073", limit: 30 },
+    });
+    setSyncBusy(false);
+    if (error || !Array.isArray(data?.comps)) {
+      setSyncStatus(error?.message || data?.error || "Could not fetch live eBay comps. Sample comps are still shown.");
+      return;
+    }
+    setLiveActiveComps(data.comps);
+    const total = data.comps.length;
+    const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
+    const searchTotal = Array.isArray(data.searches) ? data.searches.reduce((sum, search) => sum + (Number(search.total) || 0), 0) : total;
+    const skipped = Math.max(0, profiles.length - syncProfiles.length);
+    setSyncStatus(`Loaded ${total - soldTotal} active AU comp${total - soldTotal === 1 ? "" : "s"} for ${syncProfiles.length} product${syncProfiles.length === 1 ? "" : "s"} from ${searchTotal} eBay result${searchTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
+  };
+
+  const syncEbayListingsAndComps = async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setSyncStatus("Supabase is not configured, so live comps cannot be fetched.");
+      return;
+    }
+    setSyncBusy(true);
+    setSyncStatus("Fetching your active eBay listings...");
+    let listingData = null;
+    let listingError = null;
+    try {
+      const result = await supabase.functions.invoke("ebay-sync-listings", { body: {} });
+      listingData = result.data;
+      listingError = result.error;
+      if (listingError?.context?.json) {
+        listingData = await listingError.context.json().catch(() => listingData);
+      }
+    } catch (error) {
+      listingError = error;
+    }
+    if (listingError || !Array.isArray(listingData?.listings)) {
+      setSyncBusy(false);
+      const detailText = listingData?.details
+        ? ` ${typeof listingData.details === "string" ? listingData.details : JSON.stringify(listingData.details).slice(0, 700)}`
+        : "";
+      const msg = listingData?.reconnectRequired
+        ? "Reconnect eBay from Settings so ArchiveDash can read active listing prices."
+        : `${listingData?.error || listingError?.message || "Could not fetch your active eBay listings."}${detailText}`;
+      console.error("eBay listing sync failed", { listingData, listingError });
+      setSyncStatus(msg);
+      return;
+    }
+    setEbayListings(listingData.listings);
+
+    const inventoryWithPrices = inventoryWithEbayListingPrices(inventory, listingData.listings);
+    const nextProfiles = withTweaks([...buildPricingProfiles(inventoryWithPrices), ...customCards.map(cardToProfile)], tweaks);
+    const maxProfiles = 50;
+    const syncProfiles = nextProfiles.slice(0, maxProfiles).map((profile) => ({ id: profile.id, query: profile.query }));
+    setSyncStatus(`Matched ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}. Fetching market comps...`);
+    const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
+      body: { profiles: syncProfiles, postcode: "2073", limit: 30 },
+    });
+    setSyncBusy(false);
+    if (error || !Array.isArray(data?.comps)) {
+      setSyncStatus(error?.message || data?.error || "Fetched your listings, but could not fetch market comps.");
+      return;
+    }
+    setLiveActiveComps(data.comps);
+    const matchedPrices = inventoryWithPrices.filter((item) => item.ebayListedPrice).length;
+    const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
+    const activeTotal = data.comps.length - soldTotal;
+    const skipped = Math.max(0, nextProfiles.length - syncProfiles.length);
+    setSyncStatus(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
+  };
+
+  if (!selected) {
+    return <div style={{ padding: pagePad, color: "#6b7280" }}>No pricing profiles yet.</div>;
+  }
+
+  const decision = decisions[selected.profile.id];
+  const tone = statusStyle(selected.status);
+  const selectedTweak = tweaks[selected.profile.id] || {};
+  const priceLabel = selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
+  const selectedPrice = selected.currentPriceSource === "notListed" ? "Not listed" : selected.currentPrice ? currency(selected.currentPrice) : "Missing";
+
+  return (
+    <div style={{ padding: pagePad }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Market Review</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>AU active comp matching</p>
+        </div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
+          <button onClick={() => setShowAddCard((value) => !value)} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
+          <button onClick={() => setDecision(selected, selected.decision?.decision === "approved" ? null : "approved")} style={primaryBtn}>{selected.decision?.decision === "approved" ? "Unreview" : "Mark reviewed"}</button>
+          <button onClick={() => setDecision(selected, selected.decision?.decision === "ignored" ? null : "ignored")} style={ghostBtn}>{selected.decision?.decision === "ignored" ? "Un-skip" : "Skip"}</button>
+          <button onClick={() => setShowTuning((value) => !value)} style={{ ...ghostBtn, color: showTuning ? "#93c5fd" : "#9ca3af" }}>{showTuning ? "Close tuning" : "Tune"}</button>
+          {hiddenCount > 0 && <button onClick={restoreHiddenProducts} style={{ ...ghostBtn, color: "#86efac" }}>Restore hidden</button>}
+        </div>
+      </div>
+      {syncStatus && (
+        <div style={{ margin: "-6px 0 14px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>
+          {syncStatus.includes("Reconnect") && connectEbay && (
+            <button onClick={connectEbay} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#93c5fd" }}>Reconnect eBay</button>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+        <KPI label="Products" value={reviewCount} />
+        <KPI label="Need review" value={reviewNeeded} accent={reviewNeeded ? "#fbbf24" : "#34d399"} />
+        <KPI label="Included comps" value={includedCount} />
+        <KPI label="Rejected comps" value={excludedCount} accent={excludedCount ? "#f87171" : undefined} />
+      </div>
+
+      {showAddCard && (
+        <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+            <div>
+              <div style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 800 }}>Add market card</div>
+              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Create a local review card manually or from an inventory item.</div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
+              <button onClick={() => setCardSource("inventory")} style={{ ...ghostBtn, background: cardSource === "inventory" ? "#1e293b" : undefined, color: cardSource === "inventory" ? "#93c5fd" : undefined }}>From inventory</button>
+            </div>
+          </div>
+          {cardSource === "inventory" && (
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Inventory item
+              <select value={cardDraft.inventoryId} onChange={(e) => applyInventoryCard(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
+                <option value="">Select item</option>
+                {inventory.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.2fr 0.7fr", gap: 10, marginTop: cardSource === "inventory" ? 10 : 0 }}>
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Card name
+              <input value={cardDraft.name} onChange={(e) => setCardDraft((prev) => ({ ...prev, name: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Product name" />
+            </label>
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Search query
+              <input value={cardDraft.query} onChange={(e) => setCardDraft((prev) => ({ ...prev, query: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="eBay search terms" />
+            </label>
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Current price
+              <input type="number" step="0.01" value={cardDraft.currentPrice} onChange={(e) => setCardDraft((prev) => ({ ...prev, currentPrice: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Optional" />
+            </label>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Must include
+              <input value={cardDraft.required} onChange={(e) => setCardDraft((prev) => ({ ...prev, required: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="comma, separated, terms" />
+            </label>
+            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+              Exclude
+              <input value={cardDraft.exclude} onChange={(e) => setCardDraft((prev) => ({ ...prev, exclude: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} />
+            </label>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+            <button onClick={() => setShowAddCard(false)} style={ghostBtn}>Cancel</button>
+            <button onClick={addCustomCard} style={primaryBtn}>Add card</button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "320px minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, position: isMobile ? "static" : "sticky", top: 12, maxHeight: isMobile ? "none" : "calc(100vh - 190px)", minHeight: 0 }}>
+          <div style={{ ...panel, padding: 10, display: "grid", gridTemplateColumns: "1fr", gap: 8, flexShrink: 0 }}>
+            <input value={cardSearch} onChange={(e) => setCardSearch(e.target.value)} placeholder="Search products" style={inputStyle} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <select value={cardFilter} onChange={(e) => setCardFilter(e.target.value)} style={inputStyle}>
+                <option value="all">All statuses</option>
+                <option value="missing_price">Needs eBay price</option>
+                <option value="price">Review price</option>
+                <option value="list">Ready to list</option>
+                <option value="manual">Needs comps</option>
+                <option value="hold">Competitive</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="skipped">Skipped</option>
+              </select>
+              <select value={cardSort} onChange={(e) => setCardSort(e.target.value)} style={inputStyle}>
+                <option value="recommended">Recommended</option>
+                <option value="name">Name A-Z</option>
+                <option value="comps">Most comps</option>
+                <option value="suggestion">Biggest change</option>
+              </select>
+            </div>
+            <div style={{ color: "#4b5563", fontSize: 11, fontWeight: 700 }}>{visibleReviews.length} shown</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: isMobile ? "visible" : "auto", paddingRight: isMobile ? 0 : 3, minHeight: 0 }}>
+          {visibleReviews.map((review) => {
+            const reviewTone = statusStyle(review.status);
+            const isSelected = selected.profile.id === review.profile.id;
+            const saved = decisions[review.profile.id];
+            return (
+              <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#111827", borderColor: isSelected ? "#2563eb66" : "#1f2937", fontFamily: "inherit" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px", gap: 8, alignItems: "start", marginBottom: 8 }}>
+                  <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
+                  {badge(review.status, reviewTone)}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
+                </div>
+                {saved && <div style={{ marginTop: 9, color: "#60a5fa", fontSize: 11, fontWeight: 700 }}>{saved.decision} - {saved.at}</div>}
+              </button>
+            );
+          })}
+          {visibleReviews.length === 0 && <div style={{ ...panel, padding: 16, color: "#4b5563", fontSize: 12, textAlign: "center" }}>No products match these filters.</div>}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          <div style={{ ...panel, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
+                  <h3 style={{ margin: 0, color: "#f1f5f9", fontSize: 16, fontWeight: 800 }}>{selected.profile.name}</h3>
+                  {badge(selected.status, tone)}
+                  {badge(`${selected.confidence} confidence`, selected.confidence === "High" ? { bg: "#123326", fg: "#86efac" } : selected.confidence === "Medium" ? { bg: "#3b2f1f", fg: "#fbbf24" } : { bg: "#3b1f2b", fg: "#f9a8d4" })}
+                </div>
+                <div style={{ color: "#6b7280", fontSize: 12 }}>{selected.profile.strategy}</div>
+              </div>
+              {decision && <div style={{ color: "#60a5fa", fontSize: 12, fontWeight: 800 }}>Marked {decision.decision}</div>}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
+              <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
+              <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
+              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selected.rank ? `#${selected.rank}` : "n/a"}</div></div>
+              <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800 }}>{suggestionText(selected)}</div></div>
+            </div>
+
+            <div style={{ color: "#9ca3af", fontSize: 13, lineHeight: 1.5 }}>{selected.reason}</div>
+            {selected.matchedEbayListing && (
+              <div style={{ marginTop: 8, color: "#93c5fd", fontSize: 12, lineHeight: 1.45 }}>
+                Matched eBay listing: {selected.matchedEbayListing.ebayListingTitle || selected.matchedEbayListing.name || "Untitled listing"}
+                {selected.matchedEbayListing.ebayListingMatchScore ? ` (${selected.matchedEbayListing.ebayListingMatchScore}% title match)` : ""}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
+              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#93c5fd", fontSize: 11, fontWeight: 800 }}>{selected.activeCount} AU active comps</span>
+              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#d1d5db", fontSize: 11, fontWeight: 800 }}>{selected.relatedInventory.length} inventory matches</span>
+              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#fca5a5", fontSize: 11, fontWeight: 800 }}>{selected.excludedCount} rejected</span>
+              {selected.decision && <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#60a5fa", fontSize: 11, fontWeight: 800 }}>{selected.decision.decision === "ignored" ? "Skipped" : "Reviewed"}</span>}
+            </div>
+          </div>
+
+          {showTuning && (
+            <div style={{ ...panel, padding: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 12 }}>
+                <div>
+                  <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Review tuning</div>
+                  <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Local-only controls for this product.</div>
+                </div>
+                <button onClick={resetSelectedTweaks} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Reset</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 1fr 1fr", gap: 10 }}>
+                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+                  Search query
+                  <input value={selectedTweak.query ?? selected.profile.query} onChange={(e) => updateTweak(selected.profile.id, { query: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} />
+                </label>
+                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+                  Price override
+                  <input type="number" step="0.01" value={selectedTweak.priceOverride ?? ""} onChange={(e) => updateTweak(selected.profile.id, { priceOverride: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="AU$" />
+                </label>
+                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+                  Pricing mode
+                  <select value={selectedTweak.targetMode || "floor"} onChange={(e) => updateTweak(selected.profile.id, { targetMode: e.target.value })} style={{ ...inputStyle, marginTop: 5 }}>
+                    <option value="floor">Lowest active comp</option>
+                    <option value="top6">Top 6 active comps</option>
+                  </select>
+                </label>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
+                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+                  Must include
+                  <input value={selectedTweak.required ?? joinTerms(selected.profile.required)} onChange={(e) => updateTweak(selected.profile.id, { required: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="nike, mind, slides" />
+                </label>
+                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+                  Exclude
+                  <input value={selectedTweak.exclude ?? joinTerms(selected.profile.excludeTerms)} onChange={(e) => updateTweak(selected.profile.id, { exclude: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="used, damaged, bundle" />
+                </label>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                <button onClick={() => updateTweak(selected.profile.id, { hidden: true })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Hide product from review</button>
+                {selected.profile.source === "custom" && <button onClick={() => removeCustomCard(selected.profile.id)} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Delete custom card</button>}
+                <span style={{ color: "#4b5563", fontSize: 11, alignSelf: "center" }}>Run sync again after changing the query.</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: selected.groups.auSold.length && !isMobile ? "1fr 1fr" : "1fr", gap: 14 }}>
+            <CompTable title="AU active comps" rows={selected.groups.auActive} empty="No active AU comps included." isMobile={isMobile} onHide={(comp) => updateCompTweak(comp, "hide")} />
+            {selected.groups.auSold.length > 0 && <CompTable title="AU sold comps" rows={selected.groups.auSold} empty="No sold AU comps included." isMobile={isMobile} />}
+          </div>
+          {selected.groups.globalSold.length > 0 && <CompTable title="Global sold comps" rows={selected.groups.globalSold} empty="No global sold comps included." isMobile={isMobile} />}
+          <ExcludedTable rows={selected.excluded} isMobile={isMobile} onInclude={(comp) => updateCompTweak(comp, comp.manualExcluded ? null : "include")} />
+        </div>
+      </div>
+    </div>
+  );
+}

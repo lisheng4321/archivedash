@@ -38,7 +38,11 @@ Deno.serve(async (req) => {
   const { error: stateError } = await supabase.from("ebay_oauth_states").insert({ state, user_id: user.id, expires_at: expiresAt });
   if (stateError) return json({ error: "Could not prepare eBay connection." }, 500);
 
-  const scope = "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly";
+  const scope = [
+    "https://api.ebay.com/oauth/api_scope",
+    "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly",
+    "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly",
+  ].join(" ");
   const url = new URL("https://auth.ebay.com/oauth2/authorize");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", runame);

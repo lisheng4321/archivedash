@@ -4,6 +4,7 @@ import Calculator from "./Calculator";
 import CustomersPage from "./dashboard/pages/CustomersPage.jsx";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
 import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
+import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
@@ -11,7 +12,7 @@ import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSiz
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
-const DEFAULT_NAV_UTILITY_IDS = ["health", "backup", "settings"];
+const DEFAULT_NAV_UTILITY_IDS = ["settings"];
 const DEFAULT_BACKUP_SETTINGS = { autoWeekly: false, destination: "supabase", retention: 12, lastRunAt: "" };
 const defaultSettings = () => ({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS, backup: DEFAULT_BACKUP_SETTINGS });
 const normalizeSettings = (settings = {}) => ({
@@ -134,7 +135,7 @@ export default function App({ onLogout, userEmail }) {
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
-  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", inTransit: false, listedPlatforms: [], tags: "", customer: "" };
+  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", inTransit: false, listedPlatforms: [], tags: "", customer: "" };
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0] };
   const [expForm, setExpForm] = useState(emptyExp);
@@ -506,7 +507,7 @@ export default function App({ onLogout, userEmail }) {
   const addInventory = async () => {
     if (!invForm.name || !invForm.price) return;
     const qty = Math.max(1, parseInt(invForm.quantity) || 1);
-    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, inTransit: invForm.inTransit, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
+    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), ebayListedPrice: invForm.ebayListedPrice ? parseFloat(invForm.ebayListedPrice) : undefined, purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, inTransit: invForm.inTransit, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
     await persistInv([...items, ...inventory]);
     setInvForm(emptyInv); setAddInvOpen(false); setAddDirty(false);
   };
@@ -1365,14 +1366,12 @@ export default function App({ onLogout, userEmail }) {
     { id: "dashboard", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
     { id: "inventory", icon: "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12" },
     { id: "sales", icon: "M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z M7 7h.01" },
+    { id: "pricing", icon: "M12 2v4 M12 18v4 M2 12h4 M18 12h4 M19.07 4.93l-2.83 2.83 M7.76 16.24l-2.83 2.83 M19.07 19.07l-2.83-2.83 M7.76 7.76L4.93 4.93 M12 8a4 4 0 100 8 4 4 0 000-8z" },
     { id: "customers", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8 M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75" },
     { id: "expenses", icon: "M12 1v22 M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" },
-    { id: "subs", icon: "M23 4v6h-6 M1 20v-6h6 M3.51 9a9 9 0 0114.85-3.36L23 10 M20.49 15a9 9 0 01-14.85 3.36L1 14" },
     { id: "reports", icon: "M3 3v18h18 M7 15l3-3 3 2 4-6 M7 19h10" },
     { id: "notepad", icon: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" },
     { id: "calculator", icon: "M4 4a2 2 0 012-2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2z M8 6h8 M16 14v4 M16 10h0.01 M12 10h0.01 M8 10h0.01 M12 14h0.01 M8 14h0.01 M12 18h0.01 M8 18h0.01" },
-    { id: "health", icon: "M22 12h-4l-3 9L9 3l-3 9H2" },
-    { id: "backup", icon: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M7 10l5 5 5-5 M12 15V3" },
     { id: "settings", icon: "M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z M12 8a4 4 0 100 8 4 4 0 000-8z" },
   ];
 
@@ -1406,26 +1405,40 @@ export default function App({ onLogout, userEmail }) {
     dashboard: "Dashboard",
     inventory: "Inventory",
     sales: "Sales",
+    pricing: "Market Review",
     customers: "Customers",
     expenses: "Expenses",
-    subs: "Subs",
     reports: "Reports",
     notepad: "Notepad",
     calculator: "Calculator",
-    health: "Health",
-    backup: "Backup",
     settings: "Settings",
   };
   const mobilePrimaryNavIds = ["dashboard", "inventory", "sales", "customers", "reports"];
   const mobilePrimaryNavItems = orderedNavItems.filter((n) => mobilePrimaryNavIds.includes(n.id));
   const mobileMoreNavItems = orderedNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
   const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === page);
-  const renderNavButton = (n, zone) => (
-    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: page===n.id?"#1e293b":"transparent", color: page===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+  const activeNavId = page === "subs" ? "expenses" : ["health", "backup"].includes(page) ? "settings" : page;
+  const renderNavIcon = (n) => {
+    if (n.id === "pricing") {
+      return (
+        <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "baseline", justifyContent: "center", fontFamily: "Arial, Helvetica, sans-serif", fontSize: isMobile ? 10 : 10, fontWeight: 900, letterSpacing: 0, lineHeight: 1 }}>
+          <span style={{ color: "#e53238" }}>e</span>
+          <span style={{ color: "#0064d2" }}>b</span>
+          <span style={{ color: "#f5af02" }}>a</span>
+          <span style={{ color: "#86b817" }}>y</span>
+        </span>
+      );
+    }
+    return (
       <svg width={isMobile ? 17 : 18} height={isMobile ? 17 : 18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={n.icon} /></svg>
-      {n.id === "subs" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
+    );
+  };
+  const renderNavButton = (n, zone) => (
+    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+      {renderNavIcon(n)}
+      {n.id === "expenses" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
-      {n.id === "health" && (health.issues > 0 || health.warnings > 0 || health.actions > 0) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: health.issues > 0 ? "#ef4444" : health.warnings > 0 ? "#f59e0b" : "#60a5fa" }} />}
+      {n.id === "settings" && (health.issues > 0 || health.warnings > 0 || health.actions > 0) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: health.issues > 0 ? "#ef4444" : health.warnings > 0 ? "#f59e0b" : "#60a5fa" }} />}
     </button>
   );
 
@@ -1760,7 +1773,7 @@ export default function App({ onLogout, userEmail }) {
             {mobileNavMoreOpen && (
               <div style={{ position: "fixed", left: 10, right: 10, bottom: 66, zIndex: 160, background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, boxShadow: "0 -12px 28px rgba(0,0,0,0.36)" }}>
                 {mobileMoreNavItems.map((n) => (
-                  <button key={n.id} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #1f2937", background: page === n.id ? "#1e293b" : "#0d1117", color: page === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  <button key={n.id} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #1f2937", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d={n.icon} /></svg>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{navLabels[n.id] || n.id}</span>
                   </button>
@@ -1949,6 +1962,9 @@ export default function App({ onLogout, userEmail }) {
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
+        {/* PRICING */}
+        {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
+
         {/* CUSTOMERS */}
         {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen }} />}
 
@@ -1963,6 +1979,10 @@ export default function App({ onLogout, userEmail }) {
               {selectedExp.size > 0 && <><button onClick={() => setBulkEditExpOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedExp.size}</button><button onClick={deleteSelectedExp} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedExp.size}</button></>}
               <button onClick={() => { setExpForm(emptyExp); setAddExpOpen(true); }} style={primaryBtn}>+ Add expense</button>
             </div>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button onClick={() => setPage("expenses")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Expenses</button>
+            <button onClick={() => setPage("subs")} style={ghostBtn}>Subscriptions{subStats.overdue.length > 0 ? ` (${subStats.overdue.length})` : ""}</button>
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input placeholder="Search..." value={expSearch} onChange={(e) => setExpSearch(e.target.value)} style={{ ...inp, maxWidth: 180 }} />
@@ -1997,6 +2017,10 @@ export default function App({ onLogout, userEmail }) {
               {subStats.overdue.length > 0 && <button onClick={logAllOverdue} style={{ ...primaryBtn, background: "#dc2626" }}>Log {subStats.overdue.length} overdue</button>}
               <button onClick={() => setSubModalOpen("new")} style={primaryBtn}>+ Add subscription</button>
             </div>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button onClick={() => setPage("expenses")} style={ghostBtn}>Expenses</button>
+            <button onClick={() => setPage("subs")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Subscriptions{subStats.overdue.length > 0 ? ` (${subStats.overdue.length})` : ""}</button>
           </div>
           {subStats.overdue.length > 0 && (
             <div style={{ background: "#3b1f1f", border: "1px solid #ef444466", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fca5a5" }}>
@@ -2155,11 +2179,25 @@ export default function App({ onLogout, userEmail }) {
         {page === "calculator" && <Calculator isMobile={isMobile} />}
 
         {/* ?? HEALTH ?? */}
-        {page === "health" && <HealthPage ctx={{ pagePad, isMobile, health, loadEbayImports, loadGmailImports, supabase, ebayBusy, gmailBusy, ebayImports, gmailImports, setPage, setEbayQueueOpen, setGmailQueueOpen, syncEbayOrders, syncGmailInventory, inventory, sales }} />}
+        {page === "health" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
+          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button onClick={() => setPage("settings")} style={ghostBtn}>General</button>
+            <button onClick={() => setPage("health")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>System Health</button>
+            <button onClick={() => setPage("backup")} style={ghostBtn}>Backup & Restore</button>
+          </div>
+          <HealthPage ctx={{ pagePad: 0, isMobile, health, loadEbayImports, loadGmailImports, supabase, ebayBusy, gmailBusy, ebayImports, gmailImports, setPage, setEbayQueueOpen, setGmailQueueOpen, syncEbayOrders, syncGmailInventory, inventory, sales }} />
+        </div>)}
 
         {/* ══ BACKUP ══ */}
         {page === "backup" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
-          <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h2>
+          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button onClick={() => setPage("settings")} style={ghostBtn}>General</button>
+            <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
+            <button onClick={() => setPage("backup")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Backup & Restore</button>
+          </div>
+          <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h3>
           <p style={{ margin: "0 0 20px", fontSize: 13, color: "#4b5563" }}>Export or import your data.</p>
           {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.1fr) minmax(320px, 0.9fr)", gap: 14, alignItems: "start" }}>
@@ -2226,14 +2264,19 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ SETTINGS ══ */}
         {page === "settings" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
           <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            <button onClick={() => setPage("settings")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>General</button>
+            <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
+            <button onClick={() => setPage("backup")} style={ghostBtn}>Backup & Restore</button>
+          </div>
           <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>eBay Sales Import</div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Connect or refresh your eBay account here. Record and review synced orders from Sales.</p>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>eBay Connection</div>
+                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Connect or refresh eBay here. Orders power Sales; active listings power Market Review.</p>
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
+                <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect / refresh eBay</button>
                 <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
               </div>
             </div>
@@ -2341,10 +2384,11 @@ export default function App({ onLogout, userEmail }) {
       {/* ══ MODALS ══ */}
       <Modal open={addInvOpen} onClose={() => { setAddInvOpen(false); setAddDirty(false); }} guardedClose={guardedCloseAdd} title="Add inventory">
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
-        <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Price (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
+        <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Cost (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
         <Row><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={invForm.preorderDate} onChange={(e) => updateInvForm({ preorderDate: e.target.value })} style={inp} /></Field></Row>
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
+        {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
         <Row><Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field><Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={invForm.inTransit} onChange={(e) => updateInvForm({ inTransit: e.target.checked })} style={cb} /> In Transit</label></Field></Row>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}><button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button><button onClick={addInventory} style={primaryBtn}>Add {parseInt(invForm.quantity)>1?`${invForm.quantity} items`:"item"}</button></div>
       </Modal>

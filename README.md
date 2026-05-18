@@ -14,6 +14,18 @@ Reseller P&L tracking dashboard. Built with React + Supabase. Hosted on Vercel.
 6. Go to **Settings** → **API** (left sidebar)
 7. Copy your **Project URL** and **anon public** key — you'll need these next
 
+### Fix Supabase Security Advisor findings
+
+If Advisor reports that `public.gmail_oauth_states` or `public.gmail_tokens` has RLS disabled, apply the included migration after logging in with the Supabase CLI:
+
+```bash
+npx supabase login
+npx supabase db push --linked
+npx supabase db advisors --linked --type security
+```
+
+The migration enables RLS on the Gmail OAuth tables, removes browser-role access, and keeps service-role access for the Edge Functions that manage OAuth tokens.
+
 ### Step 2: Deploy to Vercel
 
 1. Push this folder to a GitHub repo (public or private)
@@ -46,6 +58,36 @@ cp .env.example .env
 npm install
 npm run dev
 ```
+
+On Windows, if Vite has trouble loading the local config from this workspace, use:
+
+```bash
+npm run dev:local
+npm run build:local
+```
+
+## Live eBay pricing comps
+
+The Pricing page can fetch live AU active comps through the `ebay-sync-pricing-comps` Supabase Edge Function.
+
+Required Supabase Edge Function secrets:
+
+```bash
+EBAY_CLIENT_ID=your-ebay-client-id
+EBAY_CLIENT_SECRET=your-ebay-client-secret
+```
+
+Deploy the functions from the project folder:
+
+```bash
+supabase functions deploy ebay-oauth-start
+supabase functions deploy ebay-sync-listings
+supabase functions deploy ebay-sync-pricing-comps
+```
+
+Reconnect eBay from Settings after deploying `ebay-oauth-start`; the listing sync needs the `sell.inventory.readonly` scope.
+
+Sold comps are not live yet. eBay's official sold-history route is Marketplace Insights, which requires limited-release access from eBay.
 
 ## File structure
 
