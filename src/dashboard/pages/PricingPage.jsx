@@ -8,8 +8,8 @@ const muted = { color: "#6b7280" };
 const smallCaps = { color: "#4b5563", fontSize: 10, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
 const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
 const tweakStorageKey = "archivedash-pricing-tweaks-v1";
-const decisionStorageKey = "archivedash-pricing-decisions-v1";
 const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
+const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
 const defaultExclude = "acrylic, empty, box only, case only, damaged, custom, replica, proxy, bundle, lot, combo";
 
 const splitTerms = (value) => String(value || "")
@@ -35,25 +35,10 @@ const saveTweaks = (next) => {
   }
 };
 
-const loadDecisions = () => {
-  try {
-    return JSON.parse(window.localStorage.getItem(decisionStorageKey) || "{}");
-  } catch {
-    return {};
-  }
-};
-
-const saveDecisions = (next) => {
-  try {
-    window.localStorage.setItem(decisionStorageKey, JSON.stringify(next));
-  } catch {
-    // Review decisions are local quality-of-life state.
-  }
-};
-
 const loadCustomCards = () => {
   try {
-    return JSON.parse(window.localStorage.getItem(customCardsStorageKey) || "[]");
+    const cards = JSON.parse(window.localStorage.getItem(customCardsStorageKey) || "[]");
+    return Array.isArray(cards) ? cards.filter((card) => card?.name) : [];
   } catch {
     return [];
   }
@@ -65,6 +50,47 @@ const saveCustomCards = (next) => {
   } catch {
     // Custom market cards are local-only review helpers.
   }
+};
+
+const loadSyncMeta = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(syncMetaStorageKey) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveSyncMeta = (next) => {
+  try {
+    window.localStorage.setItem(syncMetaStorageKey, JSON.stringify(next));
+  } catch {
+    // Sync metadata only helps the review UI explain freshness.
+  }
+};
+
+const formatDateTime = (value) => {
+  if (!value) return "";
+  let date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const match = String(value).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (match) {
+      let hour = Number(match[4]);
+      const period = match[7]?.toLowerCase();
+      if (period === "pm" && hour < 12) hour += 12;
+      if (period === "am" && hour === 12) hour = 0;
+      date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), hour, Number(match[5]), Number(match[6] || 0));
+    }
+  }
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
 };
 
 const slugish = (value) => String(value || "")
@@ -97,6 +123,7 @@ const cardToProfile = (card) => ({
 });
 
 const withTweaks = (profiles, tweaks) => profiles
+  .filter(Boolean)
   .map((profile) => {
     const tweak = tweaks[profile.id] || {};
     if (tweak.hidden) return null;
@@ -137,8 +164,6 @@ const reviewOrder = (review) => {
 const filterMatches = (review, filter) => {
   if (filter === "all") return true;
   if (filter === "price") return ["lower", "raise"].includes(review.action);
-  if (filter === "reviewed") return Boolean(review.decision?.decision === "approved");
-  if (filter === "skipped") return Boolean(review.decision?.decision === "ignored");
   return review.action === filter;
 };
 
@@ -249,7 +274,6 @@ function ExcludedTable({ rows, isMobile, onInclude }) {
 export default function PricingPage({ ctx }) {
   const { pagePad, inventory, isMobile, connectEbay } = ctx;
   const [selectedId, setSelectedId] = useState("");
-  const [decisions, setDecisions] = useState(loadDecisions);
   const [tweaks, setTweaks] = useState(loadTweaks);
   const [customCards, setCustomCards] = useState(loadCustomCards);
   const [showTuning, setShowTuning] = useState(false);
@@ -262,9 +286,10 @@ export default function PricingPage({ ctx }) {
   const [liveActiveComps, setLiveActiveComps] = useState(null);
   const [ebayListings, setEbayListings] = useState(null);
   const [syncStatus, setSyncStatus] = useState("");
+  const [syncMeta, setSyncMeta] = useState(loadSyncMeta);
   const [syncBusy, setSyncBusy] = useState(false);
   const pricedInventory = useMemo(() => inventoryWithEbayListingPrices(inventory, ebayListings || []), [inventory, ebayListings]);
-  const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)], [pricedInventory, customCards]);
+  const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)].filter(Boolean), [pricedInventory, customCards]);
   const profiles = useMemo(() => withTweaks(baseProfiles, tweaks), [baseProfiles, tweaks]);
   const pricingComps = useMemo(() => {
     if (!Array.isArray(liveActiveComps)) return [];
@@ -280,8 +305,7 @@ export default function PricingPage({ ctx }) {
       };
     });
   }, [liveActiveComps, tweaks]);
-  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: "2026-05-17" })
-    .map((review) => ({ ...review, decision: decisions[review.profile.id] || null })), "recommended"), [pricedInventory, pricingComps, profiles, decisions]);
+  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: "2026-05-17" }), "recommended"), [pricedInventory, pricingComps, profiles]);
   const visibleReviews = useMemo(() => {
     const q = cardSearch.trim().toLowerCase();
     return sortedReviews(reviews, cardSort).filter((review) => (
@@ -295,6 +319,14 @@ export default function PricingPage({ ctx }) {
   const includedCount = reviews.reduce((sum, review) => sum + review.included.length, 0);
   const excludedCount = reviews.reduce((sum, review) => sum + review.excluded.length, 0);
   const hiddenCount = baseProfiles.filter((profile) => tweaks[profile.id]?.hidden).length;
+  const lastSyncAt = syncMeta.lastSyncAt || "";
+
+  const markSyncComplete = (message) => {
+    const nextMeta = { lastSyncAt: new Date().toISOString() };
+    setSyncMeta(nextMeta);
+    saveSyncMeta(nextMeta);
+    setSyncStatus(message);
+  };
 
   const updateTweak = (profileId, patch) => {
     setTweaks((prev) => {
@@ -342,22 +374,6 @@ export default function PricingPage({ ctx }) {
     setTweaks((prev) => {
       const next = Object.fromEntries(Object.entries(prev).map(([id, tweak]) => [id, { ...tweak, hidden: false }]));
       saveTweaks(next);
-      return next;
-    });
-  };
-
-  const setDecision = (review, decision) => {
-    setDecisions((prev) => {
-      const next = { ...prev };
-      if (!decision) delete next[review.profile.id];
-      else {
-        next[review.profile.id] = {
-            decision,
-            price: review.suggestedPrice,
-            at: new Date().toLocaleString("en-AU", { timeZone: "Australia/Sydney" }),
-          };
-      }
-      saveDecisions(next);
       return next;
     });
   };
@@ -430,7 +446,7 @@ export default function PricingPage({ ctx }) {
     const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
     const searchTotal = Array.isArray(data.searches) ? data.searches.reduce((sum, search) => sum + (Number(search.total) || 0), 0) : total;
     const skipped = Math.max(0, profiles.length - syncProfiles.length);
-    setSyncStatus(`Loaded ${total - soldTotal} active AU comp${total - soldTotal === 1 ? "" : "s"} for ${syncProfiles.length} product${syncProfiles.length === 1 ? "" : "s"} from ${searchTotal} eBay result${searchTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
+    markSyncComplete(`Loaded ${total - soldTotal} active AU comp${total - soldTotal === 1 ? "" : "s"} for ${syncProfiles.length} product${syncProfiles.length === 1 ? "" : "s"} from ${searchTotal} eBay result${searchTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
   };
 
   const syncEbayListingsAndComps = async () => {
@@ -484,14 +500,13 @@ export default function PricingPage({ ctx }) {
     const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
     const activeTotal = data.comps.length - soldTotal;
     const skipped = Math.max(0, nextProfiles.length - syncProfiles.length);
-    setSyncStatus(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
+    markSyncComplete(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
   };
 
   if (!selected) {
     return <div style={{ padding: pagePad, color: "#6b7280" }}>No pricing profiles yet.</div>;
   }
 
-  const decision = decisions[selected.profile.id];
   const tone = statusStyle(selected.status);
   const selectedTweak = tweaks[selected.profile.id] || {};
   const priceLabel = selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
@@ -502,20 +517,23 @@ export default function PricingPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Market Review</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>AU active comp matching</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>Inventory-driven AU active comp matching</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
           <button onClick={() => setShowAddCard((value) => !value)} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
-          <button onClick={() => setDecision(selected, selected.decision?.decision === "approved" ? null : "approved")} style={primaryBtn}>{selected.decision?.decision === "approved" ? "Unreview" : "Mark reviewed"}</button>
-          <button onClick={() => setDecision(selected, selected.decision?.decision === "ignored" ? null : "ignored")} style={ghostBtn}>{selected.decision?.decision === "ignored" ? "Un-skip" : "Skip"}</button>
           <button onClick={() => setShowTuning((value) => !value)} style={{ ...ghostBtn, color: showTuning ? "#93c5fd" : "#9ca3af" }}>{showTuning ? "Close tuning" : "Tune"}</button>
           {hiddenCount > 0 && <button onClick={restoreHiddenProducts} style={{ ...ghostBtn, color: "#86efac" }}>Restore hidden</button>}
         </div>
       </div>
-      {syncStatus && (
+      {(syncStatus || lastSyncAt) && (
         <div style={{ margin: "-6px 0 14px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>
+          {syncStatus && <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>}
+          {lastSyncAt && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 999, background: "#0d1117", border: "1px solid #1f2937", color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>
+              Last synced {formatDateTime(lastSyncAt)}
+            </span>
+          )}
           {syncStatus.includes("Reconnect") && connectEbay && (
             <button onClick={connectEbay} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#93c5fd" }}>Reconnect eBay</button>
           )}
@@ -593,8 +611,6 @@ export default function PricingPage({ ctx }) {
                 <option value="list">Ready to list</option>
                 <option value="manual">Needs comps</option>
                 <option value="hold">Competitive</option>
-                <option value="reviewed">Reviewed</option>
-                <option value="skipped">Skipped</option>
               </select>
               <select value={cardSort} onChange={(e) => setCardSort(e.target.value)} style={inputStyle}>
                 <option value="recommended">Recommended</option>
@@ -609,7 +625,6 @@ export default function PricingPage({ ctx }) {
           {visibleReviews.map((review) => {
             const reviewTone = statusStyle(review.status);
             const isSelected = selected.profile.id === review.profile.id;
-            const saved = decisions[review.profile.id];
             return (
               <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#111827", borderColor: isSelected ? "#2563eb66" : "#1f2937", fontFamily: "inherit" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px", gap: 8, alignItems: "start", marginBottom: 8 }}>
@@ -620,7 +635,6 @@ export default function PricingPage({ ctx }) {
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
                 </div>
-                {saved && <div style={{ marginTop: 9, color: "#60a5fa", fontSize: 11, fontWeight: 700 }}>{saved.decision} - {saved.at}</div>}
               </button>
             );
           })}
@@ -639,7 +653,6 @@ export default function PricingPage({ ctx }) {
                 </div>
                 <div style={{ color: "#6b7280", fontSize: 12 }}>{selected.profile.strategy}</div>
               </div>
-              {decision && <div style={{ color: "#60a5fa", fontSize: 12, fontWeight: 800 }}>Marked {decision.decision}</div>}
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
@@ -660,7 +673,6 @@ export default function PricingPage({ ctx }) {
               <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#93c5fd", fontSize: 11, fontWeight: 800 }}>{selected.activeCount} AU active comps</span>
               <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#d1d5db", fontSize: 11, fontWeight: 800 }}>{selected.relatedInventory.length} inventory matches</span>
               <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#fca5a5", fontSize: 11, fontWeight: 800 }}>{selected.excludedCount} rejected</span>
-              {selected.decision && <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#60a5fa", fontSize: 11, fontWeight: 800 }}>{selected.decision.decision === "ignored" ? "Skipped" : "Reviewed"}</span>}
             </div>
           </div>
 

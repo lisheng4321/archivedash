@@ -35,6 +35,7 @@ const uniqueBy = (items, getKey) => {
   const seen = new Set();
   const result = [];
   items.forEach((item) => {
+    if (!item) return;
     const key = getKey(item);
     if (!key || seen.has(key)) return;
     seen.add(key);
@@ -171,6 +172,7 @@ const hasTerm = (normalizedTitle, term) => {
 };
 
 export const profileMatchesItem = (profile, item) => {
+  if (!profile) return false;
   const text = normalize([item?.name, item?.brand, item?.tags].join(" "));
   if (profile.inventoryId) return String(item?.id || "") === String(profile.inventoryId);
   if (profile.source === "custom") return profile.inventoryName ? normalize(item?.name) === normalize(profile.inventoryName) : false;
@@ -247,7 +249,7 @@ const average = (values) => values.length ? values.reduce((sum, value) => sum + 
 export const buildPricingReviews = ({ inventory = [], comps = SAMPLE_COMPS, profiles = PRICING_PROFILES, currentDate }) => {
   const reviewDate = currentDate || new Date().toISOString().slice(0, 10);
 
-  return profiles.map((profile) => {
+  return profiles.filter(Boolean).map((profile) => {
     const relatedInventory = inventory.filter((item) => profileMatchesItem(profile, item));
     const rows = evaluateComps(profile, comps, reviewDate);
     const included = rows.filter((row) => row.included);

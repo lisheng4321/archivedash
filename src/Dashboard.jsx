@@ -8,7 +8,7 @@ import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar, Spark } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -48,6 +48,108 @@ const sortedListedPlatformsFor = (item = {}) => {
     platformShortName(a).localeCompare(platformShortName(b), undefined, { sensitivity: "base" }) ||
     String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
   ));
+};
+const shortDateLabel = (dateStr = "") => {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr || "";
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+};
+const PeriodComparisonChart = ({ points = [], isMobile }) => {
+  const [hoverIndex, setHoverIndex] = useState(null);
+  const chartPoints = points.length ? points : [
+    { key: "empty-1", label: "Start", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
+    { key: "empty-2", label: "End", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
+  ];
+  const width = 1000;
+  const height = isMobile ? 180 : 168;
+  const pad = { top: 10, right: 22, bottom: 28, left: 76 };
+  const plotW = width - pad.left - pad.right;
+  const plotH = height - pad.top - pad.bottom;
+  const values = chartPoints.flatMap((p) => [Number(p.current) || 0, Number(p.previous) || 0, 0]);
+  const rawMin = Math.min(...values);
+  const rawMax = Math.max(...values);
+  const rawSpan = Math.max(1, rawMax - rawMin);
+  const niceStep = (range) => {
+    const rough = Math.max(1, range / 5);
+    const magnitude = 10 ** Math.floor(Math.log10(rough));
+    const normalized = rough / magnitude;
+    const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+    return nice * magnitude;
+  };
+  const step = niceStep(rawSpan);
+  const paddedMin = rawMin - rawSpan * 0.12;
+  const paddedMax = rawMax + rawSpan * 0.12;
+  const min = Math.floor(paddedMin / step) * step;
+  const max = Math.ceil(paddedMax / step) * step;
+  const span = max === min ? 1 : max - min;
+  const tickValues = [];
+  for (let value = min; value <= max + step / 2; value += step) tickValues.push(Math.abs(value) < 0.0001 ? 0 : value);
+  const xFor = (index) => pad.left + (chartPoints.length <= 1 ? plotW / 2 : (index / (chartPoints.length - 1)) * plotW);
+  const yFor = (value) => pad.top + ((max - value) / span) * plotH;
+  const pathFor = (key) => chartPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(2)} ${yFor(Number(p[key]) || 0).toFixed(2)}`).join(" ");
+  const labelIndexes = [...new Set([0, Math.floor((chartPoints.length - 1) / 2), chartPoints.length - 1])];
+  const hoverPoint = hoverIndex === null ? chartPoints[chartPoints.length - 1] : chartPoints[hoverIndex];
+  const hoverX = xFor(hoverIndex === null ? chartPoints.length - 1 : hoverIndex);
+  const hoverY = yFor(Math.max(Number(hoverPoint.current) || 0, Number(hoverPoint.previous) || 0));
+  const tooltipLeft = hoverX < 120 ? "110px" : hoverX > width - 120 ? "calc(100% - 110px)" : `${(hoverX / width) * 100}%`;
+  const hoverBand = chartPoints.length <= 1 ? plotW : plotW / Math.max(1, chartPoints.length - 1);
+
+  return (
+    <div style={{ position: "relative", height, width: "100%" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="img" aria-label="Net profit current period compared with previous period" style={{ display: "block", overflow: "visible" }}>
+        {tickValues.map((value) => (
+          <g key={value}>
+            <line x1={pad.left} x2={width - pad.right} y1={yFor(value)} y2={yFor(value)} stroke={value === 0 ? "#334155" : "#1f2937"} strokeWidth={value === 0 ? "1.2" : "1"} />
+          </g>
+        ))}
+        <path d={pathFor("previous")} fill="none" stroke="#64748b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="7 7" />
+        <path d={pathFor("current")} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        {chartPoints.map((p, i) => (
+          <g key={p.key || `${p.currentDate}-${i}`}>
+            <rect
+              x={Math.max(pad.left, xFor(i) - hoverBand / 2)}
+              y={pad.top}
+              width={Math.min(hoverBand, width - pad.right - Math.max(pad.left, xFor(i) - hoverBand / 2))}
+              height={plotH}
+              fill="transparent"
+              onMouseEnter={() => setHoverIndex(i)}
+              onMouseLeave={() => setHoverIndex(null)}
+            />
+          </g>
+        ))}
+        {hoverIndex !== null && <>
+          <line x1={hoverX} x2={hoverX} y1={pad.top} y2={pad.top + plotH} stroke="#1d4ed8" strokeWidth="1" opacity="0.7" />
+          <circle cx={hoverX} cy={yFor(Number(hoverPoint.current) || 0)} r="4" fill="#3b82f6" stroke="#0f172a" strokeWidth="2" />
+          <circle cx={hoverX} cy={yFor(Number(hoverPoint.previous) || 0)} r="4" fill="#64748b" stroke="#0f172a" strokeWidth="2" />
+        </>}
+      </svg>
+      {tickValues.map((value) => (
+        <div key={value} style={{ position: "absolute", left: 0, top: yFor(value) - 7, width: 68, textAlign: "right", color: value === 0 ? "#94a3b8" : "#64748b", fontSize: 11, pointerEvents: "none" }}>{currency(value)}</div>
+      ))}
+      {labelIndexes.map((index) => {
+        const point = chartPoints[index];
+        const transform = index === 0 ? "translateX(0)" : index === chartPoints.length - 1 ? "translateX(-100%)" : "translateX(-50%)";
+        return (
+          <div key={`${point?.key || index}-label`} style={{ position: "absolute", left: `${(xFor(index) / width) * 100}%`, bottom: 18, transform, color: "#64748b", fontSize: 11, whiteSpace: "nowrap", pointerEvents: "none" }}>{point?.label}</div>
+        );
+      })}
+      {hoverIndex !== null && <div style={{ position: "absolute", top: Math.max(8, Math.min(height - 88, hoverY - 64)), left: tooltipLeft, transform: "translateX(-50%)", width: 210, padding: "8px 10px", borderRadius: 8, background: "#0b1220", border: "1px solid #1f2937", boxShadow: "0 12px 28px rgba(0,0,0,.35)", pointerEvents: "none" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
+          <span style={{ color: "#93c5fd", fontSize: 11, fontWeight: 700 }}>{hoverPoint.currentDate || "Current"}</span>
+          <span style={{ color: "#bfdbfe", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.current || 0)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+          <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700 }}>{hoverPoint.previousDate || "Previous"}</span>
+          <span style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.previous || 0)}</span>
+        </div>
+        <div style={{ color: "#64748b", fontSize: 11 }}>Units sold: <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.currentSales || 0}</span> vs <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.previousSales || 0}</span></div>
+      </div>}
+      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: -10, fontSize: 11, color: "#94a3b8" }}>
+        <span><span style={{ display: "inline-block", width: 18, height: 3, background: "#3b82f6", borderRadius: 999, marginRight: 6, verticalAlign: "middle" }} />Current period</span>
+        <span><span style={{ display: "inline-block", width: 18, height: 0, borderTop: "3px dashed #64748b", marginRight: 6, verticalAlign: "middle" }} />Previous period</span>
+      </div>
+    </div>
+  );
 };
 const subCategory = (sub) => SUB_CATEGORIES.includes(sub?.category) ? sub.category : "Other";
 const subCategoryColor = (cat) => ({
@@ -875,11 +977,28 @@ export default function App({ onLogout, userEmail }) {
     if (isNaN(start.getTime())) return 0;
     return Math.max(0, Math.floor((end - start) / 86400000));
   };
+  const dateObj = (dateStr) => new Date(`${dateStr}T00:00:00`);
+  const dateKey = (date) => sydneyDate(date);
+  const addDaysToKey = (dateStr, days) => {
+    const d = dateObj(dateStr);
+    d.setDate(d.getDate() + days);
+    return dateKey(d);
+  };
+  const daysInclusive = (from, to) => Math.max(1, Math.round((dateObj(to) - dateObj(from)) / 86400000) + 1);
+  const activePeriod = useMemo(() => {
+    const fallbackDates = [...sales.map((s) => s.saleDate), ...expenses.map((e) => e.purchaseDate)].filter(Boolean).sort();
+    const currentEnd = range === "Custom" ? customTo : today();
+    const currentStart = range === "Custom" ? customFrom : range === "ALL" ? fallbackDates[0] || today() : getFilterDate(range);
+    const periodDays = daysInclusive(currentStart, currentEnd);
+    const previousEnd = addDaysToKey(currentStart, -1);
+    const previousStart = addDaysToKey(previousEnd, -(periodDays - 1));
+    return { currentStart, currentEnd, previousStart, previousEnd, periodDays };
+  }, [range, customFrom, customTo, sales, expenses]);
 
   // ─── Dashboard Stats ───
   const stats = useMemo(() => {
-    const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
-    const cutTo = range === "Custom" ? customTo : "2099-12-31";
+    const cutFrom = activePeriod.currentStart;
+    const cutTo = activePeriod.currentEnd;
     let fs = sales.filter((s) => s.saleDate >= cutFrom && s.saleDate <= cutTo);
     let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
@@ -891,35 +1010,105 @@ export default function App({ onLogout, userEmail }) {
     const totalFees = fs.reduce((a, s) => a + (s.platformFees||0), 0);
     const grossMargin = salesIncome > 0 ? grossProfit / salesIncome : 0;
     const netMargin = salesIncome > 0 ? netProfit / salesIncome : 0;
-    const pbd = {}; fs.forEach((s) => { pbd[s.saleDate] = (pbd[s.saleDate]||0) + s.profit; });
-    let cum = 0; const spark = Object.keys(pbd).sort().map((d) => { cum += pbd[d]; return cum; });
+    const pbd = {};
+    fs.forEach((s) => { pbd[s.saleDate] = (pbd[s.saleDate] || 0) + (Number(s.profit) || 0); });
+    fe.forEach((e) => { pbd[e.purchaseDate] = (pbd[e.purchaseDate] || 0) - (Number(e.amount) || 0); });
+    const dates = activePeriod.periodDays > 730 ? Object.keys(pbd).sort() : [];
+    if (!dates.length && activePeriod.periodDays <= 730) {
+      for (let d = cutFrom; d <= cutTo; d = addDaysToKey(d, 1)) dates.push(d);
+    }
+    let cum = 0; const spark = dates.map((d) => { cum += pbd[d] || 0; return cum; });
     const ri = [...inventory].sort((a, b) => (b.addedAt||0) - (a.addedAt||0)).slice(0, 7);
     const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7);
     return { salesIncome, grossProfit, totalExpenses, netProfit, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
-  }, [inventory, sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
+  }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat]);
 
-  const monthComparison = useMemo(() => {
-    const todayStr = today();
-    const [year, month, day] = todayStr.split("-").map(Number);
-    const currentStart = `${year}-${String(month).padStart(2, "0")}-01`;
-    const previousMonthDate = new Date(year, month - 2, 1);
-    const previousYear = previousMonthDate.getFullYear();
-    const previousMonth = previousMonthDate.getMonth() + 1;
-    const previousStart = `${previousYear}-${String(previousMonth).padStart(2, "0")}-01`;
-    const previousLastDay = new Date(previousYear, previousMonth, 0).getDate();
-    const previousEndDay = Math.min(day, previousLastDay);
-    const previousEnd = `${previousYear}-${String(previousMonth).padStart(2, "0")}-${String(previousEndDay).padStart(2, "0")}`;
+  const periodComparison = useMemo(() => {
+    const { currentStart, currentEnd, previousStart, previousEnd } = activePeriod;
     const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
-    const currentSalesProfit = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= todayStr && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
-    const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= todayStr).reduce((a, e) => a + (e.amount || 0), 0);
-    const previousSalesProfit = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s)).reduce((a, s) => a + (s.profit || 0), 0);
+    const currentSales = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= currentEnd && matchesFilters(s));
+    const previousSales = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s));
+    const currentSalesProfit = currentSales.reduce((a, s) => a + (s.profit || 0), 0);
+    const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= currentEnd).reduce((a, e) => a + (e.amount || 0), 0);
+    const previousSalesProfit = previousSales.reduce((a, s) => a + (s.profit || 0), 0);
     const previousExpenses = expenses.filter((e) => e.purchaseDate >= previousStart && e.purchaseDate <= previousEnd).reduce((a, e) => a + (e.amount || 0), 0);
     const current = currentSalesProfit - currentExpenses;
     const previous = previousSalesProfit - previousExpenses;
     const delta = current - previous;
     const pct = previous !== 0 ? (delta / Math.abs(previous)) * 100 : null;
-    return { current, previous, delta, pct, currentStart, currentEnd: todayStr, previousStart, previousEnd };
-  }, [sales, expenses, dashCat, dashPlat]);
+    const salesDelta = currentSales.length - previousSales.length;
+    const salesPct = previousSales.length ? (salesDelta / previousSales.length) * 100 : null;
+    return { current, previous, delta, pct, currentStart, currentEnd, previousStart, previousEnd, salesCount: currentSales.length, previousSalesCount: previousSales.length, salesDelta, salesPct };
+  }, [sales, expenses, dashCat, dashPlat, activePeriod]);
+
+  const periodTrend = useMemo(() => {
+    const { currentStart, currentEnd, previousStart, previousEnd, periodDays } = activePeriod;
+    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
+    const saleUnits = (s) => Math.max(1, Number(s.quantity) || 1);
+    const salesMap = (from, to) => {
+      const map = new Map();
+      sales.filter((s) => s.saleDate >= from && s.saleDate <= to && matchesFilters(s)).forEach((s) => {
+        const row = map.get(s.saleDate) || { profit: 0, units: 0 };
+        row.profit += Number(s.profit) || 0;
+        row.units += saleUnits(s);
+        map.set(s.saleDate, row);
+      });
+      return map;
+    };
+    const expenseMap = (from, to) => {
+      const map = new Map();
+      expenses.filter((e) => e.purchaseDate >= from && e.purchaseDate <= to).forEach((e) => {
+        map.set(e.purchaseDate, (map.get(e.purchaseDate) || 0) + (Number(e.amount) || 0));
+      });
+      return map;
+    };
+    const currentSalesByDate = salesMap(currentStart, currentEnd);
+    const previousSalesByDate = salesMap(previousStart, previousEnd);
+    const currentExpensesByDate = expenseMap(currentStart, currentEnd);
+    const previousExpensesByDate = expenseMap(previousStart, previousEnd);
+    const sampleCount = periodDays <= 120 ? periodDays : 120;
+    const offsets = Array.from({ length: Math.max(1, sampleCount) }, (_, index) => {
+      if (sampleCount === 1) return 0;
+      return Math.round(((periodDays - 1) * index) / (sampleCount - 1));
+    });
+    let currentProfit = 0;
+    let previousProfit = 0;
+    let currentUnits = 0;
+    let previousUnits = 0;
+    let lastOffset = -1;
+    const points = offsets.map((offset) => {
+      for (let step = lastOffset + 1; step <= offset; step += 1) {
+        const currentDate = addDaysToKey(currentStart, step);
+        const previousDate = addDaysToKey(previousStart, step);
+        const currentSale = currentSalesByDate.get(currentDate) || { profit: 0, units: 0 };
+        const previousSale = previousSalesByDate.get(previousDate) || { profit: 0, units: 0 };
+        currentProfit += currentSale.profit - (currentExpensesByDate.get(currentDate) || 0);
+        previousProfit += previousSale.profit - (previousExpensesByDate.get(previousDate) || 0);
+        currentUnits += currentSale.units;
+        previousUnits += previousSale.units;
+      }
+      lastOffset = offset;
+      const currentDate = addDaysToKey(currentStart, offset);
+      const previousDate = addDaysToKey(previousStart, offset);
+      return {
+        key: `${currentDate}-${previousDate}`,
+        label: shortDateLabel(currentDate),
+        currentDate,
+        previousDate,
+        current: currentProfit,
+        previous: previousProfit,
+        currentSales: currentUnits,
+        previousSales: previousUnits,
+      };
+    });
+    if (periodDays === 1) {
+      return [
+        { key: "baseline", label: "Start", currentDate: currentStart, previousDate: previousStart, current: 0, previous: 0, currentSales: 0, previousSales: 0 },
+        ...points,
+      ];
+    }
+    return points;
+  }, [sales, expenses, dashCat, dashPlat, activePeriod]);
 
   const agingStats = useMemo(() => {
     const aged90 = inventory.filter((i) => daysHeld(i.purchaseDate) >= 90);
@@ -1360,6 +1549,13 @@ export default function App({ onLogout, userEmail }) {
     return [...f].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((a.order ?? 0) - (b.order ?? 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
   }, [notes, noteSearch]);
 
+  const inventoryProductCount = useMemo(() => new Set(inventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size, [inventory]);
+  const expenseMonthSummary = useMemo(() => {
+    const monthStart = today().slice(0, 7);
+    const rows = expenses.filter((expense) => String(expense.purchaseDate || "").startsWith(monthStart));
+    return { count: rows.length, amount: rows.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0) };
+  }, [expenses]);
+
   if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>Loading...</div>;
 
   const navItems = [
@@ -1792,7 +1988,7 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ DASHBOARD ══ */}
         {page === "dashboard" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventory.length} in stock · {sales.length} total sales</p></div>
+            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventoryProductCount} products / {inventory.length} units - {currency(stats.invValue)} stock - {velocityStats.sold30.length} sold 30d</p></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button onClick={() => setDashboardCustomizeOpen((v) => !v)} style={{ ...ghostBtn, padding: "7px 12px", fontSize: 12 }}>Cards</button>
               <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
@@ -1871,20 +2067,20 @@ export default function App({ onLogout, userEmail }) {
               <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
             </div>
           )}
-          {dashboardCards.netProfitGraph && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "18px 20px", marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10, gap: 8 }}>
+          {dashboardCards.netProfitGraph && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "16px 20px 12px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
               <div>
                 <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                   <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div>
-                  <div title={`Current period ${monthComparison.currentStart} to ${monthComparison.currentEnd}: ${currency(monthComparison.current)} · Previous period ${monthComparison.previousStart} to ${monthComparison.previousEnd}: ${currency(monthComparison.previous)}`} style={{ fontSize: 12, color: monthComparison.delta >= 0 ? "#34d399" : "#f87171", background: monthComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${monthComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
-                    {monthComparison.pct === null ? "new vs same period" : `${monthComparison.delta >= 0 ? "+" : ""}${monthComparison.pct.toFixed(1)}% vs same period`}
+                  <div title={`Current period ${periodComparison.currentStart} to ${periodComparison.currentEnd}: ${currency(periodComparison.current)} - Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${currency(periodComparison.previous)}`} style={{ fontSize: 12, color: periodComparison.delta >= 0 ? "#34d399" : "#f87171", background: periodComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${periodComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
+                    {periodComparison.pct === null ? "new vs previous period" : `${periodComparison.delta >= 0 ? "+" : ""}${periodComparison.pct.toFixed(1)}% vs previous period`}
                   </div>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Inventory value</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{currency(stats.invValue)}</div></div>
+              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Sales volume</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{periodComparison.salesCount}</div><div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} sales`} style={{ fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: 2 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div></div>
             </div>
-            <Spark data={stats.spark.length>1?stats.spark:undefined} color={stats.netProfit>=0?"#3b82f6":"#ef4444"} />
+            <PeriodComparisonChart points={periodTrend} isMobile={isMobile} />
           </div>}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 10 }}>
             {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
@@ -1974,7 +2170,7 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Expenses</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{expenses.length} expenses · {currency(expenses.reduce((a, e) => a + e.amount, 0))}</p></div>
+            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Expenses</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>This month: {expenseMonthSummary.count} expenses - {currency(expenseMonthSummary.amount)}{subStats.overdue.length ? ` - ${subStats.overdue.length} overdue subscription${subStats.overdue.length === 1 ? "" : "s"}` : ""}</p></div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedExp.size > 0 && <><button onClick={() => setBulkEditExpOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedExp.size}</button><button onClick={deleteSelectedExp} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedExp.size}</button></>}
               <button onClick={() => { setExpForm(emptyExp); setAddExpOpen(true); }} style={primaryBtn}>+ Add expense</button>
