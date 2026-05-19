@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
 const DEF_PLATFORMS = ["eBay AU", "StockX", "Facebook Marketplace", "Instagram", "Depop", "Discord", "GOAT", "CSFloat", "Bonusbank", "Other"];
@@ -215,10 +215,16 @@ function UnsavedDialog({ open, onDiscard, onCancel }) {
 }
 
 function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560 }) {
+  const backdropPointerDown = useRef(false);
   if (!open) return null;
   const close = guardedClose || onClose;
-  return (<div onClick={close} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div onClick={(e) => e.stopPropagation()} style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", width: "100%", maxWidth, maxHeight: "90vh", overflowY: "auto" }}>
+  const backdropDown = (e) => { backdropPointerDown.current = e.target === e.currentTarget; };
+  const backdropUp = (e) => {
+    if (backdropPointerDown.current && e.target === e.currentTarget) close();
+    backdropPointerDown.current = false;
+  };
+  return (<div onMouseDown={backdropDown} onMouseUp={backdropUp} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+    <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", width: "100%", maxWidth, maxHeight: "90vh", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #1f2937" }}>
         <h3 style={{ margin: 0, color: "#f1f5f9", fontSize: 15, fontWeight: 600 }}>{title}</h3>
         <button onClick={close} style={{ background: "none", border: "none", color: "#6b7280", fontSize: 18, cursor: "pointer" }}>✕</button>

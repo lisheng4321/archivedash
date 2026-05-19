@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../supabase.js";
 import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices } from "../../pricing/pricingEngine.js";
 import { currency, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, ghostBtn, KPI, primaryBtn } from "../shared.jsx";
@@ -11,6 +11,8 @@ const tweakStorageKey = "archivedash-pricing-tweaks-v1";
 const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
 const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
 const activeListingsStorageKey = "archivedash-pricing-active-listings-v1";
+const liveCompsStorageKey = "archivedash-pricing-live-comps-v1";
+const uiStateStorageKey = "archivedash-pricing-ui-state-v1";
 const defaultExclude = "acrylic, empty, box only, case only, damaged, custom, replica, proxy, bundle, lot, combo";
 const ownEbaySeller = "thearchive777";
 
@@ -84,6 +86,39 @@ const saveActiveListings = (next) => {
     window.localStorage.setItem(activeListingsStorageKey, JSON.stringify(next || []));
   } catch {
     // Cached active listings only support local manual matching.
+  }
+};
+
+const loadLiveComps = () => {
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(liveCompsStorageKey) || "[]");
+    return Array.isArray(rows) ? rows.filter((comp) => comp?.profileId && comp?.title) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveLiveComps = (next) => {
+  try {
+    window.localStorage.setItem(liveCompsStorageKey, JSON.stringify(next || []));
+  } catch {
+    // Cached comps keep Market Review usable after navigation.
+  }
+};
+
+const loadUiState = () => {
+  try {
+    return JSON.parse(window.localStorage.getItem(uiStateStorageKey) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const saveUiState = (next) => {
+  try {
+    window.localStorage.setItem(uiStateStorageKey, JSON.stringify(next || {}));
+  } catch {
+    // UI position is nice-to-have only.
   }
 };
 
@@ -419,21 +454,25 @@ function ProfitPanel({ review, isMobile }) {
 
 export default function PricingPage({ ctx }) {
   const { pagePad, inventory, isMobile, connectEbay } = ctx;
-  const [selectedId, setSelectedId] = useState("");
+  const [initialUiState] = useState(loadUiState);
+  const [selectedId, setSelectedId] = useState(initialUiState.selectedId || "");
   const [tweaks, setTweaks] = useState(loadTweaks);
   const [customCards, setCustomCards] = useState(loadCustomCards);
-  const [showTuning, setShowTuning] = useState(false);
+  const [showTuning, setShowTuning] = useState(Boolean(initialUiState.showTuning));
   const [showAddCard, setShowAddCard] = useState(false);
   const [cardSource, setCardSource] = useState("manual");
   const [cardDraft, setCardDraft] = useState({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
-  const [cardFilter, setCardFilter] = useState("all");
-  const [cardSort, setCardSort] = useState("recommended");
-  const [cardSearch, setCardSearch] = useState("");
-  const [liveActiveComps, setLiveActiveComps] = useState(null);
+  const [cardFilter, setCardFilter] = useState(initialUiState.cardFilter || "all");
+  const [cardSort, setCardSort] = useState(initialUiState.cardSort || "recommended");
+  const [cardSearch, setCardSearch] = useState(initialUiState.cardSearch || "");
+  const [liveActiveComps, setLiveActiveComps] = useState(loadLiveComps);
   const [ebayListings, setEbayListings] = useState(loadActiveListings);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncMeta, setSyncMeta] = useState(loadSyncMeta);
   const [syncBusy, setSyncBusy] = useState(false);
+  useEffect(() => {
+    saveUiState({ selectedId, showTuning, cardFilter, cardSort, cardSearch });
+  }, [selectedId, showTuning, cardFilter, cardSort, cardSearch]);
   const pricedInventory = useMemo(() => inventoryWithEbayListingPrices(inventory, ebayListings || []), [inventory, ebayListings]);
   const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)].filter(Boolean), [pricedInventory, customCards]);
   const matchListings = useMemo(() => uniqueListings([
@@ -452,7 +491,7 @@ export default function PricingPage({ ctx }) {
   ]), [ebayListings, liveActiveComps]);
   const profiles = useMemo(() => withTweaks(baseProfiles, tweaks, matchListings), [baseProfiles, tweaks, matchListings]);
   const pricingComps = useMemo(() => {
-    if (!Array.isArray(liveActiveComps)) return [];
+    if (!Array.isArray(liveActiveComps) || !liveActiveComps.length) return [];
     const liveGroups = new Set(liveActiveComps.map((comp) => `${comp.profileId}:${comp.scope}:${comp.type}`));
     const raw = liveActiveComps.filter((comp) => liveGroups.has(`${comp.profileId}:${comp.scope}:${comp.type}`));
     return raw.map((comp) => {
@@ -625,6 +664,7 @@ export default function PricingPage({ ctx }) {
       return;
     }
     setLiveActiveComps(data.comps);
+    saveLiveComps(data.comps);
     const total = data.comps.length;
     const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
     const searchTotal = Array.isArray(data.searches) ? data.searches.reduce((sum, search) => sum + (Number(search.total) || 0), 0) : total;
@@ -680,6 +720,7 @@ export default function PricingPage({ ctx }) {
       return;
     }
     setLiveActiveComps(data.comps);
+    saveLiveComps(data.comps);
     const matchedPrices = inventoryWithPrices.filter((item) => item.ebayListedPrice).length;
     const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
     const activeTotal = data.comps.length - soldTotal;

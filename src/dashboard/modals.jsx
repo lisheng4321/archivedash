@@ -98,6 +98,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
   const [clearEbayListedPrice, setClearEbayListedPrice] = useState(false);
   const [addListedPlatform, setAddListedPlatform] = useState("");
   const [clearListingPlatforms, setClearListingPlatforms] = useState(false);
+  const [showU, setShowU] = useState(false);
   const sizes = cat ? getSizes(cat) : [...new Set(items.flatMap((item) => getSizes(item.category || "")))];
   const totalValue = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   const productCount = new Set(items.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
@@ -121,6 +122,8 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     ["eBay price", `${withEbayPrice} units`],
   ];
   const previewNames = [...new Set(items.map((item) => item.name).filter(Boolean))].slice(0, 5);
+  const hasDraft = [nameSet, titleFind, titleReplace, titlePrefix, titleSuffix, cat, size, cost, brand, purchaseDate, preorderDate, customer, setTags, addTags, ebayListedPrice, addListedPlatform].some((value) => String(value || "").length > 0) || clearBrand || clearPreorderDate || clearCustomer || clearTags || clearEbayListedPrice || clearListingPlatforms;
+  const requestClose = () => { if (hasDraft) setShowU(true); else onClose(); };
   const apply = () => {
     const updates = {};
     if (nameSet.trim()) updates.nameSet = nameSet.trim();
@@ -147,7 +150,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     if (clearListingPlatforms) updates.clearListingPlatforms = true;
     onSave(updates);
   };
-  return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} items`} maxWidth={980}>
+  return (<><Modal open={true} onClose={onClose} guardedClose={requestClose} title={`Bulk edit ${items.length} items`} maxWidth={980}>
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 560px", minWidth: 0 }}>
     <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
@@ -173,7 +176,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearListingPlatforms} onChange={(e) => setClearListingPlatforms(e.target.checked)} style={cb} /> Clear listed platforms</label></Field></Row>
     <Row><Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={ebayListedPrice} onChange={(e) => { setEbayListedPrice(e.target.value); if (e.target.value) setClearEbayListedPrice(false); }} style={inp} placeholder="No change" /></Field>
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearEbayListedPrice} onChange={(e) => { setClearEbayListedPrice(e.target.checked); if (e.target.checked) setEbayListedPrice(""); }} style={cb} /> Clear listed price</label></Field></Row>
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={onClose} style={ghostBtn}>Cancel</button>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={requestClose} style={ghostBtn}>Cancel</button>
     <button onClick={apply} style={primaryBtn}>Apply to {items.length} items</button></div>
       </div>
       <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #1f2937", borderRadius: 10, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
@@ -197,7 +200,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
         )}
       </aside>
     </div>
-  </Modal>);
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
 // ─── Edit Expense Modal ───
