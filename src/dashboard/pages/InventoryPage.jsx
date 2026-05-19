@@ -44,6 +44,9 @@ export default function InventoryPage({ ctx }) {
 
   const productCount = new Set(inventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const inventoryValue = inventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
+  const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
+  const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
 
   return (
     <div style={{ padding: pagePad }}>
@@ -112,6 +115,20 @@ export default function InventoryPage({ ctx }) {
           );
         })}
       </div>
+
+      {selectedInv.size > 0 && (
+        <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#111827", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 10, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>
+          <div style={{ minWidth: isMobile ? "100%" : 150 }}>
+            <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>{selectedInv.size} selected</div>
+            <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button onClick={() => setBulkEditOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
+            <button onClick={() => setBulkSellOpen(true)} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Sell</button>
+            <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

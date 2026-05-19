@@ -99,6 +99,28 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
   const [addListedPlatform, setAddListedPlatform] = useState("");
   const [clearListingPlatforms, setClearListingPlatforms] = useState(false);
   const sizes = cat ? getSizes(cat) : [...new Set(items.flatMap((item) => getSizes(item.category || "")))];
+  const totalValue = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const productCount = new Set(items.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
+  const listedCount = items.filter((item) => Array.isArray(item.listedPlatforms) && item.listedPlatforms.length > 0).length;
+  const withEbayPrice = items.filter((item) => item.ebayListedPrice !== undefined && item.ebayListedPrice !== "").length;
+  const summarize = (values, empty = "Mixed") => {
+    const counts = new Map();
+    values.filter(Boolean).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+    const top = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3);
+    if (!top.length) return empty;
+    const extra = counts.size - top.length;
+    return `${top.map(([value, count]) => `${value} (${count})`).join(", ")}${extra > 0 ? ` +${extra}` : ""}`;
+  };
+  const summaryRows = [
+    ["Units", items.length],
+    ["Products", productCount],
+    ["Value", currency(totalValue)],
+    ["Categories", summarize(items.map((item) => item.category), "None")],
+    ["Brands", summarize(items.map((item) => item.brand), "None")],
+    ["Listed", `${listedCount} units`],
+    ["eBay price", `${withEbayPrice} units`],
+  ];
+  const previewNames = [...new Set(items.map((item) => item.name).filter(Boolean))].slice(0, 5);
   const apply = () => {
     const updates = {};
     if (nameSet.trim()) updates.nameSet = nameSet.trim();
@@ -125,7 +147,9 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     if (clearListingPlatforms) updates.clearListingPlatforms = true;
     onSave(updates);
   };
-  return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} items`} maxWidth={720}>
+  return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} items`} maxWidth={980}>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 560px", minWidth: 0 }}>
     <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
     <Field label="Set product title"><input value={nameSet} onChange={(e) => setNameSet(e.target.value)} style={inp} placeholder="Same title for all selected" /></Field>
     <Row><Field label="Find in title"><input value={titleFind} onChange={(e) => setTitleFind(e.target.value)} style={inp} placeholder="Text to replace" /></Field>
@@ -151,6 +175,28 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearEbayListedPrice} onChange={(e) => { setClearEbayListedPrice(e.target.checked); if (e.target.checked) setEbayListedPrice(""); }} style={cb} /> Clear listed price</label></Field></Row>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={onClose} style={ghostBtn}>Cancel</button>
     <button onClick={apply} style={primaryBtn}>Apply to {items.length} items</button></div>
+      </div>
+      <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #1f2937", borderRadius: 10, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
+        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Selection summary</div>
+        <div style={{ display: "grid", gap: 8 }}>
+          {summaryRows.map(([label, value]) => (
+            <div key={label} style={{ display: "grid", gridTemplateColumns: "76px 1fr", gap: 8, alignItems: "baseline" }}>
+              <span style={{ color: "#4b5563", fontSize: 11 }}>{label}</span>
+              <span style={{ color: "#d1d5db", fontSize: 12, fontWeight: 650, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
+            </div>
+          ))}
+        </div>
+        {previewNames.length > 0 && (
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1f2937" }}>
+            <div style={{ color: "#4b5563", fontSize: 11, marginBottom: 6 }}>Titles</div>
+            <div style={{ display: "grid", gap: 5 }}>
+              {previewNames.map((name) => <div key={name} title={name} style={{ color: "#9ca3af", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>)}
+              {productCount > previewNames.length && <div style={{ color: "#4b5563", fontSize: 11 }}>+{productCount - previewNames.length} more</div>}
+            </div>
+          </div>
+        )}
+      </aside>
+    </div>
   </Modal>);
 }
 
