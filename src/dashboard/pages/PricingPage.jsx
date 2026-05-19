@@ -305,6 +305,8 @@ const listingText = (review) => {
   return review.currentPrice ? currency(review.currentPrice) : "Missing";
 };
 
+const rankText = (review) => (review.rank ? `#${review.rank}` : "n/a");
+
 const averageCost = (items = []) => {
   const costs = items.map((item) => Number(item?.price)).filter((value) => Number.isFinite(value) && value > 0);
   return costs.length ? costs.reduce((sum, value) => sum + value, 0) / costs.length : 0;
@@ -860,8 +862,9 @@ export default function PricingPage({ ctx }) {
                   <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
                   {badge(review.status, reviewTone)}
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 50px minmax(0, 1fr)", gap: 8, fontSize: 11, alignItems: "start" }}>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "manualListing" ? "Manual match" : review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Rank</div><div style={{ color: review.rank ? "#e5e7eb" : "#6b7280", fontWeight: 800, overflowWrap: "anywhere" }}>{rankText(review)}</div></div>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
                 </div>
               </button>
@@ -887,7 +890,7 @@ export default function PricingPage({ ctx }) {
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
               <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
               <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
-              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selected.rank ? `#${selected.rank}` : "n/a"}</div></div>
+              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{rankText(selected)}</div></div>
               <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800 }}>{suggestionText(selected)}</div></div>
             </div>
 
