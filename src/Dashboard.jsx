@@ -237,7 +237,7 @@ export default function App({ onLogout, userEmail }) {
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
-  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", inTransit: false, listedPlatforms: [], tags: "", customer: "" };
+  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", listedPlatforms: [], tags: "", customer: "" };
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0] };
   const [expForm, setExpForm] = useState(emptyExp);
@@ -623,7 +623,7 @@ export default function App({ onLogout, userEmail }) {
   const addInventory = async () => {
     if (!invForm.name || !invForm.price) return;
     const qty = Math.max(1, parseInt(invForm.quantity) || 1);
-    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), ebayListedPrice: invForm.ebayListedPrice ? parseFloat(invForm.ebayListedPrice) : undefined, purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, inTransit: invForm.inTransit, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
+    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), ebayListedPrice: invForm.ebayListedPrice ? parseFloat(invForm.ebayListedPrice) : undefined, purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
     await persistInv([...items, ...inventory]);
     setInvForm(emptyInv); setAddInvOpen(false); setAddDirty(false);
   };
@@ -773,7 +773,6 @@ export default function App({ onLogout, userEmail }) {
       purchaseDate: form.purchaseDate,
       preorderDate: form.preorderDate || "",
       brand: form.brand || "",
-      inTransit: !!form.inTransit,
       tags: form.tags || "",
       customer: form.customer || "",
       addedAt: Date.now(),
@@ -842,10 +841,32 @@ export default function App({ onLogout, userEmail }) {
 
   const handleBulkEdit = async (updates) => {
     const ids = selectedInv;
-    const { addListedPlatform, clearListingPlatforms, ...rest } = updates;
+    const {
+      addListedPlatform,
+      clearListingPlatforms,
+      nameSet,
+      titleFind,
+      titleReplace = "",
+      titlePrefix = "",
+      titleSuffix = "",
+      setTags,
+      addTags,
+      clearTags,
+      ...rest
+    } = updates;
     await persistInv(inventory.map((i) => {
       if (!ids.has(i.id)) return i;
       const next = { ...i, ...rest };
+      if (nameSet) {
+        next.name = nameSet;
+      } else if (titleFind || titlePrefix || titleSuffix) {
+        let name = String(next.name || "");
+        if (titleFind) name = name.split(titleFind).join(titleReplace);
+        next.name = `${titlePrefix}${name}${titleSuffix}`;
+      }
+      if (clearTags) next.tags = "";
+      if (setTags !== undefined) next.tags = setTags;
+      if (addTags) next.tags = [next.tags, addTags].filter(Boolean).join(", ");
       if (clearListingPlatforms) next.listedPlatforms = [];
       if (addListedPlatform) next.listedPlatforms = [...new Set([...listedPlatformsFor(next), addListedPlatform])];
       return next;
@@ -2161,7 +2182,7 @@ export default function App({ onLogout, userEmail }) {
             </div>}
             {dashboardCards.recentInventory && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Inventory</div>
-              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{i.inTransit&&<span style={badge("#1e3a5f","#60a5fa")}>TRANSIT</span>}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
+              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
             </div>}
           </div>
         </div>)}
@@ -2599,7 +2620,7 @@ export default function App({ onLogout, userEmail }) {
         <Row><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={invForm.preorderDate} onChange={(e) => updateInvForm({ preorderDate: e.target.value })} style={inp} /></Field></Row>
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
-        <Row><Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field><Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={invForm.inTransit} onChange={(e) => updateInvForm({ inTransit: e.target.checked })} style={cb} /> In Transit</label></Field></Row>
+        <Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}><button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button><button onClick={addInventory} style={primaryBtn}>Add {parseInt(invForm.quantity)>1?`${invForm.quantity} items`:"item"}</button></div>
       </Modal>
       <UnsavedDialog open={showUnsavedAdd} onDiscard={() => { setAddInvOpen(false); setAddDirty(false); setShowUnsavedAdd(false); }} onCancel={() => setShowUnsavedAdd(false)} />
