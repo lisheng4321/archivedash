@@ -454,9 +454,23 @@ export default function App({ onLogout, userEmail }) {
   const syncGmailInventory = useCallback(async () => {
     if (!supabase) { setGmailStatus("Supabase is not configured."); return; }
     setGmailBusy(true); setGmailStatus("Scanning Gmail for inventory receipts...");
-    const { data, error } = await supabase.functions.invoke("gmail-sync-inventory", { body: { days: 90, maxResults: 25 } });
+    const result = await supabase.functions.invoke("gmail-sync-inventory", { body: { days: 90, maxResults: 25 } });
     setGmailBusy(false);
-    if (error) { setGmailStatus(error.message || "Could not sync Gmail inventory."); return; }
+    let data = result.data;
+    const error = result.error;
+    if (error?.context?.json) {
+      data = await error.context.json().catch(() => data);
+    }
+    if (error) {
+      const detailText = data?.details
+        ? ` ${typeof data.details === "string" ? data.details : JSON.stringify(data.details).slice(0, 500)}`
+        : "";
+      const message = data?.reconnectRequired
+        ? "Reconnect Gmail from Settings, then try Sync Gmail again."
+        : `${data?.error || error.message || "Could not sync Gmail inventory."}${detailText}`;
+      setGmailStatus(message);
+      return;
+    }
     setGmailStatus(`Scanned ${data?.searched || 0} Gmail messages. ${data?.queuedDrafts || 0} inventory drafts waiting.`);
     await loadGmailImports();
   }, [loadGmailImports]);

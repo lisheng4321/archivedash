@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../supabase.js";
 import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices } from "../../pricing/pricingEngine.js";
-import { currency, ghostBtn, KPI, primaryBtn } from "../shared.jsx";
+import { currency, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, ghostBtn, KPI, primaryBtn } from "../shared.jsx";
 
 const panel = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8 };
 const muted = { color: "#6b7280" };
@@ -10,7 +10,9 @@ const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #1
 const tweakStorageKey = "archivedash-pricing-tweaks-v1";
 const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
 const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
+const activeListingsStorageKey = "archivedash-pricing-active-listings-v1";
 const defaultExclude = "acrylic, empty, box only, case only, damaged, custom, replica, proxy, bundle, lot, combo";
+const ownEbaySeller = "thearchive777";
 
 const splitTerms = (value) => String(value || "")
   .split(",")
@@ -68,6 +70,23 @@ const saveSyncMeta = (next) => {
   }
 };
 
+const loadActiveListings = () => {
+  try {
+    const rows = JSON.parse(window.localStorage.getItem(activeListingsStorageKey) || "[]");
+    return Array.isArray(rows) ? rows.filter((listing) => listing?.title && Number(listing?.price) > 0) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveActiveListings = (next) => {
+  try {
+    window.localStorage.setItem(activeListingsStorageKey, JSON.stringify(next || []));
+  } catch {
+    // Cached active listings only support local manual matching.
+  }
+};
+
 const formatDateTime = (value) => {
   if (!value) return "";
   let date = new Date(value);
@@ -99,12 +118,51 @@ const slugish = (value) => String(value || "")
   .replace(/^-+|-+$/g, "")
   .slice(0, 72) || "card";
 
+const pricingProfileIdForName = (value) => `inventory-${String(value || "")
+  .toLowerCase()
+  .replace(/[\u2010-\u2015]/g, "-")
+  .replace(/[^a-z0-9]+/g, " ")
+  .replace(/\s+/g, " ")
+  .trim()
+  .replace(/\s+/g, "-")
+  .slice(0, 80) || "item"}`;
+
 const wordsFor = (value) => String(value || "")
   .toLowerCase()
   .replace(/[^a-z0-9]+/g, " ")
   .split(/\s+/)
   .filter((word) => word.length > 2)
   .slice(0, 8);
+
+const isOwnSeller = (seller) => String(seller || "").trim().toLowerCase() === ownEbaySeller;
+
+const listingKey = (listing) => String(listing?.listingId || listing?.offerId || listing?.sku || listing?.id || "");
+
+const listingPrice = (listing) => {
+  const total = Number(listing?.total);
+  if (Number.isFinite(total) && total > 0) return total;
+  const price = Number(listing?.price);
+  if (Number.isFinite(price) && price > 0) return price;
+  return 0;
+};
+
+const listingLabel = (listing) => {
+  const title = String(listing?.title || "Untitled listing");
+  const price = listingPrice(listing) > 0 ? ` - ${currency(listingPrice(listing))}` : "";
+  const sku = listing?.sku ? ` - SKU ${listing.sku}` : "";
+  const mine = listing.isOwnListing || isOwnSeller(listing.seller) ? " - your listing" : "";
+  return `${title}${price}${sku}${mine}`;
+};
+
+const uniqueListings = (rows) => {
+  const seen = new Set();
+  return rows.filter((listing) => {
+    const key = listingKey(listing);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const cardToProfile = (card) => ({
   id: card.id,
@@ -122,20 +180,39 @@ const cardToProfile = (card) => ({
   excludeTerms: splitTerms(card.exclude || defaultExclude),
 });
 
-const withTweaks = (profiles, tweaks) => profiles
+const withTweaks = (profiles, tweaks, listings = []) => profiles
   .filter(Boolean)
   .map((profile) => {
     const tweak = tweaks[profile.id] || {};
     if (tweak.hidden) return null;
     const priceOverride = Number(tweak.priceOverride);
+    const manualListing = tweak.manualListingKey
+      ? listings.find((listing) => listingKey(listing) === tweak.manualListingKey)
+      : null;
+    const manualListingPrice = listingPrice(manualListing);
+    const matchedProfile = manualListing && Number.isFinite(manualListingPrice) && manualListingPrice > 0
+      ? {
+        ...profile,
+        demoCurrentPrice: manualListingPrice,
+        currentPriceSource: "manualListing",
+        manualEbayListing: {
+          ebayListingId: manualListing.listingId || manualListing.id || "",
+          ebayOfferId: manualListing.offerId || "",
+          ebaySku: manualListing.sku || "",
+          ebayListingTitle: manualListing.title || "",
+          ebayListingMatchScore: 100,
+          price: manualListingPrice,
+        },
+      }
+      : profile;
     return {
-      ...profile,
-      query: tweak.query?.trim() || profile.query,
-      required: tweak.required !== undefined ? splitTerms(tweak.required) : profile.required,
-      excludeTerms: tweak.exclude !== undefined ? splitTerms(tweak.exclude) : profile.excludeTerms,
-      targetMode: tweak.targetMode || profile.targetMode,
-      demoCurrentPrice: Number.isFinite(priceOverride) && priceOverride > 0 ? priceOverride : profile.demoCurrentPrice,
-      currentPriceSource: Number.isFinite(priceOverride) && priceOverride > 0 ? "manualOverride" : profile.currentPriceSource,
+      ...matchedProfile,
+      query: tweak.query?.trim() || matchedProfile.query,
+      required: tweak.required !== undefined ? splitTerms(tweak.required) : matchedProfile.required,
+      excludeTerms: tweak.exclude !== undefined ? splitTerms(tweak.exclude) : matchedProfile.excludeTerms,
+      targetMode: tweak.targetMode || matchedProfile.targetMode,
+      demoCurrentPrice: Number.isFinite(priceOverride) && priceOverride > 0 ? priceOverride : matchedProfile.demoCurrentPrice,
+      currentPriceSource: Number.isFinite(priceOverride) && priceOverride > 0 ? "manualOverride" : matchedProfile.currentPriceSource,
     };
   })
   .filter(Boolean);
@@ -191,6 +268,36 @@ const suggestionText = (review) => {
 const listingText = (review) => {
   if (review.currentPriceSource === "notListed") return "Not listed";
   return review.currentPrice ? currency(review.currentPrice) : "Missing";
+};
+
+const averageCost = (items = []) => {
+  const costs = items.map((item) => Number(item?.price)).filter((value) => Number.isFinite(value) && value > 0);
+  return costs.length ? costs.reduce((sum, value) => sum + value, 0) / costs.length : 0;
+};
+
+const estimateProfit = (price, cost) => {
+  const salePrice = Number(price) || 0;
+  const unitCost = Number(cost) || 0;
+  const fees = salePrice > 0 ? salePrice * EBAY_AU_FEE_RATE + EBAY_AU_FIXED_ORDER_FEE : 0;
+  return {
+    salePrice,
+    fees,
+    profit: salePrice - unitCost - fees,
+    margin: salePrice > 0 ? ((salePrice - unitCost - fees) / salePrice) * 100 : 0,
+  };
+};
+
+const uniquePricePoints = (points) => {
+  const seen = new Set();
+  return points
+    .filter((point) => Number(point?.price) > 0)
+    .filter((point) => {
+      const key = Number(point.price).toFixed(2);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 5);
 };
 
 const compSubtitle = (comp) => {
@@ -263,10 +370,49 @@ function ExcludedTable({ rows, isMobile, onInclude }) {
               ))}
             </div>
             <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 700 }}>{currency(comp.total)}</div>
-            {onInclude && <button onClick={() => onInclude(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10, color: "#86efac" }}>Include</button>}
+            {onInclude && (comp.ownSellerExcluded || comp.isOwnListing
+              ? <span style={{ color: "#93c5fd", fontSize: 10, fontWeight: 800 }}>Mine</span>
+              : <button onClick={() => onInclude(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10, color: "#86efac" }}>Include</button>)}
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+function ProfitPanel({ review, isMobile }) {
+  const unitCost = averageCost(review.relatedInventory);
+  const topSixPrice = review.topSixAverage
+    ? Math.max(Number(review.floor || 0), Math.round(review.topSixAverage) - 0.05)
+    : 0;
+  const points = uniquePricePoints([
+    { label: "Suggested", price: review.suggestedPrice },
+    { label: "Current", price: review.currentPrice },
+    { label: "AU floor", price: review.floor },
+    { label: "Top comps", price: topSixPrice },
+  ]).map((point) => ({ ...point, ...estimateProfit(point.price, unitCost) }));
+
+  if (!unitCost || !points.length) return null;
+
+  return (
+    <div style={{ ...panel, padding: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
+        <div>
+          <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Estimated profit</div>
+          <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Per unit, after item cost and estimated eBay fees. Shipping and ads not included.</div>
+        </div>
+        <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>Cost {currency(unitCost)}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+        {points.map((point) => (
+          <div key={point.label} style={{ background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, padding: 10, minWidth: 0 }}>
+            <div style={{ color: "#6b7280", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{point.label}</div>
+            <div style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 900, marginTop: 4 }}>{currency(point.salePrice)}</div>
+            <div style={{ color: point.profit >= 0 ? "#34d399" : "#f87171", fontSize: 13, fontWeight: 900, marginTop: 6 }}>{currency(point.profit)}</div>
+            <div style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>{point.margin.toFixed(1)}% margin</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -284,24 +430,41 @@ export default function PricingPage({ ctx }) {
   const [cardSort, setCardSort] = useState("recommended");
   const [cardSearch, setCardSearch] = useState("");
   const [liveActiveComps, setLiveActiveComps] = useState(null);
-  const [ebayListings, setEbayListings] = useState(null);
+  const [ebayListings, setEbayListings] = useState(loadActiveListings);
   const [syncStatus, setSyncStatus] = useState("");
   const [syncMeta, setSyncMeta] = useState(loadSyncMeta);
   const [syncBusy, setSyncBusy] = useState(false);
   const pricedInventory = useMemo(() => inventoryWithEbayListingPrices(inventory, ebayListings || []), [inventory, ebayListings]);
   const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)].filter(Boolean), [pricedInventory, customCards]);
-  const profiles = useMemo(() => withTweaks(baseProfiles, tweaks), [baseProfiles, tweaks]);
+  const matchListings = useMemo(() => uniqueListings([
+    ...(ebayListings || []),
+    ...(Array.isArray(liveActiveComps) ? liveActiveComps : [])
+      .filter((comp) => isOwnSeller(comp.seller) && comp.type === "active")
+      .map((comp) => ({
+        id: comp.id,
+        title: comp.title,
+        price: comp.price,
+        total: comp.total ?? (Number(comp.price || 0) + Number(comp.shipping || 0)),
+        seller: comp.seller,
+        itemWebUrl: comp.itemWebUrl,
+        isOwnListing: true,
+      })),
+  ]), [ebayListings, liveActiveComps]);
+  const profiles = useMemo(() => withTweaks(baseProfiles, tweaks, matchListings), [baseProfiles, tweaks, matchListings]);
   const pricingComps = useMemo(() => {
     if (!Array.isArray(liveActiveComps)) return [];
     const liveGroups = new Set(liveActiveComps.map((comp) => `${comp.profileId}:${comp.scope}:${comp.type}`));
     const raw = liveActiveComps.filter((comp) => liveGroups.has(`${comp.profileId}:${comp.scope}:${comp.type}`));
     return raw.map((comp) => {
       const decision = tweaks[comp.profileId]?.comps?.[comp.id];
-      if (!decision) return comp;
+      const ownListing = isOwnSeller(comp.seller);
+      if (!decision && !ownListing) return comp;
       return {
         ...comp,
+        isOwnListing: ownListing,
+        ownSellerExcluded: ownListing,
         manualIncluded: decision === "include",
-        manualExcluded: decision === "hide",
+        manualExcluded: decision === "hide" || ownListing,
       };
     });
   }, [liveActiveComps, tweaks]);
@@ -394,6 +557,26 @@ export default function PricingPage({ ctx }) {
     const name = cardDraft.name.trim();
     if (!name) return;
     const item = inventory.find((row) => row.id === cardDraft.inventoryId);
+    const inventoryProfileId = item?.name ? pricingProfileIdForName(item.name) : "";
+    if (cardSource === "inventory" && inventoryProfileId) {
+      if (tweaks[inventoryProfileId]?.hidden) {
+        setTweaks((prev) => {
+          const next = {
+            ...prev,
+            [inventoryProfileId]: {
+              ...(prev[inventoryProfileId] || {}),
+              hidden: false,
+            },
+          };
+          saveTweaks(next);
+          return next;
+        });
+      }
+      setSelectedId(inventoryProfileId);
+      setShowAddCard(false);
+      setCardDraft({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
+      return;
+    }
     const nextCard = {
       id: `custom-${Date.now()}-${slugish(name)}`,
       name,
@@ -481,9 +664,10 @@ export default function PricingPage({ ctx }) {
       return;
     }
     setEbayListings(listingData.listings);
+    saveActiveListings(listingData.listings);
 
     const inventoryWithPrices = inventoryWithEbayListingPrices(inventory, listingData.listings);
-    const nextProfiles = withTweaks([...buildPricingProfiles(inventoryWithPrices), ...customCards.map(cardToProfile)], tweaks);
+    const nextProfiles = withTweaks([...buildPricingProfiles(inventoryWithPrices), ...customCards.map(cardToProfile)], tweaks, listingData.listings);
     const maxProfiles = 50;
     const syncProfiles = nextProfiles.slice(0, maxProfiles).map((profile) => ({ id: profile.id, query: profile.query }));
     setSyncStatus(`Matched ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}. Fetching market comps...`);
@@ -509,8 +693,9 @@ export default function PricingPage({ ctx }) {
 
   const tone = statusStyle(selected.status);
   const selectedTweak = tweaks[selected.profile.id] || {};
-  const priceLabel = selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
+  const priceLabel = selected.currentPriceSource === "manualListing" ? "Manual match" : selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
   const selectedPrice = selected.currentPriceSource === "notListed" ? "Not listed" : selected.currentPrice ? currency(selected.currentPrice) : "Missing";
+  const selectedManualListingKey = selectedTweak.manualListingKey || "";
 
   return (
     <div style={{ padding: pagePad }}>
@@ -552,7 +737,7 @@ export default function PricingPage({ ctx }) {
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
             <div>
               <div style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 800 }}>Add market card</div>
-              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Create a local review card manually or from an inventory item.</div>
+              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
@@ -564,7 +749,10 @@ export default function PricingPage({ ctx }) {
               Inventory item
               <select value={cardDraft.inventoryId} onChange={(e) => applyInventoryCard(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
                 <option value="">Select item</option>
-                {inventory.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                {inventory.map((item) => {
+                  const profileId = pricingProfileIdForName(item.name);
+                  return <option key={item.id} value={item.id}>{item.name}{tweaks[profileId]?.hidden ? " (hidden)" : ""}</option>;
+                })}
               </select>
             </label>
           )}
@@ -594,7 +782,7 @@ export default function PricingPage({ ctx }) {
           </div>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
             <button onClick={() => setShowAddCard(false)} style={ghostBtn}>Cancel</button>
-            <button onClick={addCustomCard} style={primaryBtn}>Add card</button>
+            <button onClick={addCustomCard} style={primaryBtn}>{cardSource === "inventory" ? "Open card" : "Add card"}</button>
           </div>
         </div>
       )}
@@ -632,7 +820,7 @@ export default function PricingPage({ ctx }) {
                   {badge(review.status, reviewTone)}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11 }}>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "manualListing" ? "Manual match" : review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
                 </div>
               </button>
@@ -667,6 +855,7 @@ export default function PricingPage({ ctx }) {
               <div style={{ marginTop: 8, color: "#93c5fd", fontSize: 12, lineHeight: 1.45 }}>
                 Matched eBay listing: {selected.matchedEbayListing.ebayListingTitle || selected.matchedEbayListing.name || "Untitled listing"}
                 {selected.matchedEbayListing.ebayListingMatchScore ? ` (${selected.matchedEbayListing.ebayListingMatchScore}% title match)` : ""}
+                {selected.currentPriceSource === "manualListing" ? " - manual match" : ""}
               </div>
             )}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
@@ -675,6 +864,8 @@ export default function PricingPage({ ctx }) {
               <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#fca5a5", fontSize: 11, fontWeight: 800 }}>{selected.excludedCount} rejected</span>
             </div>
           </div>
+
+          <ProfitPanel review={selected} isMobile={isMobile} />
 
           {showTuning && (
             <div style={{ ...panel, padding: 14 }}>
@@ -702,6 +893,24 @@ export default function PricingPage({ ctx }) {
                   </select>
                 </label>
               </div>
+              <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700, display: "block", marginTop: 10 }}>
+                Matched eBay listing
+                <select
+                  value={selectedManualListingKey}
+                  onChange={(e) => updateTweak(selected.profile.id, { manualListingKey: e.target.value })}
+                  style={{ ...inputStyle, marginTop: 5 }}
+                >
+                  <option value="">Auto match / not listed</option>
+                  {matchListings.map((listing) => {
+                    const key = listingKey(listing);
+                    if (!key) return null;
+                    return <option key={key} value={key}>{listingLabel(listing)}</option>;
+                  })}
+                </select>
+              </label>
+              {matchListings.length === 0 && (
+                <div style={{ color: "#6b7280", fontSize: 11, marginTop: 6 }}>Sync eBay comps first to load active listings for manual matching. Listings from {ownEbaySeller} are also treated as yours.</div>
+              )}
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
                 <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
                   Must include
@@ -713,8 +922,8 @@ export default function PricingPage({ ctx }) {
                 </label>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <button onClick={() => updateTweak(selected.profile.id, { hidden: true })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Hide product from review</button>
-                {selected.profile.source === "custom" && <button onClick={() => removeCustomCard(selected.profile.id)} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Delete custom card</button>}
+                <button onClick={() => updateTweak(selected.profile.id, { hidden: true })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>{selected.profile.source === "custom" ? "Hide custom card" : "Hide inventory card"}</button>
+                {selected.profile.source === "custom" && <button onClick={() => removeCustomCard(selected.profile.id)} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Remove custom card</button>}
                 <span style={{ color: "#4b5563", fontSize: 11, alignSelf: "center" }}>Run sync again after changing the query.</span>
               </div>
             </div>

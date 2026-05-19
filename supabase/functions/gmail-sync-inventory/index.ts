@@ -215,92 +215,107 @@ async function refreshAccessToken(refreshToken: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!supabaseUrl || !serviceRole) return json({ error: "Missing Supabase service secrets." }, 500);
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceRole) return json({ error: "Missing Supabase service secrets." }, 500);
 
-  const authHeader = req.headers.get("Authorization") || "";
-  const jwt = authHeader.replace(/^Bearer\s+/i, "");
-  if (!jwt) return json({ error: "Missing authorization." }, 401);
+    const authHeader = req.headers.get("Authorization") || "";
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    if (!jwt) return json({ error: "Missing authorization." }, 401);
 
-  const supabase = createClient(supabaseUrl, serviceRole);
-  const { data: userData, error: userError } = await supabase.auth.getUser(jwt);
-  const user = userData?.user;
-  if (userError || !user) return json({ error: "Could not identify signed-in user." }, 401);
+    const supabase = createClient(supabaseUrl, serviceRole);
+    const { data: userData, error: userError } = await supabase.auth.getUser(jwt);
+    const user = userData?.user;
+    if (userError || !user) return json({ error: "Could not identify signed-in user." }, 401);
 
-  const { data: tokenRow, error: tokenError } = await supabase
-    .from("gmail_tokens")
-    .select("*")
-    .eq("user_id", user.id)
-    .single();
-
-  if (tokenError || !tokenRow) return json({ error: "Gmail is not connected yet." }, 400);
-
-  let accessToken = tokenRow.access_token;
-  const expiresAt = tokenRow.expires_at ? new Date(tokenRow.expires_at).getTime() : 0;
-  if (!expiresAt || expiresAt < Date.now() + 2 * 60 * 1000) {
-    const refreshed = await refreshAccessToken(tokenRow.refresh_token);
-    accessToken = refreshed.access_token;
-    await supabase.from("gmail_tokens").update({
-      access_token: refreshed.access_token,
-      token_type: refreshed.token_type,
-      expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString() : tokenRow.expires_at,
-      updated_at: new Date().toISOString(),
-    }).eq("user_id", user.id);
-  }
-
-  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  const days = Math.min(365, Math.max(1, Number(body.days || 90)));
-  const maxResults = Math.min(50, Math.max(1, Number(body.maxResults || 20)));
-  const query = String(body.query || `newer_than:${days}d (receipt OR invoice OR "order confirmation" OR "order confirmed" OR "thanks for your order" OR "your order")`);
-
-  const labelsRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels", { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
-  const labelsJson = await labelsRes.json().catch(() => ({}));
-  const receiptsLabel = (labelsJson.labels || []).find((l: any) => String(l.name || "").toLowerCase() === "receipts");
-
-  const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
-  listUrl.searchParams.set("maxResults", String(maxResults));
-  listUrl.searchParams.set("q", query);
-  if (receiptsLabel?.id && body.useReceiptsLabel !== false) listUrl.searchParams.append("labelIds", receiptsLabel.id);
-
-  const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
-  const listJson = await listRes.json();
-  if (!listRes.ok) return json({ error: "Could not search Gmail.", details: listJson }, 502);
-
-  const messages = Array.isArray(listJson.messages) ? listJson.messages : [];
-  const rows = [];
-  for (const m of messages) {
-    const getUrl = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`);
-    getUrl.searchParams.set("format", "full");
-    const getRes = await fetch(getUrl, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
-    if (!getRes.ok) continue;
-    const msg = await getRes.json();
-    for (const parsed of parseDrafts(msg)) {
-      if (!parsed.item_title || !parsed.total_cost) continue;
-      rows.push({ user_id: user.id, ...parsed });
-    }
-  }
-
-  if (rows.length) {
-    const messageIds = [...new Set(rows.map((row) => row.message_id))];
-    await supabase
-      .from("gmail_import_queue")
-      .delete()
+    const { data: tokenRow, error: tokenError } = await supabase
+      .from("gmail_tokens")
+      .select("*")
       .eq("user_id", user.id)
-      .eq("status", "draft")
-      .in("message_id", messageIds);
+      .single();
 
-    const { error: upsertError } = await supabase
+    if (tokenError || !tokenRow) return json({ error: "Gmail is not connected yet.", reconnectRequired: true }, 400);
+
+    let accessToken = tokenRow.access_token;
+    const expiresAt = tokenRow.expires_at ? new Date(tokenRow.expires_at).getTime() : 0;
+    if (!expiresAt || expiresAt < Date.now() + 2 * 60 * 1000) {
+      if (!tokenRow.refresh_token) {
+        return json({ error: "Gmail needs to be reconnected.", reconnectRequired: true }, 401);
+      }
+      let refreshed;
+      try {
+        refreshed = await refreshAccessToken(tokenRow.refresh_token);
+      } catch (error) {
+        console.error("Gmail refresh failed", error);
+        return json({ error: "Gmail needs to be reconnected.", details: String(error), reconnectRequired: true }, 401);
+      }
+      accessToken = refreshed.access_token;
+      await supabase.from("gmail_tokens").update({
+        access_token: refreshed.access_token,
+        token_type: refreshed.token_type,
+        expires_at: refreshed.expires_in ? new Date(Date.now() + refreshed.expires_in * 1000).toISOString() : tokenRow.expires_at,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", user.id);
+    }
+
+    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const days = Math.min(365, Math.max(1, Number(body.days || 90)));
+    const maxResults = Math.min(50, Math.max(1, Number(body.maxResults || 20)));
+    const query = String(body.query || `newer_than:${days}d (receipt OR invoice OR "order confirmation" OR "order confirmed" OR "thanks for your order" OR "your order")`);
+
+    const labelsRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels", { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
+    const labelsJson = await labelsRes.json().catch(() => ({}));
+    if (!labelsRes.ok) return json({ error: "Could not read Gmail labels.", details: labelsJson }, labelsRes.status === 401 ? 401 : 502);
+    const receiptsLabel = (labelsJson.labels || []).find((l: any) => String(l.name || "").toLowerCase() === "receipts");
+
+    const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
+    listUrl.searchParams.set("maxResults", String(maxResults));
+    listUrl.searchParams.set("q", query);
+    if (receiptsLabel?.id && body.useReceiptsLabel !== false) listUrl.searchParams.append("labelIds", receiptsLabel.id);
+
+    const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
+    const listJson = await listRes.json().catch(() => ({}));
+    if (!listRes.ok) return json({ error: "Could not search Gmail.", details: listJson }, listRes.status === 401 ? 401 : 502);
+
+    const messages = Array.isArray(listJson.messages) ? listJson.messages : [];
+    const rows = [];
+    for (const m of messages) {
+      const getUrl = new URL(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}`);
+      getUrl.searchParams.set("format", "full");
+      const getRes = await fetch(getUrl, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
+      if (!getRes.ok) continue;
+      const msg = await getRes.json();
+      for (const parsed of parseDrafts(msg)) {
+        if (!parsed.item_title || !parsed.total_cost) continue;
+        rows.push({ user_id: user.id, ...parsed });
+      }
+    }
+
+    if (rows.length) {
+      const messageIds = [...new Set(rows.map((row) => row.message_id))];
+      await supabase
+        .from("gmail_import_queue")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("status", "draft")
+        .in("message_id", messageIds);
+
+      const { error: upsertError } = await supabase
+        .from("gmail_import_queue")
+        .upsert(rows, { onConflict: "user_id,message_id,line_item_key", ignoreDuplicates: true });
+      if (upsertError) return json({ error: "Could not save Gmail import queue.", details: upsertError }, 500);
+    }
+
+    const { count } = await supabase
       .from("gmail_import_queue")
-      .upsert(rows, { onConflict: "user_id,message_id,line_item_key", ignoreDuplicates: true });
-    if (upsertError) return json({ error: "Could not save Gmail import queue.", details: upsertError }, 500);
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "draft");
+
+    return json({ ok: true, searched: messages.length, drafted: rows.length, queuedDrafts: count || 0, query, receiptsLabel: receiptsLabel?.id || null });
+  } catch (error) {
+    console.error("Gmail inventory sync failed", error);
+    return json({ error: "Could not sync Gmail inventory.", details: String(error) }, 500);
   }
-
-  const { count } = await supabase
-    .from("gmail_import_queue")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("status", "draft");
-
-  return json({ ok: true, searched: messages.length, drafted: rows.length, queuedDrafts: count || 0, query, receiptsLabel: receiptsLabel?.id || null });
 });

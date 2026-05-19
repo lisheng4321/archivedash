@@ -231,6 +231,7 @@ export const evaluateComps = (profile, comps, currentDate) => {
       let reasons = ruleReasonsFor(profile, comp, currentDate);
       if (comp.manualIncluded) reasons = [];
       if (comp.manualExcluded) reasons = ["hidden by you"];
+      if (comp.ownSellerExcluded || comp.isOwnListing) reasons = ["your eBay listing"];
       return {
         ...comp,
         total: compTotal(comp),
@@ -294,7 +295,7 @@ export const buildPricingReviews = ({ inventory = [], comps = SAMPLE_COMPS, prof
           ? `Lowering would move the listing closer to the AU active floor.`
           : "Not enough comparable active results to price confidently.";
 
-    const matchedEbayListing = relatedInventory.find((item) => item.ebayListingTitle || item.ebayListingId) || null;
+    const matchedEbayListing = profile.manualEbayListing || relatedInventory.find((item) => item.ebayListingTitle || item.ebayListingId) || null;
     const matchScore = Number(matchedEbayListing?.ebayListingMatchScore || 0);
     const confidence = floor === null || missingEbayPrice || (matchScore > 0 && matchScore < 60)
       ? "Low"
@@ -317,6 +318,7 @@ export const buildPricingReviews = ({ inventory = [], comps = SAMPLE_COMPS, prof
       reason,
       rank,
       floor,
+      topSixAverage,
       activeCount: auActive.length,
       excludedCount: excluded.length,
       recentSold14,
