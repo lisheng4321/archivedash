@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ARCHIVEDASH_APP_URL") || "https://archivedash.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -39,7 +39,7 @@ async function refreshAccessToken(refreshToken: string) {
     body,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Refresh failed: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`Refresh failed with status ${res.status}`);
   return data;
 }
 
@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
     listings = await fetchTradingActiveListings(accessToken);
   } catch (error) {
     tradingError = String(error);
-    console.error("Trading active listings failed", error);
+    console.error("Trading active listings failed", { message: tradingError });
   }
 
   if (!listings.length) {
@@ -270,12 +270,12 @@ Deno.serve(async (req) => {
       listings = await fetchInventoryApiListings(accessToken);
       source = "inventory";
     } catch (error) {
-      console.error("Inventory active listings failed", error);
+      console.error("Inventory active listings failed", { message: String(error) });
       return json({
         error: "Could not fetch active eBay listings.",
         details: {
-          tradingError,
-          inventoryError: String(error),
+          tradingError: tradingError ? "Trading API failed." : "",
+          inventoryError: "Inventory API failed.",
         },
       }, 502);
     }

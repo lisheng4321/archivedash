@@ -8,6 +8,8 @@ const html = (body: string, status = 200) => new Response(body, {
 const redirect = (url: string) => new Response(null, { status: 302, headers: { Location: url } });
 
 Deno.serve(async (req) => {
+  if (req.method !== "GET") return html("GET required.", 405);
+
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -53,7 +55,7 @@ Deno.serve(async (req) => {
 
   const tokenJson = await tokenRes.json();
   if (!tokenRes.ok) {
-    console.error("Gmail token exchange failed", tokenJson);
+    console.error("Gmail token exchange failed", { status: tokenRes.status });
     return html("Gmail token exchange failed. Check your Google Client ID, Client Secret, and redirect URI.", 500);
   }
 
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
   await supabase.from("gmail_oauth_states").delete().eq("state", state);
 
   if (upsertError) {
-    console.error("Gmail token store failed", upsertError);
+    console.error("Gmail token store failed", { message: upsertError.message });
     return html("ArchiveDash could not save the Gmail connection.", 500);
   }
 

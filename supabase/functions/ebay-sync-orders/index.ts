@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ARCHIVEDASH_APP_URL") || "https://archivedash.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -46,12 +46,13 @@ async function refreshAccessToken(refreshToken: string) {
     body,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Refresh failed: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`Refresh failed with status ${res.status}`);
   return data;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "POST required." }, 405);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -88,7 +89,7 @@ Deno.serve(async (req) => {
     }).eq("user_id", user.id);
   }
 
-  const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+  const body = await req.json().catch(() => ({}));
   const days = Math.min(90, Math.max(1, Number(body.days || 30)));
   const from = new Date(Date.now() - days * 86400000).toISOString();
   const to = new Date().toISOString();
@@ -101,8 +102,8 @@ Deno.serve(async (req) => {
   });
   const ordersJson = await orderRes.json();
   if (!orderRes.ok) {
-    console.error("eBay orders fetch failed", ordersJson);
-    return json({ error: "Could not fetch eBay orders.", details: ordersJson }, 502);
+    console.error("eBay orders fetch failed", { status: orderRes.status });
+    return json({ error: "Could not fetch eBay orders." }, 502);
   }
 
   const orders = Array.isArray(ordersJson.orders) ? ordersJson.orders : [];
@@ -170,7 +171,10 @@ Deno.serve(async (req) => {
     const { error: upsertError } = await supabase
       .from("ebay_import_queue")
       .upsert(rows, { onConflict: "user_id,order_id,line_item_id", ignoreDuplicates: true });
-    if (upsertError) return json({ error: "Could not save eBay import queue.", details: upsertError }, 500);
+    if (upsertError) {
+      console.error("Could not save eBay import queue", { message: upsertError.message });
+      return json({ error: "Could not save eBay import queue." }, 500);
+    }
   }
 
   const { count } = await supabase

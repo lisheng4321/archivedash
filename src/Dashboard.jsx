@@ -8,7 +8,7 @@ import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -587,7 +587,7 @@ export default function App({ onLogout, userEmail }) {
     if (!note) return;
     // Convert <br>, <div>, <p>, <li> to line breaks then strip remaining tags
     const tmp = document.createElement("div");
-    tmp.innerHTML = note.content || "";
+    tmp.innerHTML = sanitizeHtml(note.content || "");
     // Replace block-level tags with newlines
     tmp.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
     tmp.querySelectorAll("div, p, li").forEach((el) => { el.append("\n"); });

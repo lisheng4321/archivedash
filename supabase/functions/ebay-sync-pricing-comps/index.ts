@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ARCHIVEDASH_APP_URL") || "https://archivedash.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -34,7 +34,7 @@ async function getApplicationAccessToken(scope = "https://api.ebay.com/oauth/api
     body,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`eBay app token failed: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`eBay app token failed with status ${res.status}`);
   return data.access_token as string;
 }
 
@@ -111,7 +111,7 @@ async function fetchActiveComps(profileId: string, query: string, limit: number,
     },
   });
   const data = await res.json();
-  if (!res.ok) throw data;
+  if (!res.ok) throw new Error(`Browse API failed with status ${res.status}`);
 
   const summaries = Array.isArray(data.itemSummaries) ? data.itemSummaries : [];
   return {
@@ -149,7 +149,7 @@ async function fetchSoldComps(profileId: string, query: string, limit: number, m
         comps: sales.map((sale: Record<string, unknown>, index: number) => compFromItemSale(profileId, scope, sale, index)),
       };
     }
-    lastError = data;
+    lastError = new Error(`Marketplace Insights API failed with status ${res.status}`);
     if (res.status !== 404) break;
   }
 
@@ -183,8 +183,8 @@ Deno.serve(async (req) => {
   try {
     accessToken = await getApplicationAccessToken();
   } catch (error) {
-    console.error(error);
-    return json({ error: "Could not get eBay application token.", details: String(error) }, 502);
+    console.error("Could not get eBay application token", { message: String(error) });
+    return json({ error: "Could not get eBay application token." }, 502);
   }
 
   let insightsAccessToken = "";
@@ -205,8 +205,8 @@ Deno.serve(async (req) => {
     try {
       active = await fetchActiveComps(profileId, query, limit, postcode, accessToken);
     } catch (error) {
-      activeError = error;
-      console.error("eBay Browse search failed", error);
+      activeError = "Active comps unavailable.";
+      console.error("eBay Browse search failed", { message: String(error) });
     }
 
     let auSold = { total: 0, comps: [] as Array<Record<string, unknown>> };
@@ -223,8 +223,8 @@ Deno.serve(async (req) => {
         globalSold = results[1];
         soldError = null;
       } catch (error) {
-        soldError = error;
-        console.error("eBay Marketplace Insights search failed", error);
+        soldError = "Sold comps unavailable.";
+        console.error("eBay Marketplace Insights search failed", { message: String(error) });
       }
     }
 

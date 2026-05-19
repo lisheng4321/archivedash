@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
+import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, sanitizeHtml, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
 
 // ─── Edit Inv Modal ───
 function EditInvModal({ item, onSave, onClose, categories, customers, platforms = [] }) {
@@ -493,7 +493,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   useEffect(() => {
     if (!editorRef.current || !note) return;
     if (lastNoteId.current !== note.id) {
-      editorRef.current.innerHTML = note.content || "";
+      editorRef.current.innerHTML = sanitizeHtml(note.content || "");
       lastNoteId.current = note.id;
     }
   }, [note?.id]);
@@ -507,26 +507,33 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   }
 
   const fontSize = note.fontSize || 14;
+  const updateContent = () => {
+    if (editorRef.current) onUpdate({ content: sanitizeHtml(editorRef.current.innerHTML) });
+  };
 
   const exec = (cmd, val = null) => {
     document.execCommand(cmd, false, val);
-    if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
+    updateContent();
   };
 
   const undoRedo = (cmd) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(cmd);
-    requestAnimationFrame(() => {
-      if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
-    });
+    requestAnimationFrame(updateContent);
   };
 
   const insertHtml = (html) => {
     if (!editorRef.current) return;
     editorRef.current.focus();
-    document.execCommand("insertHTML", false, html);
-    onUpdate({ content: editorRef.current.innerHTML });
+    document.execCommand("insertHTML", false, sanitizeHtml(html));
+    updateContent();
+  };
+
+  const insertPlainText = (text) => {
+    const tmp = document.createElement("div");
+    tmp.textContent = text || "";
+    insertHtml(tmp.innerHTML.replace(/\n/g, "<br>"));
   };
 
   const insertCheckbox = () => {
@@ -549,10 +556,16 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     const t = e.target;
     if (t && t.tagName === "INPUT" && t.type === "checkbox") {
       if (t.checked) t.setAttribute("checked", "checked"); else t.removeAttribute("checked");
-      requestAnimationFrame(() => {
-        if (editorRef.current) onUpdate({ content: editorRef.current.innerHTML });
-      });
+      requestAnimationFrame(updateContent);
     }
+  };
+
+  const onEditorPaste = (e) => {
+    e.preventDefault();
+    const html = e.clipboardData?.getData("text/html");
+    const text = e.clipboardData?.getData("text/plain") || "";
+    if (html) insertHtml(html);
+    else insertPlainText(text);
   };
 
   const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
@@ -606,8 +619,10 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         ref={editorRef}
         className="np-edit"
         contentEditable
-        onInput={(e) => onUpdate({ content: e.currentTarget.innerHTML })}
+        onInput={updateContent}
         onClick={onEditorClick}
+        onPaste={onEditorPaste}
+        onDrop={(e) => e.preventDefault()}
         suppressContentEditableWarning
         style={{ flex: 1, background: "#0d1117", color: "#e5e7eb", border: "none", padding: 16, fontSize, lineHeight: 1.7, outline: "none", fontFamily: "'DM Sans', sans-serif", overflowY: "auto", minHeight: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
       />

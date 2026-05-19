@@ -1,7 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
 const cors = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": Deno.env.get("ARCHIVEDASH_APP_URL") || "https://archivedash.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -208,12 +208,13 @@ async function refreshAccessToken(refreshToken: string) {
     body,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(`Refresh failed: ${JSON.stringify(data)}`);
+  if (!res.ok) throw new Error(`Refresh failed with status ${res.status}`);
   return data;
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "POST required." }, 405);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -247,8 +248,8 @@ Deno.serve(async (req) => {
       try {
         refreshed = await refreshAccessToken(tokenRow.refresh_token);
       } catch (error) {
-        console.error("Gmail refresh failed", error);
-        return json({ error: "Gmail needs to be reconnected.", details: String(error), reconnectRequired: true }, 401);
+        console.error("Gmail refresh failed", { message: String(error) });
+        return json({ error: "Gmail needs to be reconnected.", reconnectRequired: true }, 401);
       }
       accessToken = refreshed.access_token;
       await supabase.from("gmail_tokens").update({
@@ -259,14 +260,14 @@ Deno.serve(async (req) => {
       }).eq("user_id", user.id);
     }
 
-    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const body = await req.json().catch(() => ({}));
     const days = Math.min(365, Math.max(1, Number(body.days || 90)));
     const maxResults = Math.min(50, Math.max(1, Number(body.maxResults || 20)));
     const query = String(body.query || `newer_than:${days}d (receipt OR invoice OR "order confirmation" OR "order confirmed" OR "thanks for your order" OR "your order")`);
 
     const labelsRes = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels", { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
     const labelsJson = await labelsRes.json().catch(() => ({}));
-    if (!labelsRes.ok) return json({ error: "Could not read Gmail labels.", details: labelsJson }, labelsRes.status === 401 ? 401 : 502);
+    if (!labelsRes.ok) return json({ error: "Could not read Gmail labels." }, labelsRes.status === 401 ? 401 : 502);
     const receiptsLabel = (labelsJson.labels || []).find((l: any) => String(l.name || "").toLowerCase() === "receipts");
 
     const listUrl = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
@@ -276,7 +277,7 @@ Deno.serve(async (req) => {
 
     const listRes = await fetch(listUrl, { headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" } });
     const listJson = await listRes.json().catch(() => ({}));
-    if (!listRes.ok) return json({ error: "Could not search Gmail.", details: listJson }, listRes.status === 401 ? 401 : 502);
+    if (!listRes.ok) return json({ error: "Could not search Gmail." }, listRes.status === 401 ? 401 : 502);
 
     const messages = Array.isArray(listJson.messages) ? listJson.messages : [];
     const rows = [];
@@ -304,7 +305,10 @@ Deno.serve(async (req) => {
       const { error: upsertError } = await supabase
         .from("gmail_import_queue")
         .upsert(rows, { onConflict: "user_id,message_id,line_item_key", ignoreDuplicates: true });
-      if (upsertError) return json({ error: "Could not save Gmail import queue.", details: upsertError }, 500);
+      if (upsertError) {
+        console.error("Could not save Gmail import queue", { message: upsertError.message });
+        return json({ error: "Could not save Gmail import queue." }, 500);
+      }
     }
 
     const { count } = await supabase
@@ -315,7 +319,7 @@ Deno.serve(async (req) => {
 
     return json({ ok: true, searched: messages.length, drafted: rows.length, queuedDrafts: count || 0, query, receiptsLabel: receiptsLabel?.id || null });
   } catch (error) {
-    console.error("Gmail inventory sync failed", error);
-    return json({ error: "Could not sync Gmail inventory.", details: String(error) }, 500);
+    console.error("Gmail inventory sync failed", { message: String(error) });
+    return json({ error: "Could not sync Gmail inventory." }, 500);
   }
 });

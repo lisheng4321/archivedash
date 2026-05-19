@@ -8,6 +8,8 @@ const html = (body: string, status = 200) => new Response(body, {
 const redirect = (url: string) => new Response(null, { status: 302, headers: { Location: url } });
 
 Deno.serve(async (req) => {
+  if (req.method !== "GET") return html("GET required.", 405);
+
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -54,7 +56,7 @@ Deno.serve(async (req) => {
 
   const tokenJson = await tokenRes.json();
   if (!tokenRes.ok) {
-    console.error("eBay token exchange failed", tokenJson);
+    console.error("eBay token exchange failed", { status: tokenRes.status });
     return html("eBay token exchange failed. Check your Client ID, Client Secret, RuName, and redirect settings.", 500);
   }
 
@@ -76,7 +78,7 @@ Deno.serve(async (req) => {
   await supabase.from("ebay_oauth_states").delete().eq("state", state);
 
   if (upsertError) {
-    console.error("Token store failed", upsertError);
+    console.error("Token store failed", { message: upsertError.message });
     return html("ArchiveDash could not save the eBay connection.", 500);
   }
 
