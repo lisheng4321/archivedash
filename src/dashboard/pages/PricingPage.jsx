@@ -252,6 +252,12 @@ const withTweaks = (profiles, tweaks, listings = []) => profiles
   })
   .filter(Boolean);
 
+const buildSyncProfiles = (baseProfiles, currentTweaks, listings, maxProfiles = 50) => (
+  withTweaks(baseProfiles, currentTweaks, listings)
+    .slice(0, maxProfiles)
+    .map((profile) => ({ id: profile.id, query: profile.query }))
+);
+
 const statusStyle = (status) => {
   if (status === "Competitive") return { bg: "#123326", fg: "#86efac" };
   if (status === "Ready to list") return { bg: "#172554", fg: "#93c5fd" };
@@ -655,8 +661,9 @@ export default function PricingPage({ ctx }) {
     }
     setSyncBusy(true);
     setSyncStatus("Fetching live AU active comps...");
-    const maxProfiles = 50;
-    const syncProfiles = profiles.slice(0, maxProfiles).map((profile) => ({ id: profile.id, query: profile.query }));
+    const latestTweaks = loadTweaks();
+    setTweaks(latestTweaks);
+    const syncProfiles = buildSyncProfiles(baseProfiles, latestTweaks, matchListings);
     const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
       body: { profiles: syncProfiles, postcode: "2073", limit: 30 },
     });
@@ -670,7 +677,7 @@ export default function PricingPage({ ctx }) {
     const total = data.comps.length;
     const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
     const searchTotal = Array.isArray(data.searches) ? data.searches.reduce((sum, search) => sum + (Number(search.total) || 0), 0) : total;
-    const skipped = Math.max(0, profiles.length - syncProfiles.length);
+    const skipped = Math.max(0, withTweaks(baseProfiles, latestTweaks, matchListings).length - syncProfiles.length);
     markSyncComplete(`Loaded ${total - soldTotal} active AU comp${total - soldTotal === 1 ? "" : "s"} for ${syncProfiles.length} product${syncProfiles.length === 1 ? "" : "s"} from ${searchTotal} eBay result${searchTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
   };
 
@@ -709,9 +716,13 @@ export default function PricingPage({ ctx }) {
     saveActiveListings(listingData.listings);
 
     const inventoryWithPrices = inventoryWithEbayListingPrices(inventory, listingData.listings);
-    const nextProfiles = withTweaks([...buildPricingProfiles(inventoryWithPrices), ...customCards.map(cardToProfile)], tweaks, listingData.listings);
-    const maxProfiles = 50;
-    const syncProfiles = nextProfiles.slice(0, maxProfiles).map((profile) => ({ id: profile.id, query: profile.query }));
+    const latestTweaks = loadTweaks();
+    const latestCustomCards = loadCustomCards();
+    setTweaks(latestTweaks);
+    setCustomCards(latestCustomCards);
+    const nextBaseProfiles = [...buildPricingProfiles(inventoryWithPrices), ...latestCustomCards.map(cardToProfile)];
+    const nextProfiles = withTweaks(nextBaseProfiles, latestTweaks, listingData.listings);
+    const syncProfiles = buildSyncProfiles(nextBaseProfiles, latestTweaks, listingData.listings);
     setSyncStatus(`Matched ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}. Fetching market comps...`);
     const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
       body: { profiles: syncProfiles, postcode: "2073", limit: 30 },

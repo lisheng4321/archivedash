@@ -248,6 +248,7 @@ export default function App({ onLogout, userEmail }) {
     salesIncome: true,
     netProfit: true,
     grossProfit: true,
+    inventorySpend: true,
     inventoryValue: false,
     salesCount: true,
     avgOrderValue: false,
@@ -268,6 +269,7 @@ export default function App({ onLogout, userEmail }) {
     ["salesIncome", "Sales income"],
     ["netProfit", "Net profit"],
     ["grossProfit", "Gross profit"],
+    ["inventorySpend", "Inventory spend"],
     ["salesCount", "Sales count"],
     ["netMargin", "Net margin"],
     ["grossMargin", "Gross margin"],
@@ -1036,10 +1038,14 @@ export default function App({ onLogout, userEmail }) {
     const cutTo = activePeriod.currentEnd;
     let fs = sales.filter((s) => s.saleDate >= cutFrom && s.saleDate <= cutTo);
     let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
+    let fi = inventory.filter((i) => (i.purchaseDate || "") >= cutFrom && (i.purchaseDate || "") <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
+    if (dashCat !== "All") fi = fi.filter((i) => i.category === dashCat);
+    if (dashPlat !== "All") fi = fi.filter((i) => listedPlatformsFor(i).includes(dashPlat));
     const salesIncome = fs.reduce((a, s) => a + s.salePrice, 0), grossProfit = fs.reduce((a, s) => a + s.profit, 0);
     const totalExpenses = fe.reduce((a, e) => a + e.amount, 0), netProfit = grossProfit - totalExpenses;
+    const inventorySpend = fi.reduce((a, i) => a + (Number(i.price) || 0), 0);
     const invValue = inventory.reduce((a, i) => a + i.price, 0), cnt = fs.length, aov = cnt > 0 ? salesIncome / cnt : 0;
     const sellThrough = (inventory.length + cnt) > 0 ? cnt / (inventory.length + cnt) : 0;
     const totalFees = fs.reduce((a, s) => a + (s.platformFees||0), 0);
@@ -1055,7 +1061,7 @@ export default function App({ onLogout, userEmail }) {
     let cum = 0; const spark = dates.map((d) => { cum += pbd[d] || 0; return cum; });
     const ri = [...inventory].sort((a, b) => (b.addedAt||0) - (a.addedAt||0)).slice(0, 7);
     const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7);
-    return { salesIncome, grossProfit, totalExpenses, netProfit, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
+    return { salesIncome, grossProfit, totalExpenses, netProfit, inventorySpend, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
   }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat]);
 
   const periodComparison = useMemo(() => {
@@ -2121,6 +2127,7 @@ export default function App({ onLogout, userEmail }) {
             {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
             {dashboardCards.netProfit && <KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} />}
             {dashboardCards.grossProfit && <KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />}
+            {dashboardCards.inventorySpend && <KPI label="Inventory spend" value={currency(stats.inventorySpend)} accent="#f59e0b" />}
             {dashboardCards.inventoryValue && <KPI label="Inventory value" value={currency(stats.invValue)} />}
             {dashboardCards.salesCount && <KPI label="Sales count" value={stats.cnt} />}
           </div>
