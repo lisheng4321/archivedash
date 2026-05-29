@@ -1,4 +1,4 @@
-import { cb, currency, getDefaultSize, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
+import { cb, currency, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
 export default function InventoryPage({ ctx }) {
   const {
@@ -13,12 +13,8 @@ export default function InventoryPage({ ctx }) {
     setGmailQueueOpen,
     gmailImports,
     loadGmailImports,
-    setInvForm,
-    emptyInv,
-    CATS,
     listingPlatforms,
-    setAddDirty,
-    setAddInvOpen,
+    openAddInventory,
     gmailQueueOpen,
     gmailQueuePanel,
     invSearch,
@@ -63,7 +59,7 @@ export default function InventoryPage({ ctx }) {
           </>}
           <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync Gmail</button>
           <button onClick={async () => { setGmailQueueOpen((v) => !v); if (!gmailImports.length) await loadGmailImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Gmail queue{gmailImports.length ? ` (${gmailImports.length})` : ""}</button>
-          <button onClick={() => { setInvForm({ ...emptyInv, category: CATS[0] || "Other", size: getDefaultSize(CATS[0] || ""), listedPlatforms: [] }); setAddDirty(false); setAddInvOpen(true); }} style={primaryBtn}>+ Add inventory</button>
+          <button onClick={openAddInventory} style={primaryBtn}>+ Add inventory</button>
         </div>
       </div>
 

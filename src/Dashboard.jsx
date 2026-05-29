@@ -49,6 +49,35 @@ const sortedListedPlatformsFor = (item = {}) => {
     String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
   ));
 };
+const parseSizeParts = (size = "") => {
+  const raw = String(size || "OS").trim();
+  const apparelOrder = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+  const apparelIndex = apparelOrder.indexOf(raw.toUpperCase());
+  if (apparelIndex >= 0) return { type: "apparel", value: apparelIndex, label: raw };
+  const numeric = raw.match(/^(.*?)(\d+(?:\.\d+)?)\s*$/);
+  if (numeric) return { type: "numeric", prefix: numeric[1].trim().toUpperCase(), value: Number(numeric[2]), label: raw };
+  if (raw.toUpperCase() === "OS") return { type: "os", value: 0, label: raw };
+  return { type: "text", value: raw.toLowerCase(), label: raw };
+};
+const compareSizeValues = (a = "", b = "", category = "") => {
+  const sizes = getSizes(category);
+  const ai = sizes.indexOf(a || "OS");
+  const bi = sizes.indexOf(b || "OS");
+  if (ai >= 0 && bi >= 0) return ai - bi;
+  const pa = parseSizeParts(a);
+  const pb = parseSizeParts(b);
+  const typeOrder = { numeric: 0, apparel: 1, os: 2, text: 3 };
+  if (pa.type !== pb.type) return (typeOrder[pa.type] ?? 9) - (typeOrder[pb.type] ?? 9);
+  if (pa.type === "numeric") return pa.prefix.localeCompare(pb.prefix) || pa.value - pb.value;
+  if (typeof pa.value === "number" && typeof pb.value === "number") return pa.value - pb.value;
+  return String(pa.value).localeCompare(String(pb.value), undefined, { numeric: true, sensitivity: "base" });
+};
+const compareInventorySize = (a = {}, b = {}) => (
+  compareSizeValues(a.size || "OS", b.size || "OS", a.category || b.category || "") ||
+  (Number(a.price) || 0) - (Number(b.price) || 0) ||
+  (a.purchaseDate || "").localeCompare(b.purchaseDate || "") ||
+  String(a.id || "").localeCompare(String(b.id || ""))
+);
 const shortDateLabel = (dateStr = "") => {
   const d = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(d.getTime())) return dateStr || "";
@@ -193,6 +222,7 @@ export default function App({ onLogout, userEmail }) {
   const [selectedInv, setSelectedInv] = useState(new Set());
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
+  const [invQueue, setInvQueue] = useState([]);
   const [editExpOpen, setEditExpOpen] = useState(null);
   const [notepadOpen, setNotepadOpen] = useState(false);
   const [notes, setNotes] = useState([]);
@@ -619,15 +649,66 @@ export default function App({ onLogout, userEmail }) {
     return key;
   }, [settings, CUSTS, persistSettings]);
 
+  const openAddInventory = () => {
+    setInvQueue([]);
+    setInvForm({ ...emptyInv, category: CATS[0] || "Other", size: getDefaultSize(CATS[0] || ""), listedPlatforms: [] });
+    setAddDirty(false);
+    setAddInvOpen(true);
+  };
+  const closeAddInventory = () => {
+    setAddInvOpen(false);
+    setAddDirty(false);
+    setInvQueue([]);
+    setInvForm(emptyInv);
+  };
   const updateInvForm = (u) => { setInvForm({ ...invForm, ...u }); setAddDirty(true); };
-  const guardedCloseAdd = () => { if (addDirty) setShowUnsavedAdd(true); else { setAddInvOpen(false); setAddDirty(false); } };
+  const guardedCloseAdd = () => { if (addDirty || invQueue.length) setShowUnsavedAdd(true); else closeAddInventory(); };
+  const nextSizeFor = (category, size) => {
+    const sizes = getSizes(category);
+    const index = sizes.indexOf(size);
+    return index >= 0 && index < sizes.length - 1 ? sizes[index + 1] : size;
+  };
+  const inventoryItemsFromDraft = (draft) => {
+    const price = parseFloat(draft.price);
+    if (!String(draft.name || "").trim() || Number.isNaN(price)) return [];
+    const qty = Math.max(1, parseInt(draft.quantity, 10) || 1);
+    return Array.from({ length: qty }, () => ({
+      id: genId(),
+      name: String(draft.name || "").trim(),
+      category: draft.category,
+      size: draft.size,
+      price,
+      ebayListedPrice: draft.ebayListedPrice ? parseFloat(draft.ebayListedPrice) : undefined,
+      purchaseDate: draft.purchaseDate,
+      preorderDate: draft.preorderDate,
+      brand: draft.brand,
+      listedPlatforms: listedPlatformsFor(draft),
+      tags: draft.tags,
+      customer: draft.customer,
+      addedAt: Date.now(),
+    }));
+  };
+  const queueInventoryDraft = () => {
+    const items = inventoryItemsFromDraft(invForm);
+    if (!items.length) return;
+    setInvQueue((prev) => [...prev, ...items]);
+    setInvForm((prev) => ({ ...prev, size: nextSizeFor(prev.category, prev.size), quantity: "1" }));
+    setAddDirty(true);
+  };
+  const removeQueuedInventory = (id) => {
+    setInvQueue((prev) => prev.filter((item) => item.id !== id));
+    setAddDirty(true);
+  };
+  const clearInventoryDraft = () => {
+    setInvForm({ ...emptyInv, category: invForm.category || CATS[0] || "Other", size: getDefaultSize(invForm.category || CATS[0] || ""), purchaseDate: invForm.purchaseDate || today(), listedPlatforms: [] });
+    setAddDirty(true);
+  };
 
   const addInventory = async () => {
-    if (!invForm.name || !invForm.price) return;
-    const qty = Math.max(1, parseInt(invForm.quantity) || 1);
-    const items = Array.from({ length: qty }, () => ({ id: genId(), name: invForm.name, category: invForm.category, size: invForm.size, price: parseFloat(invForm.price), ebayListedPrice: invForm.ebayListedPrice ? parseFloat(invForm.ebayListedPrice) : undefined, purchaseDate: invForm.purchaseDate, preorderDate: invForm.preorderDate, brand: invForm.brand, listedPlatforms: listedPlatformsFor(invForm), tags: invForm.tags, customer: invForm.customer, addedAt: Date.now() }));
+    const items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
+    if (!items.length) return;
     await persistInv([...items, ...inventory]);
-    setInvForm(emptyInv); setAddInvOpen(false); setAddDirty(false);
+    closeAddInventory();
   };
 
   const duplicateItem = async (item) => { await persistInv([{ ...item, id: genId(), addedAt: Date.now() }, ...inventory]); };
@@ -1374,14 +1455,14 @@ export default function App({ onLogout, userEmail }) {
     }
     const sorted = [...f];
     switch (invSort) {
-      case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
-      case "name_desc": sorted.sort((a, b) => b.name.localeCompare(a.name)); break;
-      case "price_desc": sorted.sort((a, b) => b.price - a.price); break;
-      case "price_asc": sorted.sort((a, b) => a.price - b.price); break;
-      case "date_desc": sorted.sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"")); break;
-      case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"")); break;
-      case "preorder_asc": sorted.sort((a, b) => (a.preorderDate || "9999-12-31").localeCompare(b.preorderDate || "9999-12-31") || a.name.localeCompare(b.name)); break;
-      case "preorder_desc": sorted.sort((a, b) => (b.preorderDate || "").localeCompare(a.preorderDate || "") || a.name.localeCompare(b.name)); break;
+      case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "name_desc": sorted.sort((a, b) => b.name.localeCompare(a.name) || compareInventorySize(a, b)); break;
+      case "price_desc": sorted.sort((a, b) => b.price - a.price || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "price_asc": sorted.sort((a, b) => a.price - b.price || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "date_desc": sorted.sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "preorder_asc": sorted.sort((a, b) => (a.preorderDate || "9999-12-31").localeCompare(b.preorderDate || "9999-12-31") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "preorder_desc": sorted.sort((a, b) => (b.preorderDate || "").localeCompare(a.preorderDate || "") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
     }
     return sorted;
   }, [inventory, invSearch, invCat, invStatus, invSort]);
@@ -1396,11 +1477,12 @@ export default function App({ onLogout, userEmail }) {
     });
     const result = [];
     groups.forEach((items, key) => {
-      if (items.length > 1) {
-        const totalValue = items.reduce((a, x) => a + x.price, 0);
-        const preorderDates = items.map((x) => x.preorderDate).filter(Boolean).sort();
-        result.push({ ...items[0], preorderDate: preorderDates[0] || items[0].preorderDate || "", _group: true, _items: items, _count: items.length, _totalValue: totalValue });
-      } else result.push({ ...items[0], _group: false });
+      const sortedItems = [...items].sort(compareInventorySize);
+      if (sortedItems.length > 1) {
+        const totalValue = sortedItems.reduce((a, x) => a + x.price, 0);
+        const preorderDates = sortedItems.map((x) => x.preorderDate).filter(Boolean).sort();
+        result.push({ ...sortedItems[0], preorderDate: preorderDates[0] || sortedItems[0].preorderDate || "", _group: true, _items: sortedItems, _count: sortedItems.length, _totalValue: totalValue });
+      } else result.push({ ...sortedItems[0], _group: false });
     });
     return result;
   }, [filteredInv, invCollapse]);
@@ -1599,6 +1681,9 @@ export default function App({ onLogout, userEmail }) {
 
   if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>Loading...</div>;
 
+  const invQueueTotal = invQueue.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  const invQueueProductCount = new Set(invQueue.map((item) => item.name).filter(Boolean)).size;
+
   const navItems = [
     { id: "dashboard", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
     { id: "inventory", icon: "M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z M3.27 6.96L12 12.01l8.73-5.05 M12 22.08V12" },
@@ -1724,7 +1809,7 @@ export default function App({ onLogout, userEmail }) {
       const range = values[0] === values[values.length - 1] ? format(values[0]) : `${format(values[0])} - ${format(values[values.length - 1])}`;
       return prefix ? `${prefix} ${range}` : range;
     }
-    return sizes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).join(", ");
+    return sizes.sort((a, b) => compareSizeValues(a, b, items[0]?.category || "")).join(", ");
   };
 
   // ─── Inventory row (mobile + desktop) ───
@@ -2195,7 +2280,7 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, setInvForm, emptyInv, CATS, listingPlatforms, setAddDirty, setAddInvOpen, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
@@ -2620,7 +2705,7 @@ export default function App({ onLogout, userEmail }) {
       )}
 
       {/* ══ MODALS ══ */}
-      <Modal open={addInvOpen} onClose={() => { setAddInvOpen(false); setAddDirty(false); }} guardedClose={guardedCloseAdd} title="Add inventory">
+      <Modal open={addInvOpen} onClose={closeAddInventory} guardedClose={guardedCloseAdd} title="Add inventory">
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
         <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Cost (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
@@ -2628,9 +2713,40 @@ export default function App({ onLogout, userEmail }) {
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
         <Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}><button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button><button onClick={addInventory} style={primaryBtn}>Add {parseInt(invForm.quantity)>1?`${invForm.quantity} items`:"item"}</button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+          <button onClick={clearInventoryDraft} style={{ ...ghostBtn, color: "#9ca3af" }}>Clear form</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd" }}>Queue {parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}</button>
+            <button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button>
+            <button onClick={addInventory} style={primaryBtn}>{invQueue.length ? `Add ${invQueue.length} queued` : `Add ${parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}`}</button>
+          </div>
+        </div>
+        {invQueue.length > 0 && (
+          <div style={{ marginTop: 14, border: "1px solid #1f2937", borderRadius: 10, overflow: "hidden", background: "#0d1117" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "9px 11px", borderBottom: "1px solid #1f2937" }}>
+              <div>
+                <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Submission queue</div>
+                <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>{invQueueProductCount} product{invQueueProductCount === 1 ? "" : "s"} - {invQueue.length} unit{invQueue.length === 1 ? "" : "s"} - {currency(invQueueTotal)}</div>
+              </div>
+              <button onClick={() => { setInvQueue([]); setAddDirty(true); }} style={{ ...ghostBtn, padding: "5px 8px", fontSize: 11, color: "#f87171" }}>Clear queue</button>
+            </div>
+            <div style={{ maxHeight: 154, overflowY: "auto" }}>
+              {invQueue.map((item) => (
+                <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 76px 78px 54px", gap: 8, alignItems: "center", padding: "8px 11px", borderTop: "1px solid #1f293722", fontSize: 12 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                    <div style={{ color: "#6b7280", fontSize: 10, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
+                  </div>
+                  <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{item.size || "OS"}</span>
+                  <span style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>
+                  <button onClick={() => removeQueuedInventory(item.id)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
-      <UnsavedDialog open={showUnsavedAdd} onDiscard={() => { setAddInvOpen(false); setAddDirty(false); setShowUnsavedAdd(false); }} onCancel={() => setShowUnsavedAdd(false)} />
+      <UnsavedDialog open={showUnsavedAdd} onDiscard={() => { closeAddInventory(); setShowUnsavedAdd(false); }} onCancel={() => setShowUnsavedAdd(false)} />
 
       <Modal open={addExpOpen} onClose={() => setAddExpOpen(false)} title="Create expense">
         <Field label="Name" req><input value={expForm.name} onChange={(e) => setExpForm({ ...expForm, name: e.target.value })} style={inp} placeholder="e.g. eBay Sub" /></Field>
