@@ -1729,7 +1729,7 @@ export default function App({ onLogout, userEmail }) {
     sales: "Sales",
     pricing: "Market Review",
     customers: "Customers",
-    expenses: "Expenses",
+    expenses: "Subscriptions",
     reports: "Reports",
     notepad: "Notepad",
     calculator: "Calculator",
@@ -1738,8 +1738,8 @@ export default function App({ onLogout, userEmail }) {
   const mobilePrimaryNavIds = ["dashboard", "inventory", "sales", "customers", "reports"];
   const mobilePrimaryNavItems = orderedNavItems.filter((n) => mobilePrimaryNavIds.includes(n.id));
   const mobileMoreNavItems = orderedNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
-  const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === page);
   const activeNavId = page === "subs" ? "expenses" : ["health", "backup"].includes(page) ? "settings" : page;
+  const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === activeNavId);
   const renderNavIcon = (n) => {
     if (n.id === "pricing") {
       return (
@@ -1756,7 +1756,7 @@ export default function App({ onLogout, userEmail }) {
     );
   };
   const renderNavButton = (n, zone) => (
-    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       {renderNavIcon(n)}
       {n.id === "expenses" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
@@ -2095,7 +2095,7 @@ export default function App({ onLogout, userEmail }) {
             {mobileNavMoreOpen && (
               <div style={{ position: "fixed", left: 10, right: 10, bottom: 66, zIndex: 160, background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, boxShadow: "0 -12px 28px rgba(0,0,0,0.36)" }}>
                 {mobileMoreNavItems.map((n) => (
-                  <button key={n.id} onClick={() => { setPage(n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #1f2937", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  <button key={n.id} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #1f2937", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d={n.icon} /></svg>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{navLabels[n.id] || n.id}</span>
                   </button>
@@ -2304,8 +2304,8 @@ export default function App({ onLogout, userEmail }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-            <button onClick={() => setPage("expenses")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Expenses</button>
             <button onClick={() => setPage("subs")} style={ghostBtn}>Subscriptions{subStats.overdue.length > 0 ? ` (${subStats.overdue.length})` : ""}</button>
+            <button onClick={() => setPage("expenses")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Expenses</button>
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input placeholder="Search..." value={expSearch} onChange={(e) => setExpSearch(e.target.value)} style={{ ...inp, maxWidth: 180 }} />
@@ -2342,8 +2342,8 @@ export default function App({ onLogout, userEmail }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-            <button onClick={() => setPage("expenses")} style={ghostBtn}>Expenses</button>
             <button onClick={() => setPage("subs")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Subscriptions{subStats.overdue.length > 0 ? ` (${subStats.overdue.length})` : ""}</button>
+            <button onClick={() => setPage("expenses")} style={ghostBtn}>Expenses</button>
           </div>
           {subStats.overdue.length > 0 && (
             <div style={{ background: "#3b1f1f", border: "1px solid #ef444466", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fca5a5" }}>
