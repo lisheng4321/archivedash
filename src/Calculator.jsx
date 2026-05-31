@@ -44,14 +44,14 @@ const currency = (v) => {
   return (n < 0 ? "-AU$" : "AU$") + Math.abs(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
-const inp = { width: "100%", padding: "9px 11px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, color: "#e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
+const inp = { width: "100%", padding: "9px 11px", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, color: "#e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
 const sel = { ...inp, appearance: "none" };
 const cb = { width: 16, height: 16, accentColor: "#2563eb", cursor: "pointer" };
-const card = { background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 18 };
+const card = { background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 18 };
 const labelStyle = { fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 5, fontWeight: 500 };
 const primaryBtn = { padding: "9px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
-const ghostBtn = { padding: "9px 16px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
-const miniIconBtn = (disabled) => ({ width: 22, height: 22, border: "none", borderRadius: 5, background: "#1f2937", color: disabled ? "#374151" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, lineHeight: "22px", padding: 0 });
+const ghostBtn = { padding: "9px 16px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
+const miniIconBtn = (disabled) => ({ width: 22, height: 22, border: "none", borderRadius: 5, background: "#232c3c", color: disabled ? "#374151" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, lineHeight: "22px", padding: 0 });
 
 function cleanPreset(preset) {
   return {
@@ -257,7 +257,7 @@ export default function Calculator({ isMobile = false }) {
     fontSize: 13,
     fontWeight: mode === id ? 600 : 400,
     borderRadius: 6,
-    background: mode === id ? "#1d4ed8" : "transparent",
+    background: mode === id ? "#2563eb" : "transparent",
     color: mode === id ? "#fff" : "#9ca3af",
     border: "none",
     cursor: "pointer",
@@ -269,8 +269,8 @@ export default function Calculator({ isMobile = false }) {
     <div style={{ padding: isMobile ? "14px 12px" : "20px 24px", maxWidth: 1180 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Fee Calculator</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Fee Calculator</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>
             Editable calculators for eBay categories and selling platforms
           </p>
         </div>
@@ -296,21 +296,21 @@ export default function Calculator({ isMobile = false }) {
         />
       )}
 
-      <div style={{ display: "flex", gap: 4, background: "#111827", borderRadius: 8, padding: 4, border: "1px solid #1f2937", marginBottom: 16, width: isMobile ? "100%" : "fit-content" }}>
+      <div style={{ display: "flex", gap: 4, background: "#121a2b", borderRadius: 8, padding: 4, border: "1px solid #232c3c", marginBottom: 16, width: isMobile ? "100%" : "fit-content" }}>
         <button onClick={() => setMode("forward")} style={tabBtn("forward")}>{isMobile ? "Forward" : "Forward (price to net)"}</button>
         <button onClick={() => setMode("reverse")} style={tabBtn("reverse")}>{isMobile ? "Reverse" : "Reverse (target net to price)"}</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
         <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 14 }}>Inputs</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb", marginBottom: 14 }}>Inputs</div>
 
           <div style={{ marginBottom: 12 }}>
             <div style={labelStyle}>Calculator preset</div>
             <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} style={sel}>
               {calculators.map((c) => <option key={c.id} value={c.id}>{c.name} - {pct(c.rate)}</option>)}
             </select>
-            {calculator && <div style={{ fontSize: 11, color: "#4b5563", marginTop: 6 }}>{calculator.platform} - {calculator.category}{calculator.notes ? ` - ${calculator.notes}` : ""}</div>}
+            {calculator && <div style={{ fontSize: 11, color: "#56627a", marginTop: 6 }}>{calculator.platform} - {calculator.category}{calculator.notes ? ` - ${calculator.notes}` : ""}</div>}
           </div>
 
           {mode === "forward" ? (
@@ -324,7 +324,7 @@ export default function Calculator({ isMobile = false }) {
           ) : (
             <Field label="Target net payout (AU$)">
               <input type="number" step="0.01" value={targetNet} onChange={(e) => setTargetNet(e.target.value)} style={inp} placeholder="What you want to take home" autoFocus={!isMobile} />
-              <div style={{ fontSize: 11, color: "#4b5563", marginTop: 6 }}>Calculates list price needed to net this after fees. Assumes shipping is included in price.</div>
+              <div style={{ fontSize: 11, color: "#56627a", marginTop: 6 }}>Calculates list price needed to net this after fees. Assumes shipping is included in price.</div>
             </Field>
           )}
 
@@ -339,7 +339,7 @@ export default function Calculator({ isMobile = false }) {
         </div>
 
         <div style={card}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 14 }}>Breakdown</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb", marginBottom: 14 }}>Breakdown</div>
           {!result ? (
             <div style={{ color: "#374151", fontSize: 13, padding: "60px 0", textAlign: "center" }}>
               Enter {mode === "forward" ? "a sale price" : "a target net"} to see the breakdown
@@ -347,9 +347,9 @@ export default function Calculator({ isMobile = false }) {
           ) : (
             <>
               <div style={{ background: "#0d1117", borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{mode === "forward" ? "Net payout" : "List price needed"}</div>
+                <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 4 }}>{mode === "forward" ? "Net payout" : "List price needed"}</div>
                 <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 700, color: "#34d399" }}>{currency(mode === "forward" ? result.netPayout : result.total)}</div>
-                {mode === "reverse" && <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>To net <span style={{ color: "#9ca3af" }}>{currency(parseFloat(targetNet) || 0)}</span></div>}
+                {mode === "reverse" && <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 4 }}>To net <span style={{ color: "#9ca3af" }}>{currency(parseFloat(targetNet) || 0)}</span></div>}
               </div>
 
               <div style={{ fontSize: 13 }}>
@@ -367,7 +367,7 @@ export default function Calculator({ isMobile = false }) {
 
               {mode === "forward" && costNum > 0 && (
                 <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 14 }}>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Profit</div>
+                  <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Profit</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                     <Stat label="Net profit" value={currency(profit)} color={profit >= 0 ? "#34d399" : "#f87171"} />
                     <Stat label="Margin" value={pct(margin * 100)} color={margin >= 0 ? "#34d399" : "#f87171"} />
@@ -381,7 +381,7 @@ export default function Calculator({ isMobile = false }) {
       </div>
 
       <div style={{ ...card, marginTop: 16 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 }}>Current preset reference</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb", marginBottom: 10 }}>Current preset reference</div>
         {calculator && (
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, 1fr)", gap: 12, fontSize: 12, color: "#9ca3af", lineHeight: 1.6 }}>
             <Ref label="Platform" value={calculator.platform} />
@@ -405,22 +405,22 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
     <div style={{ ...card, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700 }}>Manage calculators</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Add, edit, duplicate, or delete category/platform fee presets.</div>
+          <div style={{ fontSize: 14, color: "#f3f6fb", fontWeight: 700 }}>Manage calculators</div>
+          <div style={{ fontSize: 12, color: "#7c8aa0" }}>Add, edit, duplicate, or delete category/platform fee presets.</div>
         </div>
         <button onClick={resetDefaults} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Reset defaults</button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(260px, 0.8fr) minmax(420px, 1.2fr)", gap: 14 }}>
-        <div style={{ border: "1px solid #1f2937", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #232c3c", borderRadius: 10, overflow: "hidden" }}>
           {calculators.map((calc, idx) => (
-            <div key={calc.id} onClick={() => { setSelectedId(calc.id); setEditingId(calc.id); }} style={{ padding: "9px 11px", cursor: "pointer", background: calc.id === selectedId ? "#1e293b" : idx % 2 === 0 ? "#0d131f" : "#111827", borderBottom: "1px solid #1f293722" }}>
+            <div key={calc.id} onClick={() => { setSelectedId(calc.id); setEditingId(calc.id); }} style={{ padding: "9px 11px", cursor: "pointer", background: calc.id === selectedId ? "#1e293b" : idx % 2 === 0 ? "#0d131f" : "#121a2b", borderBottom: "1px solid #232c3c22" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                 <span style={{ color: "#e5e7eb", fontSize: 13, fontWeight: calc.id === selectedId ? 700 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.name}</span>
                 <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{pct(calc.rate)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", marginTop: 2 }}>
-                <div style={{ color: "#6b7280", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.platform} - {calc.category}</div>
+                <div style={{ color: "#7c8aa0", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{calc.platform} - {calc.category}</div>
                 <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
                   <button onClick={(e) => { e.stopPropagation(); moveCalculator(calc.id, -1); }} disabled={idx === 0} title="Move up" style={miniIconBtn(idx === 0)}>↑</button>
                   <button onClick={(e) => { e.stopPropagation(); moveCalculator(calc.id, 1); }} disabled={idx === calculators.length - 1} title="Move down" style={miniIconBtn(idx === calculators.length - 1)}>↓</button>
@@ -431,7 +431,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
         </div>
 
         {editing ? (
-          <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: 14 }}>
+          <div style={{ border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
               <Field label="Calculator name"><input value={editing.name} onChange={(e) => updateCalculator(editing.id, { name: e.target.value })} style={inp} /></Field>
               <Field label="Platform"><input value={editing.platform} onChange={(e) => updateCalculator(editing.id, { platform: e.target.value })} style={inp} /></Field>
@@ -453,7 +453,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
             </div>
           </div>
         ) : (
-          <div style={{ border: "1px solid #1f2937", borderRadius: 10, padding: 28, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a calculator to edit it.</div>
+          <div style={{ border: "1px solid #232c3c", borderRadius: 10, padding: 28, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a calculator to edit it.</div>
         )}
       </div>
     </div>
@@ -466,7 +466,7 @@ function Field({ label, children }) {
 
 function Toggle({ checked, onChange, label, disabled }) {
   return (
-    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: disabled ? "#4b5563" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer" }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: disabled ? "#56627a" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer" }}>
       <input type="checkbox" checked={!disabled && checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} style={{ ...cb, opacity: disabled ? 0.45 : 1 }} />
       {label}
     </label>
@@ -475,9 +475,9 @@ function Toggle({ checked, onChange, label, disabled }) {
 
 function Line({ label, value, bold, negative, subtle, large, border }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderTop: border ? "1px solid #1f2937" : "none", marginTop: border ? 4 : 0, gap: 8 }}>
-      <span style={{ color: subtle ? "#6b7280" : "#9ca3af", fontSize: subtle ? 12 : 13 }}>{label}</span>
-      <span style={{ color: negative ? "#f59e0b" : subtle ? "#9ca3af" : "#f1f5f9", fontWeight: bold ? 700 : 500, fontSize: large ? 16 : 13, whiteSpace: "nowrap" }}>{value}</span>
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderTop: border ? "1px solid #232c3c" : "none", marginTop: border ? 4 : 0, gap: 8 }}>
+      <span style={{ color: subtle ? "#7c8aa0" : "#9ca3af", fontSize: subtle ? 12 : 13 }}>{label}</span>
+      <span style={{ color: negative ? "#f59e0b" : subtle ? "#9ca3af" : "#f3f6fb", fontWeight: bold ? 700 : 500, fontSize: large ? 16 : 13, whiteSpace: "nowrap" }}>{value}</span>
     </div>
   );
 }
@@ -485,7 +485,7 @@ function Line({ label, value, bold, negative, subtle, large, border }) {
 function Stat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#56627a", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
     </div>
   );
@@ -494,7 +494,7 @@ function Stat({ label, value, color }) {
 function Ref({ label, value }) {
   return (
     <div style={{ background: "#0d1117", borderRadius: 8, padding: "10px 12px" }}>
-      <div style={{ fontSize: 11, color: "#4b5563", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#56627a", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 700 }}>{value}</div>
     </div>
   );

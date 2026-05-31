@@ -1,5 +1,7 @@
 import { cb, currency, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
+const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
+
 export default function InventoryPage({ ctx }) {
   const {
     pagePad,
@@ -49,8 +51,8 @@ export default function InventoryPage({ ctx }) {
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Inventory</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{productCount} products - {inventory.length} units - {currency(inventoryValue)}</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Inventory</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{productCount} products - {inventory.length} units - {currency(inventoryValue)}</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
@@ -87,15 +89,16 @@ export default function InventoryPage({ ctx }) {
           <option value="date_desc">Newest</option>
           <option value="date_asc">Oldest</option>
         </select>
-        <label style={{ fontSize: 12, color: "#6b7280", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
+        <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
         {(invSearch || invCat !== "All" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={() => { setInvSearch(""); setInvCat("All"); setInvStatus("All"); setInvSort("name_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
       </div>
 
-      <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
+      <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 115px 0.7fr 80px 85px 100px 55px 130px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
-            <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={cb} /><span>Name</span><span>Listed</span><span>Category</span><span>Size</span><span>Price</span><span>Date</span><span>Qty</span><span>Actions</span>
+          <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 115px 0.7fr 80px 85px 100px 55px 130px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
+            <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={cb} />
+            <span style={tableHead()}>Name</span><span style={tableHead("center")}>Listed</span><span style={tableHead("center")}>Category</span><span style={tableHead("center")}>Size</span><span style={tableHead("right")}>Price</span><span style={tableHead("center")}>Date</span><span style={tableHead("center")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}
@@ -114,10 +117,10 @@ export default function InventoryPage({ ctx }) {
       </div>
 
       {selectedInv.size > 0 && (
-        <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#111827", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 10, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>
+        <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#121a2b", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 10, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>
           <div style={{ minWidth: isMobile ? "100%" : 150 }}>
-            <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>{selectedInv.size} selected</div>
-            <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
+            <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>{selectedInv.size} selected</div>
+            <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>

@@ -7,189 +7,16 @@ import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
 import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
+import SettingsPage from "./dashboard/pages/SettingsPage.jsx";
+import PeriodComparisonChart, { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx";
+import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
+import { compareInventorySize, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
+import { subCategory, subCategoryColor } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
-
-const DEFAULT_NAV_UTILITY_IDS = ["settings"];
-const DEFAULT_BACKUP_SETTINGS = { autoWeekly: false, destination: "supabase", retention: 12, lastRunAt: "" };
-const defaultSettings = () => ({ categories: DEF_CATEGORIES, platforms: DEF_PLATFORMS, customers: [], customerProfiles: {}, hiddenCustomerKeys: [], dashboardCards: {}, navOrder: [], navUtilityIds: DEFAULT_NAV_UTILITY_IDS, backup: DEFAULT_BACKUP_SETTINGS });
-const normalizeSettings = (settings = {}) => ({
-  categories: settings.categories || DEF_CATEGORIES,
-  platforms: settings.platforms || DEF_PLATFORMS,
-  customers: settings.customers || [],
-  customerProfiles: settings.customerProfiles || {},
-  hiddenCustomerKeys: Array.isArray(settings.hiddenCustomerKeys) ? settings.hiddenCustomerKeys : [],
-  dashboardCards: settings.dashboardCards || {},
-  navOrder: Array.isArray(settings.navOrder) ? settings.navOrder : [],
-  navUtilityIds: Array.isArray(settings.navUtilityIds) ? settings.navUtilityIds : DEFAULT_NAV_UTILITY_IDS,
-  backup: { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) },
-});
-const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
-const listedPlatformsFor = (item = {}) => Array.isArray(item.listedPlatforms) ? item.listedPlatforms.filter(Boolean) : [];
-const platformShortName = (platform = "") => {
-  const p = String(platform).toLowerCase();
-  if (p.includes("facebook")) return "FB";
-  if (p.includes("ebay")) return "eBay";
-  if (p.includes("instagram")) return "IG";
-  return String(platform || "Listed").replace(/\s+marketplace/i, "");
-};
-const sortedListedPlatformsFor = (item = {}) => {
-  const items = Array.isArray(item._items) ? item._items : [item];
-  const platforms = new Map();
-  items.forEach((source) => {
-    listedPlatformsFor(source).forEach((platform) => {
-      const key = platformShortName(platform).toLowerCase();
-      if (!platforms.has(key)) platforms.set(key, platform);
-    });
-  });
-  return [...platforms.values()].sort((a, b) => (
-    platformShortName(a).localeCompare(platformShortName(b), undefined, { sensitivity: "base" }) ||
-    String(a).localeCompare(String(b), undefined, { sensitivity: "base" })
-  ));
-};
-const parseSizeParts = (size = "") => {
-  const raw = String(size || "OS").trim();
-  const apparelOrder = ["XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"];
-  const apparelIndex = apparelOrder.indexOf(raw.toUpperCase());
-  if (apparelIndex >= 0) return { type: "apparel", value: apparelIndex, label: raw };
-  const numeric = raw.match(/^(.*?)(\d+(?:\.\d+)?)\s*$/);
-  if (numeric) return { type: "numeric", prefix: numeric[1].trim().toUpperCase(), value: Number(numeric[2]), label: raw };
-  if (raw.toUpperCase() === "OS") return { type: "os", value: 0, label: raw };
-  return { type: "text", value: raw.toLowerCase(), label: raw };
-};
-const compareSizeValues = (a = "", b = "", category = "") => {
-  const sizes = getSizes(category);
-  const ai = sizes.indexOf(a || "OS");
-  const bi = sizes.indexOf(b || "OS");
-  if (ai >= 0 && bi >= 0) return ai - bi;
-  const pa = parseSizeParts(a);
-  const pb = parseSizeParts(b);
-  const typeOrder = { numeric: 0, apparel: 1, os: 2, text: 3 };
-  if (pa.type !== pb.type) return (typeOrder[pa.type] ?? 9) - (typeOrder[pb.type] ?? 9);
-  if (pa.type === "numeric") return pa.prefix.localeCompare(pb.prefix) || pa.value - pb.value;
-  if (typeof pa.value === "number" && typeof pb.value === "number") return pa.value - pb.value;
-  return String(pa.value).localeCompare(String(pb.value), undefined, { numeric: true, sensitivity: "base" });
-};
-const compareInventorySize = (a = {}, b = {}) => (
-  compareSizeValues(a.size || "OS", b.size || "OS", a.category || b.category || "") ||
-  (Number(a.price) || 0) - (Number(b.price) || 0) ||
-  (a.purchaseDate || "").localeCompare(b.purchaseDate || "") ||
-  String(a.id || "").localeCompare(String(b.id || ""))
-);
-const shortDateLabel = (dateStr = "") => {
-  const d = new Date(`${dateStr}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return dateStr || "";
-  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-};
-const PeriodComparisonChart = ({ points = [], isMobile }) => {
-  const [hoverIndex, setHoverIndex] = useState(null);
-  const chartPoints = points.length ? points : [
-    { key: "empty-1", label: "Start", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
-    { key: "empty-2", label: "End", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
-  ];
-  const width = 1000;
-  const height = isMobile ? 180 : 168;
-  const pad = { top: 10, right: 22, bottom: 28, left: 76 };
-  const plotW = width - pad.left - pad.right;
-  const plotH = height - pad.top - pad.bottom;
-  const values = chartPoints.flatMap((p) => [Number(p.current) || 0, Number(p.previous) || 0, 0]);
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const rawSpan = Math.max(1, rawMax - rawMin);
-  const niceStep = (range) => {
-    const rough = Math.max(1, range / 5);
-    const magnitude = 10 ** Math.floor(Math.log10(rough));
-    const normalized = rough / magnitude;
-    const nice = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
-    return nice * magnitude;
-  };
-  const step = niceStep(rawSpan);
-  const paddedMin = rawMin - rawSpan * 0.12;
-  const paddedMax = rawMax + rawSpan * 0.12;
-  const min = Math.floor(paddedMin / step) * step;
-  const max = Math.ceil(paddedMax / step) * step;
-  const span = max === min ? 1 : max - min;
-  const tickValues = [];
-  for (let value = min; value <= max + step / 2; value += step) tickValues.push(Math.abs(value) < 0.0001 ? 0 : value);
-  const xFor = (index) => pad.left + (chartPoints.length <= 1 ? plotW / 2 : (index / (chartPoints.length - 1)) * plotW);
-  const yFor = (value) => pad.top + ((max - value) / span) * plotH;
-  const pathFor = (key) => chartPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(2)} ${yFor(Number(p[key]) || 0).toFixed(2)}`).join(" ");
-  const labelIndexes = [...new Set([0, Math.floor((chartPoints.length - 1) / 2), chartPoints.length - 1])];
-  const hoverPoint = hoverIndex === null ? chartPoints[chartPoints.length - 1] : chartPoints[hoverIndex];
-  const hoverX = xFor(hoverIndex === null ? chartPoints.length - 1 : hoverIndex);
-  const hoverY = yFor(Math.max(Number(hoverPoint.current) || 0, Number(hoverPoint.previous) || 0));
-  const tooltipLeft = hoverX < 120 ? "110px" : hoverX > width - 120 ? "calc(100% - 110px)" : `${(hoverX / width) * 100}%`;
-  const hoverBand = chartPoints.length <= 1 ? plotW : plotW / Math.max(1, chartPoints.length - 1);
-
-  return (
-    <div style={{ position: "relative", height, width: "100%" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="img" aria-label="Net profit current period compared with previous period" style={{ display: "block", overflow: "visible" }}>
-        {tickValues.map((value) => (
-          <g key={value}>
-            <line x1={pad.left} x2={width - pad.right} y1={yFor(value)} y2={yFor(value)} stroke={value === 0 ? "#334155" : "#1f2937"} strokeWidth={value === 0 ? "1.2" : "1"} />
-          </g>
-        ))}
-        <path d={pathFor("previous")} fill="none" stroke="#64748b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="7 7" />
-        <path d={pathFor("current")} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        {chartPoints.map((p, i) => (
-          <g key={p.key || `${p.currentDate}-${i}`}>
-            <rect
-              x={Math.max(pad.left, xFor(i) - hoverBand / 2)}
-              y={pad.top}
-              width={Math.min(hoverBand, width - pad.right - Math.max(pad.left, xFor(i) - hoverBand / 2))}
-              height={plotH}
-              fill="transparent"
-              onMouseEnter={() => setHoverIndex(i)}
-              onMouseLeave={() => setHoverIndex(null)}
-            />
-          </g>
-        ))}
-        {hoverIndex !== null && <>
-          <line x1={hoverX} x2={hoverX} y1={pad.top} y2={pad.top + plotH} stroke="#1d4ed8" strokeWidth="1" opacity="0.7" />
-          <circle cx={hoverX} cy={yFor(Number(hoverPoint.current) || 0)} r="4" fill="#3b82f6" stroke="#0f172a" strokeWidth="2" />
-          <circle cx={hoverX} cy={yFor(Number(hoverPoint.previous) || 0)} r="4" fill="#64748b" stroke="#0f172a" strokeWidth="2" />
-        </>}
-      </svg>
-      {tickValues.map((value) => (
-        <div key={value} style={{ position: "absolute", left: 0, top: yFor(value) - 7, width: 68, textAlign: "right", color: value === 0 ? "#94a3b8" : "#64748b", fontSize: 11, pointerEvents: "none" }}>{currency(value)}</div>
-      ))}
-      {labelIndexes.map((index) => {
-        const point = chartPoints[index];
-        const transform = index === 0 ? "translateX(0)" : index === chartPoints.length - 1 ? "translateX(-100%)" : "translateX(-50%)";
-        return (
-          <div key={`${point?.key || index}-label`} style={{ position: "absolute", left: `${(xFor(index) / width) * 100}%`, bottom: 18, transform, color: "#64748b", fontSize: 11, whiteSpace: "nowrap", pointerEvents: "none" }}>{point?.label}</div>
-        );
-      })}
-      {hoverIndex !== null && <div style={{ position: "absolute", top: Math.max(8, Math.min(height - 88, hoverY - 64)), left: tooltipLeft, transform: "translateX(-50%)", width: 210, padding: "8px 10px", borderRadius: 8, background: "#0b1220", border: "1px solid #1f2937", boxShadow: "0 12px 28px rgba(0,0,0,.35)", pointerEvents: "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
-          <span style={{ color: "#93c5fd", fontSize: 11, fontWeight: 700 }}>{hoverPoint.currentDate || "Current"}</span>
-          <span style={{ color: "#bfdbfe", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.current || 0)}</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
-          <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700 }}>{hoverPoint.previousDate || "Previous"}</span>
-          <span style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.previous || 0)}</span>
-        </div>
-        <div style={{ color: "#64748b", fontSize: 11 }}>Units sold: <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.currentSales || 0}</span> vs <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.previousSales || 0}</span></div>
-      </div>}
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: -10, fontSize: 11, color: "#94a3b8" }}>
-        <span><span style={{ display: "inline-block", width: 18, height: 3, background: "#3b82f6", borderRadius: 999, marginRight: 6, verticalAlign: "middle" }} />Current period</span>
-        <span><span style={{ display: "inline-block", width: 18, height: 0, borderTop: "3px dashed #64748b", marginRight: 6, verticalAlign: "middle" }} />Previous period</span>
-      </div>
-    </div>
-  );
-};
-const subCategory = (sub) => SUB_CATEGORIES.includes(sub?.category) ? sub.category : "Other";
-const subCategoryColor = (cat) => ({
-  Botting: ["#1e3a5f", "#93c5fd"],
-  AI: ["#312e81", "#c4b5fd"],
-  Marketplaces: ["#1f3b2d", "#86efac"],
-  Domains: ["#3b2f1f", "#fbbf24"],
-  Infrastructure: ["#1f2937", "#cbd5e1"],
-  Finance: ["#3b1f2b", "#f9a8d4"],
-  Other: ["#111827", "#9ca3af"],
-}[cat] || ["#111827", "#9ca3af"]);
 
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
@@ -209,6 +36,8 @@ export default function App({ onLogout, userEmail }) {
   const [dashCat, setDashCat] = useState("All");
   const [dashPlat, setDashPlat] = useState("All");
   const [saveStatus, setSaveStatus] = useState("");
+  const [failedSaves, setFailedSaves] = useState(() => new Map());
+  const [retryingSaves, setRetryingSaves] = useState(false);
 
   // Modals
   const [addInvOpen, setAddInvOpen] = useState(false);
@@ -259,11 +88,6 @@ export default function App({ onLogout, userEmail }) {
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
   const [navDragId, setNavDragId] = useState(null);
   const [mobileNavMoreOpen, setMobileNavMoreOpen] = useState(false);
-  const [settingsCustomersOpen, setSettingsCustomersOpen] = useState(false);
-
-  // Settings UI
-  const [newCat, setNewCat] = useState(""); const [newPlat, setNewPlat] = useState(""); const [newCust, setNewCust] = useState("");
-
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
@@ -390,14 +214,58 @@ export default function App({ onLogout, userEmail }) {
     return () => { alive = false; };
   }, [subs]);
 
-  const persist = useCallback(async (key, data, setter) => {
-    setSaveStatus("saving"); await save(key, data); setter(data); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
+  const trackSaveResult = useCallback((key, result, data, setter, label) => {
+    setFailedSaves((prev) => {
+      const next = new Map(prev);
+      if (result?.ok === false) {
+        next.set(key, { data, setter, label: label || saveLabelFor(key), error: result.error || "Save failed" });
+      } else {
+        next.delete(key);
+      }
+      return next;
+    });
   }, []);
+  const showSaveResult = useCallback((result) => {
+    if (result?.ok === false) {
+      setSaveStatus("error");
+      return false;
+    }
+    setSaveStatus("saved");
+    setTimeout(() => setSaveStatus(""), 1500);
+    return true;
+  }, []);
+  const persist = useCallback(async (key, data, setter, label) => {
+    setSaveStatus("saving");
+    const result = await save(key, data);
+    setter(data);
+    trackSaveResult(key, result, data, setter, label);
+    showSaveResult(result);
+    return result;
+  }, [showSaveResult, trackSaveResult]);
   const persistInv = useCallback(async (d) => persist("arch-inv2", d, setInventory), [persist]);
   const persistSales = useCallback(async (d) => persist("arch-sales2", d, setSales), [persist]);
   const persistExp = useCallback(async (d) => persist("arch-exp2", d, setExpenses), [persist]);
   const persistSubs = useCallback(async (d) => persist("arch-subs", d, setSubs), [persist]);
-  const persistSettings = useCallback(async (d) => { await save("arch-settings", d); setSettings(d); }, []);
+  const persistSettings = useCallback(async (d) => {
+    setSaveStatus("saving");
+    const result = await save("arch-settings", d);
+    setSettings(d);
+    trackSaveResult("arch-settings", result, d, setSettings);
+    showSaveResult(result);
+    return result;
+  }, [showSaveResult, trackSaveResult]);
+  const retryFailedSaves = useCallback(async () => {
+    const entries = [...failedSaves.entries()];
+    if (!entries.length) return;
+    setRetryingSaves(true);
+    try {
+      for (const [key, failure] of entries) {
+        await persist(key, failure.data, failure.setter, failure.label);
+      }
+    } finally {
+      setRetryingSaves(false);
+    }
+  }, [failedSaves, persist]);
   const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}), inventoryValue: false, avgOrderValue: false, monthlySubs: false };
   const backupSettings = { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
@@ -543,15 +411,24 @@ export default function App({ onLogout, userEmail }) {
     setNotes(next);
     if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current);
     if (immediate) {
-      setSaveStatus("saving"); await save("arch-notes", next); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
+      setSaveStatus("saving");
+      const result = await save("arch-notes", next);
+      trackSaveResult("arch-notes", result, next, setNotes);
+      showSaveResult(result);
     } else {
       noteSaveTimer.current = setTimeout(async () => {
-        setSaveStatus("saving"); await save("arch-notes", next); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
+        setSaveStatus("saving");
+        const result = await save("arch-notes", next);
+        trackSaveResult("arch-notes", result, next, setNotes);
+        showSaveResult(result);
       }, 800);
     }
-  }, []);
+  }, [showSaveResult, trackSaveResult]);
 
   const updateNote = useCallback((id, changes) => {
+    const current = notes.find((n) => n.id === id);
+    const lockedFields = ["title", "content", "fontSize"];
+    if (current?.locked && lockedFields.some((field) => Object.prototype.hasOwnProperty.call(changes, field))) return;
     const next = notes.map((n) => n.id === id ? { ...n, ...changes, updatedAt: Date.now() } : n);
     persistNotes(next);
   }, [notes, persistNotes]);
@@ -563,6 +440,7 @@ export default function App({ onLogout, userEmail }) {
       content: seed.content || "",
       fontSize: seed.fontSize || 14,
       pinned: false,
+      locked: false,
       order: Math.min(0, ...notes.map((n) => n.order ?? 0)) - 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -570,9 +448,12 @@ export default function App({ onLogout, userEmail }) {
     const next = [newNote, ...notes];
     setNotes(next);
     setActiveNoteId(newNote.id);
-    await save("arch-notes", next);
+    setSaveStatus("saving");
+    const result = await save("arch-notes", next);
+    trackSaveResult("arch-notes", result, next, setNotes);
+    showSaveResult(result);
     return newNote.id;
-  }, [notes]);
+  }, [notes, showSaveResult, trackSaveResult]);
 
   const deleteNote = useCallback(async (id) => {
     const next = notes.filter((n) => n.id !== id);
@@ -581,14 +462,24 @@ export default function App({ onLogout, userEmail }) {
       const fallback = next.length ? next[0].id : null;
       setActiveNoteId(fallback);
     }
-    await save("arch-notes", next);
-  }, [notes, activeNoteId]);
+    setSaveStatus("saving");
+    const result = await save("arch-notes", next);
+    trackSaveResult("arch-notes", result, next, setNotes);
+    showSaveResult(result);
+  }, [notes, activeNoteId, showSaveResult, trackSaveResult]);
 
   const togglePinNote = useCallback((id) => {
     const note = notes.find((n) => n.id === id);
     if (!note) return;
     updateNote(id, { pinned: !note.pinned });
   }, [notes, updateNote]);
+
+  const toggleLockNote = useCallback((id) => {
+    const note = notes.find((n) => n.id === id);
+    if (!note) return;
+    const next = notes.map((n) => n.id === id ? { ...n, locked: !note.locked, updatedAt: Date.now() } : n);
+    persistNotes(next, true);
+  }, [notes, persistNotes]);
 
   const moveNote = useCallback((id, dir) => {
     const ordered = notes.map((n, idx) => ({ ...n, order: n.order ?? idx }));
@@ -611,8 +502,11 @@ export default function App({ onLogout, userEmail }) {
 
   const persistTemplates = useCallback(async (next) => {
     setUserTemplates(next);
-    setSaveStatus("saving"); await save("arch-templates", next); setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 1500);
-  }, []);
+    setSaveStatus("saving");
+    const result = await save("arch-templates", next);
+    trackSaveResult("arch-templates", result, next, setUserTemplates);
+    showSaveResult(result);
+  }, [showSaveResult, trackSaveResult]);
 
   // Export a single note as a .txt file (HTML stripped to plain text)
   const exportNoteTxt = useCallback((note) => {
@@ -715,8 +609,9 @@ export default function App({ onLogout, userEmail }) {
 
   const handleSell = async (item, sf) => {
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
-    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: sp-item.price-ship-fees, platform: sf.platform, saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
-    await persistSales([sale, ...sales]);
+    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
+    const salesResult = await persistSales([sale, ...sales]);
+    if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => i.id !== item.id));
     if (sf.customer) addCustomer(sf.customer);
     setSellOpen(null);
@@ -729,10 +624,11 @@ export default function App({ onLogout, userEmail }) {
       const r = rows.find((x) => x.id === item.id);
       if (!r) continue;
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: sp-item.price-ship-fees, platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
       soldIds.add(item.id);
     }
-    await persistSales([...newSales, ...sales]);
+    const salesResult = await persistSales([...newSales, ...sales]);
+    if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
     if (shared.customer) addCustomer(shared.customer);
     setSelectedInv(new Set());
@@ -747,11 +643,12 @@ export default function App({ onLogout, userEmail }) {
       if (!r) continue;
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
       if (sp <= 0) continue;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: sp-item.price-ship-fees, platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     if (!newSales.length) return;
-    await persistSales([...newSales, ...sales]);
+    const salesResult = await persistSales([...newSales, ...sales]);
+    if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
     if (shared.customer) addCustomer(shared.customer);
     setAddSaleOpen(false);
@@ -797,16 +694,17 @@ export default function App({ onLogout, userEmail }) {
     const shared = review?.shared || { platform: "eBay AU", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
     const rows = review?.rows || matches.map((item) => {
       const qty = Math.max(1, Number(draft.quantity || 1));
-      const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : Number((Number(draft.sale_price || 0) * EBAY_AU_FEE_RATE + EBAY_AU_FIXED_ORDER_FEE).toFixed(2));
+      const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : estimateEbayFee(Number(draft.sale_price || 0));
       return { id: item.id, salePrice: Number(draft.sale_price || 0) / qty, shippingPrice: Number(draft.shipping_price || 0) / qty, platformFees: feeTotal / qty };
     });
     const newSales = matches.map((item) => {
       const r = rows.find((x) => x.id === item.id) || {};
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: sp - item.price - ship - fees, platform: shared.platform || "eBay AU", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
     });
     const soldIds = new Set(matches.map((i) => i.id));
-    await persistSales([...newSales, ...sales]);
+    const salesResult = await persistSales([...newSales, ...sales]);
+    if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
     const eBayProfile = Object.fromEntries(Object.entries({
       name: draft.buyer_full_name || shared.customer,
@@ -892,7 +790,8 @@ export default function App({ onLogout, userEmail }) {
     const subCurrency = String(sub.currency || "AUD").toUpperCase();
     const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
     const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: sub.nextDue, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
-    await persistExp([newExp, ...expenses]);
+    const expResult = await persistExp([newExp, ...expenses]);
+    if (expResult?.ok === false) return;
     await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(s.nextDue, s.frequency, s.customDays), lastLogged: sub.nextDue } : s));
   };
 
@@ -914,7 +813,8 @@ export default function App({ onLogout, userEmail }) {
       }
       updatedSubs = updatedSubs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: cur, lastLogged } : s);
     }
-    await persistExp([...newExpenses, ...expenses]);
+    const expResult = await persistExp([...newExpenses, ...expenses]);
+    if (expResult?.ok === false) return;
     await persistSubs(updatedSubs);
   };
 
@@ -977,13 +877,21 @@ export default function App({ onLogout, userEmail }) {
     const snapshot = buildBackupSnapshot(reason);
     const retention = Math.max(1, Number(backupSettings.retention) || DEFAULT_BACKUP_SETTINGS.retention);
     const nextBackups = [snapshot, ...backups].slice(0, retention);
-    await save("arch-backups", nextBackups);
+    setSaveStatus("saving");
+    const backupResult = await save("arch-backups", nextBackups);
+    trackSaveResult("arch-backups", backupResult, nextBackups, setBackups);
+    showSaveResult(backupResult);
+    if (backupResult?.ok === false) {
+      setBackupStatus("Backup failed. Retry from the save warning.");
+      setTimeout(() => setBackupStatus(""), 5000);
+      return false;
+    }
     setBackups(nextBackups);
     await persistSettings({ ...settings, backup: { ...backupSettings, lastRunAt: snapshot.createdAt } });
     setBackupStatus(`${reason === "auto" ? "Weekly" : "Supabase"} backup saved: ${snapshot.counts.inventory} items, ${snapshot.counts.sales} sales, ${snapshot.counts.expenses} expenses.`);
     setTimeout(() => setBackupStatus(""), 5000);
     return true;
-  }, [inventory, sales, expenses, subs, notes, settings, userTemplates, backups, backupSettings, persistSettings]);
+  }, [inventory, sales, expenses, subs, notes, settings, userTemplates, backups, backupSettings, persistSettings, showSaveResult, trackSaveResult]);
 
   const updateBackupSettings = async (updates) => {
     await persistSettings({ ...settings, backup: { ...backupSettings, ...updates } });
@@ -1022,9 +930,14 @@ export default function App({ onLogout, userEmail }) {
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-backup-${today()}.json`; a.click(); URL.revokeObjectURL(url);
     setBackupStatus("JSON backup downloaded!"); setTimeout(() => setBackupStatus(""), 3000);
   };
+  const csvCell = (value) => {
+    const raw = String(value ?? "");
+    const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+    return `"${safe.replace(/"/g, '""')}"`;
+  };
   const exportCSV = () => {
     const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Sale Date","Purchase Date","Customer","Tags"];
-    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,s.profit,s.platform,s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map((v) => `"${String(v).replace(/"/g,'""')}"`).join(","));
+    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,s.profit,s.platform,s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-sales-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -1322,7 +1235,7 @@ export default function App({ onLogout, userEmail }) {
       ...reportStats.categoryRows.map((r) => ["Category profit", r.name, r.count, r.amount]),
       ...reportStats.expenseRows.map((r) => ["Expense category", r.name, r.count, r.amount]),
     ];
-    const csv = [headers, ...rows].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1424,7 +1337,7 @@ export default function App({ onLogout, userEmail }) {
   };
   const subSortIcon = (field) => subSort.startsWith(`${field}_`) ? (subSort.endsWith("_asc") ? " ↑" : " ↓") : "";
   const subHeaderBtn = (field, label) => (
-    <button onClick={() => setSubSortField(field)} style={{ background: "transparent", border: "none", color: subSort.startsWith(`${field}_`) ? "#93c5fd" : "#4b5563", padding: 0, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+    <button onClick={() => setSubSortField(field)} style={{ background: "transparent", border: "none", color: subSort.startsWith(`${field}_`) ? "#93c5fd" : "#56627a", padding: 0, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
       {label}{subSortIcon(field)}
     </button>
   );
@@ -1531,6 +1444,7 @@ export default function App({ onLogout, userEmail }) {
           platformGroups: new Set(),
           categories: new Set(),
           brands: new Set(),
+          orderKeys: new Set(),
           orderCount: 0,
           revenue: 0,
           profit: 0,
@@ -1546,7 +1460,7 @@ export default function App({ onLogout, userEmail }) {
     sales.forEach((sale) => {
       const row = ensure(sale.customer || "Unknown customer");
       row.sales.push(sale);
-      row.orderCount += 1;
+      row.orderKeys.add(orderKeyForSale(sale));
       row.revenue += Number(sale.salePrice) || 0;
       row.profit += Number(sale.profit) || 0;
       if (sale.platform) row.platforms.add(sale.platform);
@@ -1555,15 +1469,19 @@ export default function App({ onLogout, userEmail }) {
       if (sale.brand) row.brands.add(sale.brand);
       if (sale.saleDate && sale.saleDate > row.lastPurchase) row.lastPurchase = sale.saleDate;
     });
-    let result = [...rows.values()].map((row) => ({
-      ...row,
-      averageOrder: row.orderCount ? row.revenue / row.orderCount : 0,
-      platformsList: [...row.platforms],
-      platformGroupsList: [...row.platformGroups],
-      categoriesList: [...row.categories],
-      brandsList: [...row.brands],
-      defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
-    })).filter((row) => !hiddenCustomerKeys.includes(row.key));
+    let result = [...rows.values()].map((row) => {
+      const orderCount = row.orderKeys.size;
+      return {
+        ...row,
+        orderCount,
+        averageOrder: orderCount ? row.revenue / orderCount : 0,
+        platformsList: [...row.platforms],
+        platformGroupsList: [...row.platformGroups],
+        categoriesList: [...row.categories],
+        brandsList: [...row.brands],
+        defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
+      };
+    }).filter((row) => !hiddenCustomerKeys.includes(row.key));
     const q = customerSearch.trim().toLowerCase();
     if (q) {
       result = result.filter((row) => [
@@ -1679,7 +1597,7 @@ export default function App({ onLogout, userEmail }) {
     return { count: rows.length, amount: rows.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0) };
   }, [expenses]);
 
-  if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563" }}>Loading...</div>;
+  if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#56627a" }}>Loading...</div>;
 
   const invQueueTotal = invQueue.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   const invQueueProductCount = new Set(invQueue.map((item) => item.name).filter(Boolean)).size;
@@ -1698,7 +1616,7 @@ export default function App({ onLogout, userEmail }) {
   ];
 
   const notepadIcon = "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8";
-  const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#1d4ed8" : "transparent", color: range === r ? "#fff" : "#6b7280", border: "none", cursor: "pointer" });
+  const rb = (r) => ({ padding: "5px 10px", fontSize: 11, fontWeight: range === r ? 600 : 400, borderRadius: 6, background: range === r ? "#2563eb" : "transparent", color: range === r ? "#fff" : "#7c8aa0", border: "none", cursor: "pointer" });
   const defaultUtilityIds = DEFAULT_NAV_UTILITY_IDS;
   const navRank = new Map((Array.isArray(settings.navOrder) ? settings.navOrder : []).map((id, index) => [id, index]));
   const orderedNavItems = [...navItems].sort((a, b) => (navRank.has(a.id) ? navRank.get(a.id) : navItems.findIndex((n) => n.id === a.id) + 1000) - (navRank.has(b.id) ? navRank.get(b.id) : navItems.findIndex((n) => n.id === b.id) + 1000));
@@ -1756,7 +1674,7 @@ export default function App({ onLogout, userEmail }) {
     );
   };
   const renderNavButton = (n, zone) => (
-    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#4b5563", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+    <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#56627a", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       {renderNavIcon(n)}
       {n.id === "expenses" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
       {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
@@ -1774,19 +1692,17 @@ export default function App({ onLogout, userEmail }) {
   const renderListingBadges = (item) => {
     const platforms = sortedListedPlatformsFor(item);
     if (!platforms.length) return null;
-    return platforms.map((p) => {
-      const isFacebook = String(p).toLowerCase().includes("facebook");
-      return <span key={p} style={badge(isFacebook ? "#123326" : "#1f2937", isFacebook ? "#86efac" : "#93c5fd")}>{platformShortName(p)}</span>;
-    });
+    return platforms.map((p) => <PlatformBadge key={p} platform={p} compact style={{ marginLeft: 5 }} />);
   };
 
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
   const inventoryGridColumns = "48px 2fr 115px 0.7fr 80px 85px 100px 55px 130px";
-  const rowBg = (index, selected = false) => selected ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827");
+  const salesGridColumns = "48px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px";
+  const rowBg = (index, selected = false) => selected ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#121a2b");
   const groupAccent = { boxShadow: "inset 3px 0 0 #2563eb66" };
-  const childAccent = { boxShadow: "inset 3px 0 0 #1f2937" };
+  const childAccent = { boxShadow: "inset 3px 0 0 #232c3c" };
   const groupDateLabel = (items = []) => {
     const dates = [...new Set(items.map((i) => i.purchaseDate).filter(Boolean))].sort();
     if (dates.length <= 1) return dates[0] || "";
@@ -1816,16 +1732,16 @@ export default function App({ onLogout, userEmail }) {
   const invRow = (item, isGroupChild, index = 0) => {
     if (isMobile) {
       return (
-        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...(isGroupChild ? childAccent : {}) }}>
+        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...(isGroupChild ? childAccent : {}) }}>
           <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={{ fontSize: 10, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
                 </div>
                 {sortedListedPlatformsFor(item).length > 0 && (
@@ -1833,9 +1749,9 @@ export default function App({ onLogout, userEmail }) {
                 )}
               </div>
               <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                <button onClick={() => setSellOpen(item)} style={{ padding: "5px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
-                <button onClick={() => setEditInvOpen(item)} style={{ padding: "5px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "5px 9px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+                <button onClick={() => setSellOpen(item)} style={{ padding: "5px 9px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
+                <button onClick={() => setEditInvOpen(item)} style={{ padding: "5px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "5px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -1843,20 +1759,20 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
+      <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{renderListingBadges(item)}</div>
-        <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
-        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500 }}>{item.size||"OS"}</span>
-        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item.price)}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{item.purchaseDate}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>1</span>
-        <div style={{ display: "flex", gap: 3 }}>
-          <button onClick={() => setSellOpen(item)} style={{ padding: "4px 7px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
-          <button onClick={() => setEditInvOpen(item)} style={{ padding: "4px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => duplicateItem(item)} title="Duplicate" style={{ padding: "4px 7px", background: "#1f2937", color: "#a78bfa", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>⧉</button>
-          <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "4px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item.price)}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
+        <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
+          <button onClick={() => setSellOpen(item)} style={{ padding: "4px 7px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Sell</button>
+          <button onClick={() => setEditInvOpen(item)} style={{ padding: "4px 7px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => duplicateItem(item)} title="Duplicate" style={{ padding: "4px 7px", background: "#232c3c", color: "#a78bfa", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>⧉</button>
+          <button onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ padding: "4px 7px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
         </div>
       </div>
     );
@@ -1867,33 +1783,33 @@ export default function App({ onLogout, userEmail }) {
     const groupChecked = item._items?.length > 0 && item._items.every((i) => selectedInv.has(i.id));
     if (isMobile) {
       return (
-        <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: rowBg(index, false), borderBottom: "1px solid #1f293722", ...groupAccent }}>
+        <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: rowBg(index, false), borderBottom: "1px solid #232c3c22", ...groupAccent }}>
           <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={{ ...cb, marginTop: 1 }} />
-          <span style={{ color: "#6b7280", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
+          <span style={{ color: "#7c8aa0", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}{renderPreBadge(item)}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
             </div>
-            <div style={{ fontSize: 10, color: "#6b7280", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
+            <div style={{ fontSize: 10, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
           </div>
         </div>
       );
     }
     return (
-      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293722", cursor: "pointer", background: rowBg(index, false), ...groupAccent }}>
+      <div onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c22", cursor: "pointer", background: rowBg(index, false), ...groupAccent }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <input type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
-          <span style={{ color: "#6b7280", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
+          <span style={{ color: "#7c8aa0", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
-        <div><span style={{ color: "#e5e7eb" }}>{item.name}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 10, color: "#6b7280" }}>{item.brand}</div>}</div>
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>{renderListingBadges(item)}</div>
-        <span style={{ color: "#9ca3af", fontSize: 12 }}>{item.category}</span>
-        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
-        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(item._totalValue)}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{groupDateLabel(item._items || [])}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{item._count}</span>
-        <span style={{ fontSize: 11, color: "#4b5563" }}>{isExpanded ? "Collapse" : "Expand"}</span>
+        <div><span style={{ color: "#e5e7eb" }}>{item.name}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 10, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{groupDateLabel(item._items || [])}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item._count}</span>
+        <span style={{ fontSize: 11, color: "#56627a", textAlign: "center" }}>{isExpanded ? "Collapse" : "Expand"}</span>
       </div>
     );
   };
@@ -1902,21 +1818,21 @@ export default function App({ onLogout, userEmail }) {
   const saleRow = (s, index = 0) => {
     if (isMobile) {
       return (
-        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(s.salePrice)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(s.salePrice)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                {s.platform} · {s.category} · {s.saleDate}
+              <div style={{ fontSize: 10, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+                <PlatformBadge platform={s.platform} compact style={{ marginRight: 5 }} /> {s.category} · {s.saleDate}
               </div>
               <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                 <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, marginRight: 2 }}>{currency(s.profit)}</span>
-                <button onClick={() => setEditSaleOpen(s)} style={{ padding: "4px 8px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "4px 8px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+                <button onClick={() => setEditSaleOpen(s)} style={{ padding: "4px 8px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "4px 8px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -1924,18 +1840,18 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: "48px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer" }}>
+      <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer" }}>
         <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
-        <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#4b5563" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
-        <span style={{ color: "#9ca3af", fontSize: 12 }}>{s.platform}</span>
-        <span style={{ color: "#60a5fa", fontSize: 12 }}>{s.size||"OS"}</span>
-        <span style={{ color: "#6b7280", fontSize: 11 }}>{s.saleDate}</span>
-        <span style={{ color: "#6b7280", fontSize: 12 }}>{currency(s.costPrice)}</span>
-        <span style={{ color: "#f1f5f9", fontWeight: 500, fontSize: 12 }}>{currency(s.salePrice)}</span>
-        <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12 }}>{currency(s.profit)}</span>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => setEditSaleOpen(s)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+        <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#56627a" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}><PlatformBadge platform={s.platform} /></span>
+        <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "center" }}>{s.size||"OS"}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "right" }}>{currency(s.costPrice)}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500, fontSize: 12, textAlign: "right" }}>{currency(s.salePrice)}</span>
+        <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, textAlign: "right" }}>{currency(s.profit)}</span>
+        <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
+          <button onClick={() => setEditSaleOpen(s)} style={{ padding: "3px 7px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ padding: "3px 7px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
         </div>
       </div>
     );
@@ -1945,18 +1861,18 @@ export default function App({ onLogout, userEmail }) {
   const expRow = (e, index = 0) => {
     if (isMobile) {
       return (
-        <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293722", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.name}</span>
-              <span style={{ color: "#f1f5f9", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(e.amount)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(e.amount)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.expCategory || "Other"} · {e.purchaseDate}</div>
+              <div style={{ fontSize: 10, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.expCategory || "Other"} · {e.purchaseDate}</div>
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                <button onClick={() => setEditExpOpen(e)} style={{ padding: "4px 8px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "4px 8px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+                <button onClick={() => setEditExpOpen(e)} style={{ padding: "4px 8px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "4px 8px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -1964,26 +1880,26 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer" }}>
+      <div key={e.id} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer" }}>
         <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
-        <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</div>{e.tags&&<div style={{ fontSize: 10, color: "#4b5563", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.tags}</div>}</div>
+        <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</div>{e.tags&&<div style={{ fontSize: 10, color: "#56627a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.tags}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
-        <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{currency(e.amount)}</span>
-        <span style={{ color: "#6b7280", fontSize: 12 }}>{e.purchaseDate}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500 }}>{currency(e.amount)}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 12 }}>{e.purchaseDate}</span>
         <div style={{ display: "flex", gap: 4 }}>
-          <button onClick={() => setEditExpOpen(e)} style={{ padding: "3px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "3px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+          <button onClick={() => setEditExpOpen(e)} style={{ padding: "3px 7px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ padding: "3px 7px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
         </div>
       </div>
     );
   };
 
   const ebayQueuePanel = () => (
-    <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 14, marginBottom: 14 }}>
+    <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 14, marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700 }}>eBay awaiting postage</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Review synced eBay orders before they become sales.</div>
+          <div style={{ fontSize: 14, color: "#f3f6fb", fontWeight: 700 }}>eBay awaiting postage</div>
+          <div style={{ fontSize: 12, color: "#7c8aa0" }}>Review synced eBay orders before they become sales.</div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button onClick={async () => { setEbayQueueOpen(true); await syncEbayOrders(); }} disabled={ebayBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync eBay</button>
@@ -1993,7 +1909,7 @@ export default function App({ onLogout, userEmail }) {
       </div>
       {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd", marginBottom: 10 }}>{ebayStatus}</div>}
       {ebayImports.length === 0 ? (
-        <div style={{ fontSize: 12, color: "#4b5563", padding: "10px 0" }}>No eBay sale drafts loaded.</div>
+        <div style={{ fontSize: 12, color: "#56627a", padding: "10px 0" }}>No eBay sale drafts loaded.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 380, overflow: "auto" }}>
           {ebayImports.map((draft) => {
@@ -2002,13 +1918,13 @@ export default function App({ onLogout, userEmail }) {
             const qty = Math.max(1, Number(draft.quantity || 1));
             const canRecord = !!best && matches.length >= qty;
             return (
-              <div key={draft.id} style={{ border: "1px solid #1f2937", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
+              <div key={draft.id} style={{ border: "1px solid #232c3c", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.item_title}</div>
-                    <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.sale_date || "No date"} · qty {draft.quantity || 1} · {draft.buyer_username || "Unknown buyer"}{draft.order_id ? ` · ${draft.order_id}` : ""}</div>
+                    <div style={{ color: "#7c8aa0", fontSize: 11 }}>{draft.sale_date || "No date"} · qty {draft.quantity || 1} · {draft.buyer_username || "Unknown buyer"}{draft.order_id ? ` · ${draft.order_id}` : ""}</div>
                   </div>
-                  <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 700 }}>{currency(draft.sale_price)}</div>
+                  <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 700 }}>{currency(draft.sale_price)}</div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <span style={{ color: best ? "#93c5fd" : "#fbbf24", fontSize: 11 }}>
@@ -2028,11 +1944,11 @@ export default function App({ onLogout, userEmail }) {
   );
 
   const gmailQueuePanel = () => (
-    <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 14, marginBottom: 14 }}>
+    <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 14, marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 14, color: "#f1f5f9", fontWeight: 700 }}>Gmail inventory drafts</div>
-          <div style={{ fontSize: 12, color: "#6b7280" }}>Review purchase confirmations before they become inventory.</div>
+          <div style={{ fontSize: 14, color: "#f3f6fb", fontWeight: 700 }}>Gmail inventory drafts</div>
+          <div style={{ fontSize: 12, color: "#7c8aa0" }}>Review purchase confirmations before they become inventory.</div>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sync Gmail</button>
@@ -2042,17 +1958,17 @@ export default function App({ onLogout, userEmail }) {
       </div>
       {gmailStatus && <div style={{ fontSize: 12, color: "#93c5fd", marginBottom: 10 }}>{gmailStatus}</div>}
       {gmailImports.length === 0 ? (
-        <div style={{ fontSize: 12, color: "#4b5563", padding: "10px 0" }}>No Gmail inventory drafts loaded.</div>
+        <div style={{ fontSize: 12, color: "#56627a", padding: "10px 0" }}>No Gmail inventory drafts loaded.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 380, overflow: "auto" }}>
           {gmailImports.map((draft) => (
-            <div key={draft.id} style={{ border: "1px solid #1f2937", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
+            <div key={draft.id} style={{ border: "1px solid #232c3c", borderRadius: 8, padding: "9px 10px", background: "#0d1117" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.item_title}</div>
-                  <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.email_date || "No date"} · qty {draft.quantity || 1} · {draft.vendor || draft.sender || "Unknown source"}</div>
+                  <div style={{ color: "#7c8aa0", fontSize: 11 }}>{draft.email_date || "No date"} · qty {draft.quantity || 1} · {draft.vendor || draft.sender || "Unknown source"}</div>
                 </div>
-                <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 700 }}>{currency(draft.total_cost || draft.unit_cost)}</div>
+                <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 700 }}>{currency(draft.total_cost || draft.unit_cost)}</div>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ color: "#93c5fd", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.subject || "Gmail receipt"}</span>
@@ -2070,17 +1986,20 @@ export default function App({ onLogout, userEmail }) {
 
   // Mobile select-all bar
   const mobileSelectAll = (allSelected, toggleFn, count) => isMobile && count > 0 && (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #1f2937", fontSize: 11, color: "#6b7280", background: "#0d1117" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: "1px solid #232c3c", fontSize: 11, color: "#7c8aa0", background: "#0d1117" }}>
       <input type="checkbox" checked={allSelected} onChange={toggleFn} style={cb} />
       <span>Select all ({count})</span>
     </div>
   );
+  const failedSaveLabels = [...new Set([...failedSaves.values()].map((failure) => failure.label || "Data"))];
+  const saveBannerText = failedSaveLabels.length === 1 ? `${failedSaveLabels[0]} did not save.` : `${failedSaveLabels.length} areas did not save.`;
+  const visibleSaveStatus = failedSaves.size ? "error" : saveStatus;
 
   return (
     <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "#0b0f19", color: "#e5e7eb", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
       <style>{`.np-edit ul,.np-edit ol{padding-left:24px;margin:6px 0}.np-edit li{margin:3px 0}.np-edit input[type="checkbox"]{margin-right:6px;cursor:pointer;accent-color:#2563eb;vertical-align:middle}.np-edit label{display:inline-flex;align-items:flex-start;gap:6px;cursor:default}.np-edit label input[type="checkbox"]:checked + *,.np-edit input[type="checkbox"]:checked ~ *{opacity:0.55}`}</style>
       {/* SIDEBAR */}
-      <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #1f2937", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, background: "#0b0f19", borderRight: "1px solid #1f2937", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
+      <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #232c3c", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, background: "#0b0f19", borderRight: "1px solid #232c3c", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
         {!isMobile && <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>}
         {(isMobile ? mobilePrimaryNavItems : mainNavItems).map((n) => renderNavButton(n, "main"))}
         {isMobile && (
@@ -2088,14 +2007,14 @@ export default function App({ onLogout, userEmail }) {
             <button
               onClick={() => setMobileNavMoreOpen((v) => !v)}
               title="More"
-              style={{ width: 42, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: mobileMoreActive || mobileNavMoreOpen ? "#1e293b" : "transparent", color: mobileMoreActive || mobileNavMoreOpen ? "#60a5fa" : "#4b5563", position: "relative", flexShrink: 0 }}
+              style={{ width: 42, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: mobileMoreActive || mobileNavMoreOpen ? "#1e293b" : "transparent", color: mobileMoreActive || mobileNavMoreOpen ? "#60a5fa" : "#56627a", position: "relative", flexShrink: 0 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12h.01 M19 12h.01 M5 12h.01" /></svg>
             </button>
             {mobileNavMoreOpen && (
-              <div style={{ position: "fixed", left: 10, right: 10, bottom: 66, zIndex: 160, background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, boxShadow: "0 -12px 28px rgba(0,0,0,0.36)" }}>
+              <div style={{ position: "fixed", left: 10, right: 10, bottom: 66, zIndex: 160, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, boxShadow: "0 -12px 28px rgba(0,0,0,0.36)" }}>
                 {mobileMoreNavItems.map((n) => (
-                  <button key={n.id} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #1f2937", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                  <button key={n.id} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #232c3c", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d={n.icon} /></svg>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{navLabels[n.id] || n.id}</span>
                   </button>
@@ -2104,26 +2023,37 @@ export default function App({ onLogout, userEmail }) {
             )}
           </>
         )}
-        {!isMobile && <div onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => { e.preventDefault(); moveNavItem(e.dataTransfer.getData("text/plain") || navDragId, null, "utility"); setNavDragId(null); }} title="Drop here to move below the separator" style={{ width: 24, height: 1, background: navDragId ? "#60a5fa" : "#1f2937", margin: "9px 0 7px", opacity: navDragId ? 1 : 0.9 }} />}
+        {!isMobile && <div onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }} onDrop={(e) => { e.preventDefault(); moveNavItem(e.dataTransfer.getData("text/plain") || navDragId, null, "utility"); setNavDragId(null); }} title="Drop here to move below the separator" style={{ width: 24, height: 1, background: navDragId ? "#60a5fa" : "#232c3c", margin: "9px 0 7px", opacity: navDragId ? 1 : 0.9 }} />}
         {!isMobile && utilityNavItems.map((n) => renderNavButton(n, "utility"))}
       </div>
 
       <div style={{ flex: 1, overflow: "auto", minWidth: 0, paddingBottom: isMobile ? 66 : 0 }}>
-        <TopBar saveStatus={saveStatus} isMobile={isMobile} />
+        <TopBar saveStatus={visibleSaveStatus} isMobile={isMobile} />
+        {failedSaves.size > 0 && (
+          <div style={{ position: "sticky", top: 32, zIndex: 89, background: "#3b1f1f", borderBottom: "1px solid #7f1d1d", padding: isMobile ? "9px 12px" : "9px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#fca5a5", fontSize: 12, fontWeight: 800 }}>{saveBannerText}</div>
+              <div style={{ color: "#fecaca", fontSize: 11, marginTop: 2 }}>Your changes are still in this tab. Retry before closing or refreshing.</div>
+            </div>
+            <button onClick={retryFailedSaves} disabled={retryingSaves} style={{ ...primaryBtn, background: retryingSaves ? "#56627a" : "#dc2626", padding: "7px 12px", fontSize: 12, opacity: retryingSaves ? 0.75 : 1 }}>
+              {retryingSaves ? "Retrying..." : "Retry all"}
+            </button>
+          </div>
+        )}
 
         {/* ══ DASHBOARD ══ */}
         {page === "dashboard" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{inventoryProductCount} products / {inventory.length} units - {currency(stats.invValue)} stock - {velocityStats.sold30.length} sold 30d</p></div>
+            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{inventoryProductCount} products / {inventory.length} units - {currency(stats.invValue)} stock - {velocityStats.sold30.length} sold 30d</p></div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
               <button onClick={() => setDashboardCustomizeOpen((v) => !v)} style={{ ...ghostBtn, padding: "7px 12px", fontSize: 12 }}>Cards</button>
-              <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
+              <div style={{ display: "flex", gap: 3, background: "#121a2b", borderRadius: 8, padding: 3, border: "1px solid #232c3c", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
             </div>
           </div>
           {dashboardCustomizeOpen && (
-            <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 14, marginBottom: 12 }}>
+            <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 14, marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9" }}>Dashboard cards</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb" }}>Dashboard cards</div>
                 <button onClick={() => persistSettings({ ...settings, dashboardCards: {} })} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11 }}>Reset</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(6, minmax(130px, 1fr))", gap: 8 }}>
@@ -2136,7 +2066,7 @@ export default function App({ onLogout, userEmail }) {
               </div>
             </div>
           )}
-          {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "#6b7280" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#6b7280" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
+          {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "#7c8aa0" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#7c8aa0" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
             <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
@@ -2144,27 +2074,27 @@ export default function App({ onLogout, userEmail }) {
           {dashboardCards.actionStrip && (
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10, marginBottom: 12 }}>
               {[
-                { label: "eBay queue", value: ebayImports.length, detail: "awaiting postage", tone: ebayImports.length ? "#60a5fa" : "#6b7280", onClick: async () => { setPage("sales"); setEbayQueueOpen(true); if (!ebayImports.length) await loadEbayImports(); } },
-                { label: "Gmail queue", value: gmailImports.length, detail: "inventory drafts", tone: gmailImports.length ? "#60a5fa" : "#6b7280", onClick: async () => { setPage("inventory"); setGmailQueueOpen(true); if (!gmailImports.length) await loadGmailImports(); } },
-                { label: "Preorders", value: upcomingPreorderGroups.length, detail: upcomingPreorders.length === upcomingPreorderGroups.length ? "release window" : `${upcomingPreorders.length} units due`, tone: upcomingPreorders.length ? "#60a5fa" : "#6b7280", onClick: () => { setPage("inventory"); setInvStatus("Preorders"); setInvSort("preorder_asc"); } },
-                { label: "Aged stock", value: agingStats.aged90.length, detail: "90+ days held", tone: agingStats.aged90.length ? "#f59e0b" : "#6b7280", onClick: () => setPage("inventory") },
+                { label: "eBay queue", value: ebayImports.length, detail: "awaiting postage", tone: ebayImports.length ? "#60a5fa" : "#7c8aa0", onClick: async () => { setPage("sales"); setEbayQueueOpen(true); if (!ebayImports.length) await loadEbayImports(); } },
+                { label: "Gmail queue", value: gmailImports.length, detail: "inventory drafts", tone: gmailImports.length ? "#60a5fa" : "#7c8aa0", onClick: async () => { setPage("inventory"); setGmailQueueOpen(true); if (!gmailImports.length) await loadGmailImports(); } },
+                { label: "Preorders", value: upcomingPreorderGroups.length, detail: upcomingPreorders.length === upcomingPreorderGroups.length ? "release window" : `${upcomingPreorders.length} units due`, tone: upcomingPreorders.length ? "#60a5fa" : "#7c8aa0", onClick: () => { setPage("inventory"); setInvStatus("Preorders"); setInvSort("preorder_asc"); } },
+                { label: "Aged stock", value: agingStats.aged90.length, detail: "90+ days held", tone: agingStats.aged90.length ? "#f59e0b" : "#7c8aa0", onClick: () => setPage("inventory") },
               ].map((a) => (
-                <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#111827", border: "1px solid #1f2937", borderRadius: 10, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
-                  <div style={{ fontSize: 11, color: "#6b7280", marginBottom: 4 }}>{a.label}</div>
+                <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#121a2b", border: "1px solid #232c3c", borderRadius: 10, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
+                  <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 4 }}>{a.label}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
                     <span style={{ fontSize: 20, fontWeight: 800, color: a.tone }}>{a.value}</span>
-                    <span style={{ fontSize: 11, color: "#4b5563" }}>{a.detail}</span>
+                    <span style={{ fontSize: 11, color: "#56627a" }}>{a.detail}</span>
                   </div>
                 </button>
               ))}
             </div>
           )}
           {dashboardCards.preorderAlerts && upcomingPreorderGroups.length > 0 && (
-            <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #111827 100%)", border: "1px solid #2563eb55", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+            <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #121a2b 100%)", border: "1px solid #2563eb55", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
-                  <span style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>Preorders releasing soon</span>
+                  <span style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>Preorders releasing soon</span>
                   <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 10, background: "#2563eb", color: "#fff", fontWeight: 600 }}>{upcomingPreorderGroups.length}</span>
                 </div>
                 <button onClick={() => setPage("inventory")} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "none", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>View all</button>
@@ -2173,30 +2103,30 @@ export default function App({ onLogout, userEmail }) {
                 {upcomingPreorderGroups.slice(0, isMobile ? 4 : 6).map((i) => {
                   const b = preorderBadge(i._bdays);
                   return (
-                    <div key={`${i.id}-${i.preorderDate}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #1f293766" }}>
+                    <div key={`${i.id}-${i.preorderDate}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #232c3c66" }}>
                       <span style={{ fontSize: 13, color: "#e5e7eb", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
                       {i._count > 1 && <span style={{ fontSize: 10, color: "#93c5fd", background: "#1e3a5f", borderRadius: 999, padding: "2px 7px", fontWeight: 700, flexShrink: 0 }}>{i._count} units</span>}
-                      {!isMobile && <span style={{ fontSize: 11, color: "#6b7280", flexShrink: 0 }}>{i.preorderDate}</span>}
+                      {!isMobile && <span style={{ fontSize: 11, color: "#7c8aa0", flexShrink: 0 }}>{i.preorderDate}</span>}
                       <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: b.bg, color: b.fg, fontWeight: 600, flexShrink: 0 }}>{b.text}</span>
                     </div>
                   );
                 })}
                 {upcomingPreorderGroups.length > (isMobile ? 4 : 6) && (
-                  <div style={{ fontSize: 11, color: "#4b5563", textAlign: "center", paddingTop: 4 }}>+ {upcomingPreorderGroups.length - (isMobile ? 4 : 6)} more groups</div>
+                  <div style={{ fontSize: 11, color: "#56627a", textAlign: "center", paddingTop: 4 }}>+ {upcomingPreorderGroups.length - (isMobile ? 4 : 6)} more groups</div>
                 )}
               </div>
             </div>
           )}
           {subStats.overdue.length > 0 && (
-            <div style={{ background: "#111827", border: "1px solid #ef444455", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ background: "#121a2b", border: "1px solid #ef444455", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600 }}>{subStats.overdue.length} subscription{subStats.overdue.length === 1 ? "" : "s"} overdue · {currency(subStats.overdue.reduce((a, s) => a + subAmountAud(s, fxRates), 0))}</span>
               <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
             </div>
           )}
-          {dashboardCards.netProfitGraph && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: "16px 20px 12px", marginBottom: 14 }}>
+          {dashboardCards.netProfitGraph && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: "16px 20px 12px", marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
               <div>
-                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 3 }}>Net Profit</div>
+                <div style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 3 }}>Net Profit</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
                   <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div>
                   <div title={`Current period ${periodComparison.currentStart} to ${periodComparison.currentEnd}: ${currency(periodComparison.current)} - Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${currency(periodComparison.previous)}`} style={{ fontSize: 12, color: periodComparison.delta >= 0 ? "#34d399" : "#f87171", background: periodComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${periodComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
@@ -2204,7 +2134,7 @@ export default function App({ onLogout, userEmail }) {
                   </div>
                 </div>
               </div>
-              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#6b7280" }}>Sales volume</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f1f5f9" }}>{periodComparison.salesCount}</div><div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} sales`} style={{ fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: 2 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div></div>
+              <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#7c8aa0" }}>Sales volume</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f3f6fb" }}>{periodComparison.salesCount}</div><div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} sales`} style={{ fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: 2 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div></div>
             </div>
             <PeriodComparisonChart points={periodTrend} isMobile={isMobile} />
           </div>}
@@ -2227,37 +2157,37 @@ export default function App({ onLogout, userEmail }) {
           {(dashboardCards.aging || dashboardCards.velocity) && (
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14 }}>
               {dashboardCards.aging && (
-                <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 }}>Inventory Aging</div>
+                <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb", marginBottom: 10 }}>Inventory Aging</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
                     <KPI label="Avg. held" value={`${agingStats.avgDays}d`} />
                     <KPI label="90+ days" value={agingStats.aged90.length} accent={agingStats.aged90.length ? "#f59e0b" : undefined} />
                     <KPI label="Aged value" value={currency(agingStats.agedValue)} accent={agingStats.agedValue ? "#f59e0b" : undefined} />
                   </div>
                   {agingStats.oldest.length === 0 ? <div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No inventory yet</div> : agingStats.oldest.slice(0, 4).map((i) => (
-                    <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid #1f293722" }}>
+                    <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid #232c3c22" }}>
                       <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</div>
-                        <div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} - bought {i.purchaseDate || "unknown"}</div>
+                        <div style={{ fontSize: 11, color: "#56627a" }}>{i.category} - bought {i.purchaseDate || "unknown"}</div>
                       </div>
                       <div style={{ textAlign: "right", flexShrink: 0 }}>
-                        <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 700 }}>{i._daysHeld}d</div>
-                        <div style={{ fontSize: 11, color: "#6b7280" }}>{currency(i.price)}</div>
+                        <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 700 }}>{i._daysHeld}d</div>
+                        <div style={{ fontSize: 11, color: "#7c8aa0" }}>{currency(i.price)}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
               {dashboardCards.velocity && (
-                <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f1f5f9", marginBottom: 10 }}>Inventory Velocity</div>
+                <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#f3f6fb", marginBottom: 10 }}>Inventory Velocity</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
                     <KPI label="Sold 30d" value={velocityStats.sold30.length} />
                     <KPI label="Sell-through" value={`${(velocityStats.monthlySellThrough * 100).toFixed(1)}%`} accent="#60a5fa" />
                     <KPI label="Stock cover" value={velocityStats.daysCover === null ? "n/a" : `${velocityStats.daysCover}d`} />
                   </div>
                   {velocityStats.topCategories.length === 0 ? <div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No recent sales data</div> : velocityStats.topCategories.map((r) => (
-                    <div key={r.category} style={{ display: "grid", gridTemplateColumns: "1fr 60px 90px", gap: 8, padding: "7px 0", borderBottom: "1px solid #1f293722", fontSize: 12, alignItems: "center" }}>
+                    <div key={r.category} style={{ display: "grid", gridTemplateColumns: "1fr 60px 90px", gap: 8, padding: "7px 0", borderBottom: "1px solid #232c3c22", fontSize: 12, alignItems: "center" }}>
                       <span style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.category}</span>
                       <span style={{ color: "#9ca3af" }}>{r.count} sold</span>
                       <span style={{ color: r.profit >= 0 ? "#34d399" : "#f87171", textAlign: "right", fontWeight: 700 }}>{currency(r.profit)}</span>
@@ -2268,13 +2198,13 @@ export default function App({ onLogout, userEmail }) {
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
-            {dashboardCards.recentSales && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+            {dashboardCards.recentSales && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Sales</div>
-              {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
+              {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#56627a" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
             </div>}
-            {dashboardCards.recentInventory && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 16 }}>
+            {dashboardCards.recentInventory && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Inventory</div>
-              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #1f293722", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#4b5563" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
+              {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#56627a" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
             </div>}
           </div>
         </div>)}
@@ -2297,7 +2227,7 @@ export default function App({ onLogout, userEmail }) {
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Expenses</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>This month: {expenseMonthSummary.count} expenses - {currency(expenseMonthSummary.amount)}{subStats.overdue.length ? ` - ${subStats.overdue.length} overdue subscription${subStats.overdue.length === 1 ? "" : "s"}` : ""}</p></div>
+            <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Expenses</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>This month: {expenseMonthSummary.count} expenses - {currency(expenseMonthSummary.amount)}{subStats.overdue.length ? ` - ${subStats.overdue.length} overdue subscription${subStats.overdue.length === 1 ? "" : "s"}` : ""}</p></div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {selectedExp.size > 0 && <><button onClick={() => setBulkEditExpOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedExp.size}</button><button onClick={deleteSelectedExp} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedExp.size}</button></>}
               <button onClick={() => { setExpForm(emptyExp); setAddExpOpen(true); }} style={primaryBtn}>+ Add expense</button>
@@ -2311,14 +2241,14 @@ export default function App({ onLogout, userEmail }) {
             <input placeholder="Search..." value={expSearch} onChange={(e) => setExpSearch(e.target.value)} style={{ ...inp, maxWidth: 180 }} />
             <select value={expCatFilter} onChange={(e) => setExpCatFilter(e.target.value)} style={{ ...sel, maxWidth: 200 }}><option value="All">All Categories</option>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
             <select value={expSort} onChange={(e) => setExpSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}><option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A-Z</option><option value="amount_desc">Price ↓</option><option value="amount_asc">Price ↑</option></select>
-            <span style={{ fontSize: 12, color: "#6b7280" }}>From</span><input type="date" value={expFrom} onChange={(e) => setExpFrom(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
-            <span style={{ fontSize: 12, color: "#6b7280" }}>To</span><input type="date" value={expTo} onChange={(e) => setExpTo(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
+            <span style={{ fontSize: 12, color: "#7c8aa0" }}>From</span><input type="date" value={expFrom} onChange={(e) => setExpFrom(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
+            <span style={{ fontSize: 12, color: "#7c8aa0" }}>To</span><input type="date" value={expTo} onChange={(e) => setExpTo(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
             {(expSearch||expFrom||expTo||expCatFilter!=="All"||expSort!=="date_desc")&&<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{filteredExp.length}{selectedExp.size>0&&` · ${selectedExp.size} selected · ${currency(selectedExpValue)}`} · {currency(filteredExp.reduce((a, e) => a + e.amount, 0))}</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{filteredExp.length}{selectedExp.size>0&&` · ${selectedExp.size} selected · ${currency(selectedExpValue)}`} · {currency(filteredExp.reduce((a, e) => a + e.amount, 0))}</span>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600, alignItems: "center", background: "#111827" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
                 <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
                 <span>Name</span><span>Category</span><span>Price</span><span>Date</span><span>Actions</span>
               </div>
@@ -2333,8 +2263,8 @@ export default function App({ onLogout, userEmail }) {
         {page === "subs" && (<div style={{ padding: pagePad }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Subscriptions</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{subStats.active.length} active · {currency(subStats.monthlyBurn)}/mo · {currency(subStats.annualCost)}/yr</p>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Subscriptions</h2>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{subStats.active.length} active · {currency(subStats.monthlyBurn)}/mo · {currency(subStats.annualCost)}/yr</p>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {subStats.overdue.length > 0 && <button onClick={logAllOverdue} style={{ ...primaryBtn, background: "#dc2626" }}>Log {subStats.overdue.length} overdue</button>}
@@ -2361,12 +2291,12 @@ export default function App({ onLogout, userEmail }) {
               {subStats.byCategory.map(({ category, count, monthly }) => {
                 const [bg, fg] = subCategoryColor(category);
                 return (
-                  <button key={category} onClick={() => setSubCatFilter(category)} style={{ background: subCatFilter === category ? bg : "#111827", border: `1px solid ${subCatFilter === category ? fg : "#1f2937"}`, borderRadius: 8, padding: "9px 12px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
+                  <button key={category} onClick={() => setSubCatFilter(category)} style={{ background: subCatFilter === category ? bg : "#121a2b", border: `1px solid ${subCatFilter === category ? fg : "#232c3c"}`, borderRadius: 8, padding: "9px 12px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                       <span style={{ color: fg, fontSize: 12, fontWeight: 800 }}>{category}</span>
-                      <span style={{ color: "#6b7280", fontSize: 10 }}>{count}</span>
+                      <span style={{ color: "#7c8aa0", fontSize: 10 }}>{count}</span>
                     </div>
-                    <div style={{ marginTop: 4, color: "#f1f5f9", fontSize: 14, fontWeight: 800 }}>{currency(monthly)}<span style={{ color: "#6b7280", fontSize: 10, fontWeight: 600 }}> /mo</span></div>
+                    <div style={{ marginTop: 4, color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>{currency(monthly)}<span style={{ color: "#7c8aa0", fontSize: 10, fontWeight: 600 }}> /mo</span></div>
                   </button>
                 );
               })}
@@ -2377,11 +2307,11 @@ export default function App({ onLogout, userEmail }) {
             <select value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
             <select value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="category_asc">Category A-Z</option><option value="name_asc">Name A-Z</option></select>
             {(subSearch || subCatFilter !== "All" || subSort !== "nextDue_asc") && <button onClick={() => { setSubSearch(""); setSubCatFilter("All"); setSubSort("nextDue_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden" }}>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 600 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600 }}>
                 {subHeaderBtn("name", "Name")}{subHeaderBtn("category", "Category")}{subHeaderBtn("amount", "Amount")}{subHeaderBtn("frequency", "Frequency")}{subHeaderBtn("monthly", "Monthly")}{subHeaderBtn("nextDue", "Next due")}<span>Actions</span>
               </div>
             )}
@@ -2397,34 +2327,34 @@ export default function App({ onLogout, userEmail }) {
               const category = subCategory(s);
               if (isMobile) {
                 return (
-                  <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
+                  <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
-                      <div style={{ fontSize: 13, color: "#f1f5f9", fontWeight: 600 }}>{amountLabel}</div>
+                      <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
+                      <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>{amountLabel}</div>
                     </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#6b7280" }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</span></div>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#7c8aa0" }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</span></div>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 9px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Log</button>}
-                      <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => toggleSubActive(s)} style={{ padding: "4px 9px", background: "#1f2937", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "Pause" : "Resume"}</button>
-                      <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 9px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+                      {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 9px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Log</button>}
+                      <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                      <button onClick={() => toggleSubActive(s)} style={{ padding: "4px 9px", background: "#232c3c", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "Pause" : "Resume"}</button>
+                      <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
                     </div>
                   </div>
                 );
               }
               return (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #1f293711", opacity: s.active ? 1 : 0.5 }}>
-                  <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#1f2937","#6b7280")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 10, color: "#6b7280" }}>{s.tags}</div>}</div>
+                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
+                  <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 10, color: "#7c8aa0" }}>{s.tags}</div>}</div>
                   <span>{subCatChip(category)}</span>
-                  <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{amountLabel}</span>
+                  <span style={{ color: "#f3f6fb", fontWeight: 500 }}>{amountLabel}</span>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>{freqText}</span>
                   <span style={{ color: "#9ca3af", fontSize: 12 }}>{currency(me)}</span>
-                  <span style={{ color: isOverdue ? "#f87171" : "#6b7280", fontSize: 12 }}>{s.nextDue || "—"}</span>
+                  <span style={{ color: isOverdue ? "#f87171" : "#7c8aa0", fontSize: 12 }}>{s.nextDue || "—"}</span>
                   <div style={{ display: "flex", gap: 3 }}>
-                    {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 7px", background: "#1d4ed8", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Log</button>}
-                    <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 7px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                    <button onClick={() => toggleSubActive(s)} title={s.active ? "Pause" : "Resume"} style={{ padding: "4px 7px", background: "#1f2937", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "⏸" : "▶"}</button>
-                    <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 7px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+                    {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 7px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Log</button>}
+                    <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 7px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+                    <button onClick={() => toggleSubActive(s)} title={s.active ? "Pause" : "Resume"} style={{ padding: "4px 7px", background: "#232c3c", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "⏸" : "▶"}</button>
+                    <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 7px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
                   </div>
                 </div>
               );
@@ -2436,8 +2366,8 @@ export default function App({ onLogout, userEmail }) {
         {page === "notepad" && (<div style={{ padding: pagePad, display: "flex", flexDirection: "column", height: "calc(100vh - 32px)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Notepad</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Notepad</h2>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>
                 {notes.length} note{notes.length === 1 ? "" : "s"}
                 {activeNote && activeNote.updatedAt ? ` · saved ${new Date(activeNote.updatedAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}` : ""}
               </p>
@@ -2446,29 +2376,28 @@ export default function App({ onLogout, userEmail }) {
 
           <div style={{ display: "flex", gap: 12, flex: 1, minHeight: 0, flexDirection: isMobile ? "column" : "row" }}>
             {/* LEFT: Notes list */}
-            <div style={{ width: isMobile ? "100%" : 240, maxHeight: isMobile ? 150 : "none", background: "#111827", borderRadius: 12, border: "1px solid #1f2937", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
-              <div style={{ padding: "8px 10px 6px", borderBottom: "1px solid #1f2937" }}>
+            <div style={{ width: isMobile ? "100%" : 240, maxHeight: isMobile ? 150 : "none", background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", display: "flex", flexDirection: "column", overflow: "hidden", flexShrink: 0 }}>
+              <div style={{ padding: "8px 10px 6px", borderBottom: "1px solid #232c3c" }}>
                 <button onClick={() => createNote()} style={{ ...primaryBtn, width: "100%", padding: "7px 10px", fontSize: 12 }}>+ New note</button>
               </div>
-              <div style={{ padding: "8px 10px", borderBottom: "1px solid #1f2937" }}>
+              <div style={{ padding: "8px 10px", borderBottom: "1px solid #232c3c" }}>
                 <input value={noteSearch} onChange={(e) => setNoteSearch(e.target.value)} placeholder="Search notes…" style={{ ...inp, padding: "6px 10px", fontSize: 12 }} />
               </div>
               <div style={{ flex: 1, overflow: "auto", padding: "6px" }}>
                 {sortedNotes.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: "#374151" }}>No notes yet.<br />Hit "+ New note".</div>}
                 {sortedNotes.map((n) => {
                   const isActive = n.id === activeNoteId;
-                  const preview = stripHtml(n.content).slice(0, 60) || "Empty";
                   const dateStr = n.updatedAt ? new Date(n.updatedAt).toLocaleDateString("en-AU", { timeZone: "Australia/Sydney", day: "numeric", month: "short" }) : "";
                   return (
                     <div key={n.id} onClick={() => setActiveNoteId(n.id)} style={{ padding: "8px 10px", borderRadius: 8, marginBottom: 3, cursor: "pointer", background: isActive ? "#1e293b" : "transparent", border: isActive ? "1px solid #2563eb55" : "1px solid transparent" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                         {n.pinned && <span style={{ fontSize: 9, color: "#fbbf24" }}>●</span>}
-                        <div style={{ fontSize: 13, color: isActive ? "#f1f5f9" : "#d1d5db", fontWeight: isActive ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title || "Untitled"}</div>
+                        {n.locked && <span title="Locked" aria-label="Locked" style={{ fontSize: 11, color: "#93c5fd", lineHeight: 1 }}>🔒</span>}
+                        <div style={{ fontSize: 13, color: isActive ? "#f3f6fb" : "#d1d5db", fontWeight: isActive ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title || "Untitled"}</div>
                         <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↑</button>
                         <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↓</button>
                       </div>
-                      <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{preview}</div>
-                      <div style={{ fontSize: 9, color: "#4b5563", marginTop: 2 }}>{dateStr}</div>
+                      <div style={{ fontSize: 9, color: "#56627a", marginTop: 2 }}>{dateStr}</div>
                     </div>
                   );
                 })}
@@ -2478,18 +2407,19 @@ export default function App({ onLogout, userEmail }) {
             {/* RIGHT: Editor */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0, minHeight: 0 }}>
               {!activeNote ? (
-                <div style={{ flex: 1, background: "#111827", borderRadius: 12, border: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-                  <div style={{ color: "#4b5563", fontSize: 13 }}>No note selected</div>
+                <div style={{ flex: 1, background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+                  <div style={{ color: "#56627a", fontSize: 13 }}>No note selected</div>
                   <button onClick={() => createNote()} style={primaryBtn}>+ Create your first note</button>
                 </div>
               ) : (
                 <>
                   <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    <input value={activeNote.title} onChange={(e) => updateNote(activeNote.id, { title: e.target.value })} placeholder="Note title" style={{ ...inp, flex: 1, minWidth: 200, fontSize: 15, fontWeight: 600 }} />
+                    <input value={activeNote.title} disabled={Boolean(activeNote.locked)} onChange={(e) => updateNote(activeNote.id, { title: e.target.value })} placeholder="Note title" style={{ ...inp, flex: 1, minWidth: 200, fontSize: 15, fontWeight: 600, opacity: activeNote.locked ? 0.72 : 1, cursor: activeNote.locked ? "not-allowed" : "text" }} />
+                    <button onClick={() => toggleLockNote(activeNote.id)} title={activeNote.locked ? "Unlock editing" : "Lock editing"} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: activeNote.locked ? "#93c5fd" : "#9ca3af", border: activeNote.locked ? "1px solid #2563eb66" : ghostBtn.border }}>{activeNote.locked ? "Locked" : "Lock"}</button>
                     <button onClick={() => togglePinNote(activeNote.id)} title={activeNote.pinned ? "Unpin" : "Pin"} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: activeNote.pinned ? "#fbbf24" : "#9ca3af" }}>{activeNote.pinned ? "★" : "☆"}</button>
                     <button onClick={() => setConfirmDel({ type: "note", id: activeNote.id, name: activeNote.title || "Untitled" })} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: "#f87171" }}>Delete</button>
                   </div>
-                  <div style={{ flex: 1, background: "#111827", borderRadius: 12, border: "1px solid #1f2937", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
+                  <div style={{ flex: 1, background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                     <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} isMobile={isMobile} templates={userTemplates || []} onManageTemplates={() => setTplManagerOpen(true)} onExport={() => exportNoteTxt(activeNote)} />
                   </div>
                 </>
@@ -2503,7 +2433,7 @@ export default function App({ onLogout, userEmail }) {
 
         {/* ?? HEALTH ?? */}
         {page === "health" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
-          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Settings</h2>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
             <button onClick={() => setPage("settings")} style={ghostBtn}>General</button>
             <button onClick={() => setPage("health")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>System Health</button>
@@ -2514,22 +2444,22 @@ export default function App({ onLogout, userEmail }) {
 
         {/* ══ BACKUP ══ */}
         {page === "backup" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
-          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
+          <h2 style={{ margin: "0 0 14px", fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Settings</h2>
           <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
             <button onClick={() => setPage("settings")} style={ghostBtn}>General</button>
             <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
             <button onClick={() => setPage("backup")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Backup & Restore</button>
           </div>
-          <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#f1f5f9" }}>Backup & Restore</h3>
-          <p style={{ margin: "0 0 20px", fontSize: 13, color: "#4b5563" }}>Export or import your data.</p>
+          <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#f3f6fb" }}>Backup & Restore</h3>
+          <p style={{ margin: "0 0 20px", fontSize: 13, color: "#56627a" }}>Export or import your data.</p>
           {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.1fr) minmax(320px, 0.9fr)", gap: 14, alignItems: "start" }}>
           <div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 12 }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Weekly Supabase backup</div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Saves a full snapshot when ArchiveDash opens after 7 days.</p>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Weekly Supabase backup</div>
+                <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Saves a full snapshot when ArchiveDash opens after 7 days.</p>
               </div>
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer" }}>
                 <input type="checkbox" checked={backupSettings.autoWeekly} onChange={(e) => updateBackupSettings({ autoWeekly: e.target.checked })} style={cb} />
@@ -2537,124 +2467,55 @@ export default function App({ onLogout, userEmail }) {
               </label>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>Destination<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>Supabase</span></div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>Last backup<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backupSettings.lastRunAt ? new Date(backupSettings.lastRunAt).toLocaleString() : "Never"}</span></div>
-              <label style={{ fontSize: 12, color: "#6b7280" }}>Keep snapshots
+              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Destination<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>Supabase</span></div>
+              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Last backup<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backupSettings.lastRunAt ? new Date(backupSettings.lastRunAt).toLocaleString() : "Never"}</span></div>
+              <label style={{ fontSize: 12, color: "#7c8aa0" }}>Keep snapshots
                 <input type="number" min="1" max="52" value={backupSettings.retention} onChange={(e) => updateBackupSettings({ retention: Math.max(1, Math.min(52, Number(e.target.value) || DEFAULT_BACKUP_SETTINGS.retention)) })} style={{ ...inp, marginTop: 5, maxWidth: 90 }} />
               </label>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>Saved snapshots<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backups.length}</span></div>
+              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Saved snapshots<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backups.length}</span></div>
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={() => createSupabaseBackup("manual")} disabled={!supabase} style={primaryBtn}>Run backup now</button>
               {!supabase && <span style={{ fontSize: 12, color: "#f59e0b", alignSelf: "center" }}>Supabase is not configured.</span>}
             </div>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Export</div>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>{inventory.length} items · {sales.length} sales · {expenses.length} expenses · {subs.length} subs · {notes.length} notes</p>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Export</div>
+            <p style={{ fontSize: 12, color: "#7c8aa0", margin: "0 0 12px" }}>{inventory.length} items · {sales.length} sales · {expenses.length} expenses · {subs.length} subs · {notes.length} notes</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={exportJSON} style={primaryBtn}>Download JSON</button><button onClick={exportCSV} style={ghostBtn}>Export Sales CSV</button></div>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Import</div>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Merge adds new records safely. Replace overwrites everything.</p>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Import</div>
+            <p style={{ fontSize: 12, color: "#7c8aa0", margin: "0 0 12px" }}>Merge adds new records safely. Replace overwrites everything.</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={() => importBackup("merge")} style={primaryBtn}>Merge import (safe)</button><button onClick={() => { if (confirm("Replace ALL data?")) importBackup("replace"); }} style={{ ...ghostBtn, color: "#f59e0b", border: "1px solid #f59e0b44" }}>Replace import</button></div>
           </div>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9" }}>Snapshot history</div>
-              <span style={{ fontSize: 11, color: "#4b5563" }}>{backups.length} saved</span>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb" }}>Snapshot history</div>
+              <span style={{ fontSize: 11, color: "#56627a" }}>{backups.length} saved</span>
             </div>
             {backups.length === 0 ? (
               <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: "26px 10px", background: "#0d1117", borderRadius: 10 }}>No Supabase snapshots yet.</div>
             ) : backups.slice(0, 8).map((snapshot) => (
-              <div key={snapshot.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid #1f293722" }}>
+              <div key={snapshot.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid #232c3c22" }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700 }}>{new Date(snapshot.createdAt).toLocaleString()}</div>
-                  <div style={{ color: "#6b7280", fontSize: 11 }}>{snapshot.counts?.inventory || 0} items - {snapshot.counts?.sales || 0} sales - {snapshot.counts?.notes || 0} notes</div>
+                  <div style={{ color: "#7c8aa0", fontSize: 11 }}>{snapshot.counts?.inventory || 0} items - {snapshot.counts?.sales || 0} sales - {snapshot.counts?.notes || 0} notes</div>
                 </div>
                 <button onClick={() => restoreSupabaseBackup(snapshot)} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Restore</button>
               </div>
             ))}
           </div>
           </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #ef444433", padding: 20 }}>
+          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #ef444433", padding: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171", marginBottom: 4 }}>Danger Zone</div>
             <button onClick={async () => { if (confirm("Delete ALL data?")) { await persistInv([]); await persistSales([]); await persistExp([]); } }} style={{ ...ghostBtn, color: "#f87171", border: "1px solid #ef444444" }}>Clear all data</button>
           </div>
         </div>)}
 
-        {/* ══ SETTINGS ══ */}
-        {page === "settings" && (<div style={{ padding: pagePad, maxWidth: 1120 }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Settings</h2>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-            <button onClick={() => setPage("settings")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>General</button>
-            <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
-            <button onClick={() => setPage("backup")} style={ghostBtn}>Backup & Restore</button>
-          </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>eBay Connection</div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Connect or refresh eBay here. Orders power Sales; active listings power Market Review.</p>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect / refresh eBay</button>
-                <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
-              </div>
-            </div>
-            {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{ebayStatus}</div>}
-            <div style={{ fontSize: 12, color: "#4b5563" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
-          </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 4 }}>Gmail Inventory Import</div>
-                <p style={{ fontSize: 12, color: "#6b7280", margin: 0 }}>Connect Gmail here. Review purchase confirmations from Inventory before adding stock.</p>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                <button onClick={connectGmail} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
-                <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
-              </div>
-            </div>
-            {gmailStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{gmailStatus}</div>}
-            <div style={{ fontSize: 12, color: "#4b5563" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
-          </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Categories</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {CATS.map((c) => (<div key={c} style={{ display: "flex", alignItems: "center", gap: 4, background: "#1f2937", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e5e7eb" }}>{c}<button onClick={async () => { const ns = { ...settings, categories: CATS.filter((x) => x !== c) }; await persistSettings(ns); }} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, padding: 0, marginLeft: 4 }}>×</button></div>))}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}><input value={newCat} onChange={(e) => setNewCat(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="New category" /><button onClick={async () => { if (newCat && !CATS.includes(newCat)) { await persistSettings({ ...settings, categories: [...CATS, newCat] }); setNewCat(""); } }} style={primaryBtn}>Add</button></div>
-          </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Platforms</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {PLATS.map((p) => (<div key={p} style={{ display: "flex", alignItems: "center", gap: 4, background: "#1f2937", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e5e7eb" }}>{p}<button onClick={async () => { await persistSettings({ ...settings, platforms: PLATS.filter((x) => x !== p) }); }} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, padding: 0, marginLeft: 4 }}>×</button></div>))}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}><input value={newPlat} onChange={(e) => setNewPlat(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="New platform" /><button onClick={async () => { if (newPlat && !PLATS.includes(newPlat)) { await persistSettings({ ...settings, platforms: [...PLATS, newPlat] }); setNewPlat(""); } }} style={primaryBtn}>Add</button></div>
-          </div>
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Customer Database</div>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 10px" }}>{CUSTS.length} saved customers. Full profiles live on the Customers page.</p>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: settingsCustomersOpen ? 12 : 0 }}>
-              <button onClick={() => setPage("customers")} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Manage customers</button>
-              <button onClick={() => setSettingsCustomersOpen((v) => !v)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>{settingsCustomersOpen ? "Hide quick add" : "Quick add"}</button>
-            </div>
-            {settingsCustomersOpen && (<>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-              {CUSTS.map((c) => (<div key={c} style={{ display: "flex", alignItems: "center", gap: 4, background: "#1f2937", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e5e7eb" }}>{c}<button onClick={async () => { await persistSettings({ ...settings, customers: CUSTS.filter((x) => x !== c) }); }} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14, padding: 0, marginLeft: 4 }}>×</button></div>))}
-              {CUSTS.length===0&&<span style={{ fontSize: 12, color: "#4b5563" }}>No customers yet</span>}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}><input value={newCust} onChange={(e) => setNewCust(e.target.value)} style={{ ...inp, maxWidth: 200 }} placeholder="Customer name" /><button onClick={async () => { if (newCust && !CUSTS.includes(newCust)) { await persistSettings({ ...settings, customers: [...CUSTS, newCust] }); setNewCust(""); } }} style={primaryBtn}>Add</button></div>
-            </>)}
-          </div>
-          {onLogout && <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 20, marginTop: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", marginBottom: 10 }}>Account</div>
-            <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>Signed in as {userEmail}</p>
-            <button onClick={onLogout} style={{ ...ghostBtn, color: "#f87171", border: "1px solid #ef444444" }}>Log out</button>
-          </div>}
-        </div>)}
+        {/* SETTINGS */}
+        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, CUSTS, settings, persistSettings, setPage, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, onLogout, userEmail }} />}
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}
@@ -2677,17 +2538,17 @@ export default function App({ onLogout, userEmail }) {
       )}
 
       {notepadOpen && (
-        <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: isMobile ? "100%" : 360, background: "#111827", borderLeft: "1px solid #1f2937", zIndex: 150, display: "flex", flexDirection: "column", boxShadow: "-4px 0 20px rgba(0,0,0,0.4)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid #1f2937", gap: 6 }}>
-            <span style={{ fontSize: 14, fontWeight: 600, color: "#f1f5f9", flexShrink: 0 }}>Notes</span>
+        <div style={{ position: "fixed", right: 0, top: 0, bottom: 0, width: isMobile ? "100%" : 360, background: "#121a2b", borderLeft: "1px solid #232c3c", zIndex: 150, display: "flex", flexDirection: "column", boxShadow: "-4px 0 20px rgba(0,0,0,0.4)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderBottom: "1px solid #232c3c", gap: 6 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", flexShrink: 0 }}>Notes</span>
             <div style={{ display: "flex", gap: 4, flex: 1, justifyContent: "flex-end" }}>
               <button onClick={() => createNote()} title="New note" style={{ ...ghostBtn, padding: "5px 10px", fontSize: 12 }}>+</button>
               <button onClick={() => { setPage("notepad"); setNotepadOpen(false); }} title="Open full notepad" style={{ ...ghostBtn, padding: "5px 10px", fontSize: 12 }}>↗</button>
-              <button onClick={() => setNotepadOpen(false)} style={{ background: "none", border: "none", color: "#6b7280", fontSize: 16, cursor: "pointer", padding: "0 4px" }}>✕</button>
+              <button onClick={() => setNotepadOpen(false)} style={{ background: "none", border: "none", color: "#7c8aa0", fontSize: 16, cursor: "pointer", padding: "0 4px" }}>✕</button>
             </div>
           </div>
           {notes.length > 0 ? (
-            <div style={{ padding: "8px 14px 6px", borderBottom: "1px solid #1f2937" }}>
+            <div style={{ padding: "8px 14px 6px", borderBottom: "1px solid #232c3c" }}>
               <select value={activeNoteId || ""} onChange={(e) => setActiveNoteId(e.target.value)} style={{ ...sel, padding: "6px 8px", fontSize: 12 }}>
                 {sortedNotes.map((n) => <option key={n.id} value={n.id}>{n.pinned ? "★ " : ""}{n.title || "Untitled"}</option>)}
               </select>
@@ -2697,7 +2558,7 @@ export default function App({ onLogout, userEmail }) {
             <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} showTemplates={!isMobile} isMobile={isMobile} templates={userTemplates || []} compact />
           ) : (
             <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 10, padding: 20 }}>
-              <div style={{ fontSize: 12, color: "#4b5563", textAlign: "center" }}>No notes yet.</div>
+              <div style={{ fontSize: 12, color: "#56627a", textAlign: "center" }}>No notes yet.</div>
               <button onClick={() => createNote()} style={primaryBtn}>+ New note</button>
             </div>
           )}
@@ -2722,23 +2583,23 @@ export default function App({ onLogout, userEmail }) {
           </div>
         </div>
         {invQueue.length > 0 && (
-          <div style={{ marginTop: 14, border: "1px solid #1f2937", borderRadius: 10, overflow: "hidden", background: "#0d1117" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "9px 11px", borderBottom: "1px solid #1f2937" }}>
+          <div style={{ marginTop: 14, border: "1px solid #232c3c", borderRadius: 10, overflow: "hidden", background: "#0d1117" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "9px 11px", borderBottom: "1px solid #232c3c" }}>
               <div>
-                <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Submission queue</div>
-                <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>{invQueueProductCount} product{invQueueProductCount === 1 ? "" : "s"} - {invQueue.length} unit{invQueue.length === 1 ? "" : "s"} - {currency(invQueueTotal)}</div>
+                <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Submission queue</div>
+                <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{invQueueProductCount} product{invQueueProductCount === 1 ? "" : "s"} - {invQueue.length} unit{invQueue.length === 1 ? "" : "s"} - {currency(invQueueTotal)}</div>
               </div>
               <button onClick={() => { setInvQueue([]); setAddDirty(true); }} style={{ ...ghostBtn, padding: "5px 8px", fontSize: 11, color: "#f87171" }}>Clear queue</button>
             </div>
             <div style={{ maxHeight: 154, overflowY: "auto" }}>
               {invQueue.map((item) => (
-                <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 76px 78px 54px", gap: 8, alignItems: "center", padding: "8px 11px", borderTop: "1px solid #1f293722", fontSize: 12 }}>
+                <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 76px 78px 54px", gap: 8, alignItems: "center", padding: "8px 11px", borderTop: "1px solid #232c3c22", fontSize: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                    <div style={{ color: "#6b7280", fontSize: 10, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
+                    <div style={{ color: "#7c8aa0", fontSize: 10, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
                   </div>
                   <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{item.size || "OS"}</span>
-                  <span style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>
+                  <span style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>
                   <button onClick={() => removeQueuedInventory(item.id)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
                 </div>
               ))}

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../supabase.js";
 import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices } from "../../pricing/pricingEngine.js";
-import { currency, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, ghostBtn, KPI, primaryBtn } from "../shared.jsx";
+import { currency, computeProfit, estimateEbayFee, ghostBtn, KPI, primaryBtn, today } from "../shared.jsx";
 
-const panel = { background: "#111827", border: "1px solid #1f2937", borderRadius: 8 };
-const muted = { color: "#6b7280" };
-const smallCaps = { color: "#4b5563", fontSize: 10, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
-const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
+const panel = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8 };
+const muted = { color: "#7c8aa0" };
+const smallCaps = { color: "#56627a", fontSize: 10, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
+const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 7, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
 const tweakStorageKey = "archivedash-pricing-tweaks-v1";
 const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
 const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
@@ -321,12 +321,13 @@ const averageCost = (items = []) => {
 const estimateProfit = (price, cost) => {
   const salePrice = Number(price) || 0;
   const unitCost = Number(cost) || 0;
-  const fees = salePrice > 0 ? salePrice * EBAY_AU_FEE_RATE + EBAY_AU_FIXED_ORDER_FEE : 0;
+  const fees = estimateEbayFee(salePrice);
+  const profit = computeProfit({ salePrice, cost: unitCost, fees });
   return {
     salePrice,
     fees,
-    profit: salePrice - unitCost - fees,
-    margin: salePrice > 0 ? ((salePrice - unitCost - fees) / salePrice) * 100 : 0,
+    profit,
+    margin: salePrice > 0 ? (profit / salePrice) * 100 : 0,
   };
 };
 
@@ -355,16 +356,16 @@ const compSubtitle = (comp) => {
 function CompTable({ title, rows, empty, isMobile, onHide }) {
   return (
     <div style={{ ...panel, overflow: "hidden" }}>
-      <div style={{ padding: "11px 14px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>{title}</div>
-        <span style={{ color: "#4b5563", fontSize: 11 }}>{rows.length}</span>
+      <div style={{ padding: "11px 14px", borderBottom: "1px solid #232c3c", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>{title}</div>
+        <span style={{ color: "#56627a", fontSize: 11 }}>{rows.length}</span>
       </div>
       {rows.length === 0 ? (
         <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>{empty}</div>
       ) : (
         <div>
           {!isMobile && (
-            <div style={{ display: "grid", gridTemplateColumns: onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: 10, padding: "8px 14px", borderBottom: "1px solid #1f293711", ...smallCaps }}>
+            <div style={{ display: "grid", gridTemplateColumns: onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: 10, padding: "8px 14px", borderBottom: "1px solid #232c3c11", ...smallCaps }}>
               <span>Comp</span>
               <span>Total</span>
               <span>Signal</span>
@@ -372,12 +373,12 @@ function CompTable({ title, rows, empty, isMobile, onHide }) {
             </div>
           )}
           {rows.map((comp) => (
-            <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #1f293711", alignItems: "center" }}>
+            <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #232c3c11", alignItems: "center" }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ color: "#e5e7eb", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
-                <div style={{ color: "#4b5563", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
+                <div style={{ color: "#56627a", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
               </div>
-              <div style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 800 }}>
+              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 800 }}>
                 {currency(comp.total)}
                 {comp.couponPrice !== undefined && <div style={{ color: "#60a5fa", fontSize: 10, fontWeight: 700 }}>coupon</div>}
               </div>
@@ -394,25 +395,25 @@ function CompTable({ title, rows, empty, isMobile, onHide }) {
 function ExcludedTable({ rows, isMobile, onInclude }) {
   return (
     <div style={{ ...panel, overflow: "hidden" }}>
-      <div style={{ padding: "11px 14px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Excluded comps</div>
-        <span style={{ color: "#4b5563", fontSize: 11 }}>{rows.length}</span>
+      <div style={{ padding: "11px 14px", borderBottom: "1px solid #232c3c", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Excluded comps</div>
+        <span style={{ color: "#56627a", fontSize: 11 }}>{rows.length}</span>
       </div>
       {rows.length === 0 ? (
         <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>No rejected comps.</div>
       ) : (
         rows.map((comp) => (
-          <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onInclude ? "1fr 150px 86px 66px" : "1fr 150px 86px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #1f293711", alignItems: "center" }}>
+          <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onInclude ? "1fr 150px 86px 66px" : "1fr 150px 86px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #232c3c11", alignItems: "center" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#9ca3af", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
-              <div style={{ color: "#4b5563", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
+              <div style={{ color: "#56627a", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
             </div>
             <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
               {comp.reasons.map((reason) => (
                 <span key={reason} style={{ padding: "2px 6px", borderRadius: 5, background: "#3b1f1f", color: "#fca5a5", fontSize: 10, fontWeight: 800 }}>{reason}</span>
               ))}
             </div>
-            <div style={{ color: "#6b7280", fontSize: 12, fontWeight: 700 }}>{currency(comp.total)}</div>
+            <div style={{ color: "#7c8aa0", fontSize: 12, fontWeight: 700 }}>{currency(comp.total)}</div>
             {onInclude && (comp.ownSellerExcluded || comp.isOwnListing
               ? <span style={{ color: "#93c5fd", fontSize: 10, fontWeight: 800 }}>Mine</span>
               : <button onClick={() => onInclude(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10, color: "#86efac" }}>Include</button>)}
@@ -441,18 +442,18 @@ function ProfitPanel({ review, isMobile }) {
     <div style={{ ...panel, padding: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
         <div>
-          <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Estimated profit</div>
-          <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Per unit, after item cost and estimated eBay fees. Shipping and ads not included.</div>
+          <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Estimated profit</div>
+          <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Per unit, after item cost and estimated eBay fees. Shipping and ads not included.</div>
         </div>
         <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>Cost {currency(unitCost)}</div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
         {points.map((point) => (
-          <div key={point.label} style={{ background: "#0d1117", border: "1px solid #1f2937", borderRadius: 7, padding: 10, minWidth: 0 }}>
-            <div style={{ color: "#6b7280", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{point.label}</div>
-            <div style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 900, marginTop: 4 }}>{currency(point.salePrice)}</div>
+          <div key={point.label} style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 7, padding: 10, minWidth: 0 }}>
+            <div style={{ color: "#7c8aa0", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{point.label}</div>
+            <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 900, marginTop: 4 }}>{currency(point.salePrice)}</div>
             <div style={{ color: point.profit >= 0 ? "#34d399" : "#f87171", fontSize: 13, fontWeight: 900, marginTop: 6 }}>{currency(point.profit)}</div>
-            <div style={{ color: "#4b5563", fontSize: 11, marginTop: 2 }}>{point.margin.toFixed(1)}% margin</div>
+            <div style={{ color: "#56627a", fontSize: 11, marginTop: 2 }}>{point.margin.toFixed(1)}% margin</div>
           </div>
         ))}
       </div>
@@ -515,7 +516,7 @@ export default function PricingPage({ ctx }) {
       };
     });
   }, [liveActiveComps, tweaks]);
-  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: "2026-05-17" }), "recommended"), [pricedInventory, pricingComps, profiles]);
+  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: today() }), "recommended"), [pricedInventory, pricingComps, profiles]);
   const visibleReviews = useMemo(() => {
     const q = cardSearch.trim().toLowerCase();
     return sortedReviews(reviews, cardSort).filter((review) => (
@@ -742,7 +743,7 @@ export default function PricingPage({ ctx }) {
   };
 
   if (!selected) {
-    return <div style={{ padding: pagePad, color: "#6b7280" }}>No pricing profiles yet.</div>;
+    return <div style={{ padding: pagePad, color: "#7c8aa0" }}>No pricing profiles yet.</div>;
   }
 
   const tone = statusStyle(selected.status);
@@ -755,8 +756,8 @@ export default function PricingPage({ ctx }) {
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Market Review</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>Inventory-driven AU active comp matching</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Market Review</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>Inventory-driven AU active comp matching</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
@@ -769,7 +770,7 @@ export default function PricingPage({ ctx }) {
         <div style={{ margin: "-6px 0 14px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {syncStatus && <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>}
           {lastSyncAt && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 999, background: "#0d1117", border: "1px solid #1f2937", color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 999, background: "#0d1117", border: "1px solid #232c3c", color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>
               Last synced {formatDateTime(lastSyncAt)}
             </span>
           )}
@@ -790,8 +791,8 @@ export default function PricingPage({ ctx }) {
         <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
             <div>
-              <div style={{ color: "#f1f5f9", fontSize: 14, fontWeight: 800 }}>Add market card</div>
-              <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
+              <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>Add market card</div>
+              <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
@@ -861,27 +862,27 @@ export default function PricingPage({ ctx }) {
                 <option value="suggestion">Biggest change</option>
               </select>
             </div>
-            <div style={{ color: "#4b5563", fontSize: 11, fontWeight: 700 }}>{visibleReviews.length} shown</div>
+            <div style={{ color: "#56627a", fontSize: 11, fontWeight: 700 }}>{visibleReviews.length} shown</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: isMobile ? "visible" : "auto", paddingRight: isMobile ? 0 : 3, minHeight: 0 }}>
           {visibleReviews.map((review) => {
             const reviewTone = statusStyle(review.status);
             const isSelected = selected.profile.id === review.profile.id;
             return (
-              <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#111827", borderColor: isSelected ? "#2563eb66" : "#1f2937", fontFamily: "inherit" }}>
+              <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#121a2b", borderColor: isSelected ? "#2563eb66" : "#232c3c", fontFamily: "inherit" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px", gap: 8, alignItems: "start", marginBottom: 8 }}>
-                  <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
+                  <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
                   {badge(review.status, reviewTone)}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 50px minmax(0, 1fr)", gap: 8, fontSize: 11, alignItems: "start" }}>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "manualListing" ? "Manual match" : review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Rank</div><div style={{ color: review.rank ? "#e5e7eb" : "#6b7280", fontWeight: 800, overflowWrap: "anywhere" }}>{rankText(review)}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Rank</div><div style={{ color: review.rank ? "#e5e7eb" : "#7c8aa0", fontWeight: 800, overflowWrap: "anywhere" }}>{rankText(review)}</div></div>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
                 </div>
               </button>
             );
           })}
-          {visibleReviews.length === 0 && <div style={{ ...panel, padding: 16, color: "#4b5563", fontSize: 12, textAlign: "center" }}>No products match these filters.</div>}
+          {visibleReviews.length === 0 && <div style={{ ...panel, padding: 16, color: "#56627a", fontSize: 12, textAlign: "center" }}>No products match these filters.</div>}
           </div>
         </div>
 
@@ -890,18 +891,18 @@ export default function PricingPage({ ctx }) {
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
               <div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
-                  <h3 style={{ margin: 0, color: "#f1f5f9", fontSize: 16, fontWeight: 800 }}>{selected.profile.name}</h3>
+                  <h3 style={{ margin: 0, color: "#f3f6fb", fontSize: 16, fontWeight: 800 }}>{selected.profile.name}</h3>
                   {badge(selected.status, tone)}
                   {badge(`${selected.confidence} confidence`, selected.confidence === "High" ? { bg: "#123326", fg: "#86efac" } : selected.confidence === "Medium" ? { bg: "#3b2f1f", fg: "#fbbf24" } : { bg: "#3b1f2b", fg: "#f9a8d4" })}
                 </div>
-                <div style={{ color: "#6b7280", fontSize: 12 }}>{selected.profile.strategy}</div>
+                <div style={{ color: "#7c8aa0", fontSize: 12 }}>{selected.profile.strategy}</div>
               </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-              <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
-              <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
-              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f1f5f9", fontSize: 18, fontWeight: 800 }}>{rankText(selected)}</div></div>
+              <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
+              <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
+              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{rankText(selected)}</div></div>
               <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800 }}>{suggestionText(selected)}</div></div>
             </div>
 
@@ -926,8 +927,8 @@ export default function PricingPage({ ctx }) {
             <div style={{ ...panel, padding: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 12 }}>
                 <div>
-                  <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800 }}>Review tuning</div>
-                  <div style={{ color: "#6b7280", fontSize: 11, marginTop: 2 }}>Local-only controls for this product.</div>
+                  <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Review tuning</div>
+                  <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Local-only controls for this product.</div>
                 </div>
                 <button onClick={resetSelectedTweaks} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Reset</button>
               </div>
@@ -964,7 +965,7 @@ export default function PricingPage({ ctx }) {
                 </select>
               </label>
               {matchListings.length === 0 && (
-                <div style={{ color: "#6b7280", fontSize: 11, marginTop: 6 }}>Sync eBay comps first to load active listings for manual matching. Listings from {ownEbaySeller} are also treated as yours.</div>
+                <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 6 }}>Sync eBay comps first to load active listings for manual matching. Listings from {ownEbaySeller} are also treated as yours.</div>
               )}
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
                 <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
@@ -979,7 +980,7 @@ export default function PricingPage({ ctx }) {
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                 <button onClick={() => updateTweak(selected.profile.id, { hidden: true })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>{selected.profile.source === "custom" ? "Hide custom card" : "Hide inventory card"}</button>
                 {selected.profile.source === "custom" && <button onClick={() => removeCustomCard(selected.profile.id)} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Remove custom card</button>}
-                <span style={{ color: "#4b5563", fontSize: 11, alignSelf: "center" }}>Run sync again after changing the query.</span>
+                <span style={{ color: "#56627a", fontSize: 11, alignSelf: "center" }}>Run sync again after changing the query.</span>
               </div>
             </div>
           )}

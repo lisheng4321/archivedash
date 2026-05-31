@@ -32,8 +32,8 @@ export default function CustomersPage({ ctx }) {
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f1f5f9" }}>Customers</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#4b5563" }}>{customerRows.length} customers - {repeatCustomers} repeat - {currency(totalRevenue)} revenue</p>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Customers</h2>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{customerRows.length} customers - {repeatCustomers} repeat - {currency(totalRevenue)} revenue</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setAddOpen(true)} style={ghostBtn}>+ Add Customer</button>
@@ -50,9 +50,9 @@ export default function CustomersPage({ ctx }) {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input placeholder="Search customer, email, phone, address..." value={customerSearch} onChange={(e) => setCustomerSearch(e.target.value)} style={{ ...inp, maxWidth: 280 }} />
-        <div style={{ display: "flex", gap: 3, background: "#111827", borderRadius: 8, padding: 3, border: "1px solid #1f2937", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 3, background: "#121a2b", borderRadius: 8, padding: 3, border: "1px solid #232c3c", flexWrap: "wrap" }}>
           {PLATFORM_FILTERS.map((p) => (
-            <button key={p} onClick={() => setCustomerPlatform(p)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer", background: customerPlatform === p ? "#1d4ed8" : "transparent", color: customerPlatform === p ? "#fff" : "#9ca3af", fontFamily: "inherit" }}>{p}</button>
+            <button key={p} onClick={() => setCustomerPlatform(p)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "none", cursor: "pointer", background: customerPlatform === p ? "#2563eb" : "transparent", color: customerPlatform === p ? "#fff" : "#9ca3af", fontFamily: "inherit" }}>{p}</button>
           ))}
         </div>
         <select value={customerSort} onChange={(e) => setCustomerSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}>
@@ -63,13 +63,13 @@ export default function CustomersPage({ ctx }) {
           <option value="name_asc">Name A-Z</option>
         </select>
         {(customerSearch || customerPlatform !== "All" || customerSort !== "profit_desc") && <button onClick={() => { setCustomerSearch(""); setCustomerPlatform("All"); setCustomerSort("profit_desc"); }} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#4b5563" }}>{customerRows.length} shown</span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{customerRows.length} shown</span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(520px, 1.1fr) minmax(360px, 0.9fr)", gap: 14 }}>
-        <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, overflow: "hidden" }}>
+        <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, overflow: "hidden" }}>
           {!isMobile && (
-            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#4b5563", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #1f2937", fontWeight: 700 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 700 }}>
               <span>Customer</span><span>Platform</span><span>Orders</span><span>Revenue</span><span>Profit</span><span>Last</span>
             </div>
           )}
@@ -89,46 +89,46 @@ export default function CustomersPage({ ctx }) {
 }
 
 function CustomerRow({ customer, active, index, isMobile, onClick }) {
-  const bg = active ? "#1e293b" : index % 2 === 0 ? "#0d131f" : "#111827";
+  const bg = active ? "#1e293b" : index % 2 === 0 ? "#0d131f" : "#121a2b";
   const platforms = customer.platformGroupsList.length ? customer.platformGroupsList.join(", ") : customer.defaultPlatform;
   if (isMobile) {
     return (
-      <div onClick={onClick} style={{ padding: "11px 12px", background: bg, borderBottom: "1px solid #1f293722", cursor: "pointer" }}>
+      <div onClick={onClick} style={{ padding: "11px 12px", background: bg, borderBottom: "1px solid #232c3c22", cursor: "pointer" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
           <span style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.name}</span>
           <span style={{ color: customer.profit >= 0 ? "#34d399" : "#f87171", fontSize: 12, fontWeight: 700 }}>{currency(customer.profit)}</span>
         </div>
-        <div style={{ color: "#6b7280", fontSize: 11 }}>{platforms} - {customer.orderCount} orders - {customer.lastPurchase || "No sales"}</div>
+        <div style={{ color: "#7c8aa0", fontSize: 11 }}>{platforms} - {customer.orderCount} orders - {customer.lastPurchase || "No sales"}</div>
       </div>
     );
   }
   return (
-    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "11px 16px", alignItems: "center", fontSize: 13, background: bg, borderBottom: "1px solid #1f293711", cursor: "pointer" }}>
+    <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "11px 16px", alignItems: "center", fontSize: 13, background: bg, borderBottom: "1px solid #232c3c11", cursor: "pointer" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.name}</div>
-        <div style={{ color: "#4b5563", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.profile.email || customer.profile.phone || customer.profile.tags || "No contact saved"}</div>
+        <div style={{ color: "#56627a", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.profile.email || customer.profile.phone || customer.profile.tags || "No contact saved"}</div>
       </div>
       <span style={{ color: "#93c5fd", fontSize: 12 }}>{platforms}</span>
       <span style={{ color: "#9ca3af", fontSize: 12 }}>{customer.orderCount}</span>
-      <span style={{ color: "#f1f5f9", fontWeight: 700 }}>{currency(customer.revenue)}</span>
+      <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(customer.revenue)}</span>
       <span style={{ color: customer.profit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(customer.profit)}</span>
-      <span style={{ color: "#6b7280", fontSize: 12 }}>{customer.lastPurchase || "-"}</span>
+      <span style={{ color: "#7c8aa0", fontSize: 12 }}>{customer.lastPurchase || "-"}</span>
     </div>
   );
 }
 
 function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCustomer, setActiveCustomerKey, setAddSaleOpen }) {
   if (!customer) {
-    return <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 24, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a customer</div>;
+    return <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 24, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a customer</div>;
   }
   const p = customer.profile || {};
   const update = (field, value) => updateCustomerProfile(customer.key, { [field]: value });
   return (
-    <div style={{ background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 16, alignSelf: "start", position: isMobile ? "static" : "sticky", top: 46 }}>
+    <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 16, alignSelf: "start", position: isMobile ? "static" : "sticky", top: 46 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || customer.name}</div>
-        <div style={{ color: "#6b7280", fontSize: 12 }}>{customer.orderCount} orders - {currency(customer.averageOrder)} avg order{p.contactSource ? ` - ${p.contactSource}` : ""}</div>
+          <div style={{ color: "#f3f6fb", fontSize: 16, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name || customer.name}</div>
+        <div style={{ color: "#7c8aa0", fontSize: 12 }}>{customer.orderCount} orders - {currency(customer.averageOrder)} avg order{p.contactSource ? ` - ${p.contactSource}` : ""}</div>
         </div>
         <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
           <button onClick={() => setAddSaleOpen(true)} style={{ ...primaryBtn, padding: "7px 10px", fontSize: 12 }}>Record Sale</button>
@@ -186,13 +186,13 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCusto
         {customer.sales.length === 0 ? (
           <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: 14 }}>No linked sales yet</div>
         ) : customer.sales.slice(0, 8).map((sale) => (
-          <div key={sale.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid #1f293722" }}>
+          <div key={sale.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid #232c3c22" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sale.name}</div>
-              <div style={{ color: "#4b5563", fontSize: 10 }}>{sale.platform} - {sale.saleDate}</div>
+              <div style={{ color: "#56627a", fontSize: 10 }}>{sale.platform} - {sale.saleDate}</div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700 }}>{currency(sale.salePrice)}</div>
+              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(sale.salePrice)}</div>
               <div style={{ color: sale.profit >= 0 ? "#34d399" : "#f87171", fontSize: 10 }}>{currency(sale.profit)}</div>
             </div>
           </div>
@@ -207,11 +207,11 @@ function Field({ label, children }) {
 }
 
 function Section({ title, children }) {
-  return <div style={{ borderTop: "1px solid #1f2937", paddingTop: 12, marginTop: 12 }}><div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, marginBottom: 9 }}>{title}</div>{children}</div>;
+  return <div style={{ borderTop: "1px solid #232c3c", paddingTop: 12, marginTop: 12 }}><div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, marginBottom: 9 }}>{title}</div>{children}</div>;
 }
 
 function Mini({ label, value, color }) {
-  return <div style={{ background: "#0d1117", borderRadius: 8, padding: "9px 10px", minWidth: 0 }}><div style={{ color: "#4b5563", fontSize: 10, marginBottom: 2 }}>{label}</div><div style={{ color: color || "#f1f5f9", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div></div>;
+  return <div style={{ background: "#0d1117", borderRadius: 8, padding: "9px 10px", minWidth: 0 }}><div style={{ color: "#56627a", fontSize: 10, marginBottom: 2 }}>{label}</div><div style={{ color: color || "#f3f6fb", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div></div>;
 }
 
 function AddCustomerModal({ onClose, onSave }) {
@@ -220,9 +220,9 @@ function AddCustomerModal({ onClose, onSave }) {
   const canSave = form.name.trim();
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.68)", zIndex: 220, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ width: "100%", maxWidth: 520, background: "#111827", border: "1px solid #253047", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.45)" }}>
-        <div style={{ padding: "16px 18px", borderBottom: "1px solid #1f2937", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-          <div style={{ color: "#f1f5f9", fontSize: 16, fontWeight: 800 }}>Add Customer</div>
+      <div style={{ width: "100%", maxWidth: 520, background: "#121a2b", border: "1px solid #253047", borderRadius: 12, overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.45)" }}>
+        <div style={{ padding: "16px 18px", borderBottom: "1px solid #232c3c", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+          <div style={{ color: "#f3f6fb", fontSize: 16, fontWeight: 800 }}>Add Customer</div>
           <button onClick={onClose} style={{ ...ghostBtn, padding: "6px 10px" }}>Close</button>
         </div>
         <div style={{ padding: 18 }}>

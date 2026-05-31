@@ -30,15 +30,19 @@ export async function load(key, fallback) {
 
 export async function save(key, value) {
   try {
-    if (!supabase) return
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!supabase) return { ok: false, error: 'Supabase is not configured' }
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError) throw userError
+    if (!user) return { ok: false, error: 'No signed-in user' }
 
-    await supabase
+    const { error } = await supabase
       .from('app_data')
       .upsert({ user_id: user.id, key, value, updated_at: new Date().toISOString() }, 
         { onConflict: 'user_id,key' })
+    if (error) throw error
+    return { ok: true }
   } catch (e) {
     console.error('Save failed:', e)
+    return { ok: false, error: e?.message || String(e) }
   }
 }

@@ -91,15 +91,35 @@ Sold comps are not live yet. eBay's official sold-history route is Marketplace I
 
 ## File structure
 
+```text
+index.html                    # Entry point
+src/
+  main.jsx                    # React mount
+  App.jsx                     # Auth wrapper
+  Dashboard.jsx               # Main app coordinator and remaining dashboard views
+  Calculator.jsx              # eBay fee calculator
+  supabase.js                 # Supabase client and app data persistence
+  dashboard/
+    components/               # Dashboard-only components
+    inventory.js              # Inventory/listing helper functions
+    modals.jsx                # Modal barrel, still a split target
+    pages/                    # Inventory, sales, reports, customers, settings, health, pricing pages
+    settings.js               # Settings defaults and normalizers
+    shared.jsx                # Temporary shared barrel
+    shared/                   # Constants, dates, money, notes, styles, UI primitives
+    subscriptions.js          # Subscription display helpers
+  pricing/
+    pricingEngine.js          # Pricing profile and comp evaluation logic
+supabase/
+  functions/                  # Supabase Edge Functions
+  migrations/                 # Database migrations
+supabase-setup.sql            # Initial database schema
+AGENTS.md                     # Shared agent guide for Codex, Claude, and other agents
+CLAUDE.md                     # Claude-specific handoff notes
+package.json
+vite.config.js
 ```
-├── index.html              # Entry point
-├── src/
-│   ├── main.jsx           # React mount
-│   ├── App.jsx            # Auth wrapper (login/signup)
-│   ├── Dashboard.jsx      # Full dashboard (all features)
-│   ├── Calculator.jsx     # eBay fee calculator
-│   └── supabase.js        # Supabase client + data layer
-├── supabase-setup.sql     # Database schema (run once)
-├── package.json
-└── vite.config.js
-```
+
+## Agent workflow
+
+This repo is being reorganised gradually. Codex, Claude, and any other agents should read `AGENTS.md` before editing. Claude-specific notes live in `CLAUDE.md`; Claude worktrees are kept under `.claude/worktrees/` and are ignored by git.

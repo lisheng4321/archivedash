@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 import Dashboard from "./Dashboard.jsx";
+import "./dashboard/shared/appStyles.js";
 
-const inp = { width: "100%", padding: "12px 14px", background: "#0d1117", border: "1px solid #1f2937", borderRadius: 8, color: "#e5e7eb", fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit" };
-const primaryBtn = { padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit", width: "100%" };
+const cardSurface = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" };
+const inp = { width: "100%", padding: "12px 14px", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, color: "#e5e7eb", fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", transition: "border-color 120ms ease, box-shadow 120ms ease" };
+const primaryBtn = { padding: "12px 24px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit", width: "100%", transition: "filter 120ms ease, box-shadow 120ms ease", boxShadow: "0 12px 30px rgba(37,99,235,0.24)" };
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -53,7 +55,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#4b5563", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#56627a", fontFamily: "'DM Sans', sans-serif" }}>
         Loading...
       </div>
     );
@@ -62,12 +64,12 @@ export default function App() {
   if (!isSupabaseConfigured) {
     return (
       <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif", padding: 20 }}>
-        <div style={{ width: "100%", maxWidth: 460, background: "#111827", border: "1px solid #1f2937", borderRadius: 12, padding: 24 }}>
-          <h1 style={{ margin: "0 0 8px", fontSize: 20, color: "#f1f5f9" }}>Supabase setup needed</h1>
+        <div style={{ width: "100%", maxWidth: 460, ...cardSurface, padding: 24, boxShadow: `${cardSurface.boxShadow}, 0 24px 70px rgba(0,0,0,0.35)` }}>
+          <h1 style={{ margin: "0 0 8px", fontSize: 20, color: "#f3f6fb" }}>Supabase setup needed</h1>
           <p style={{ margin: "0 0 16px", fontSize: 13, lineHeight: 1.6, color: "#9ca3af" }}>
             Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in Vercel, then redeploy the app.
           </p>
-          <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, color: "#93c5fd", fontSize: 12, lineHeight: 1.6 }}>
+          <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, padding: 12, color: "#93c5fd", fontSize: 12, lineHeight: 1.6, fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', monospace" }}>
             VITE_SUPABASE_URL=https://your-project-id.supabase.co<br />
             VITE_SUPABASE_ANON_KEY=your-anon-key
           </div>
@@ -81,16 +83,16 @@ export default function App() {
       <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>
         <div style={{ width: "100%", maxWidth: 380, padding: 24 }}>
           <div style={{ textAlign: "center", marginBottom: 32 }}>
-            <div style={{ width: 48, height: 48, background: "#2563eb", borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 16 }}>A</div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#f1f5f9" }}>ArchiveDash</h1>
-            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>Reseller P&L Dashboard</p>
+            <div style={{ width: 48, height: 48, background: "#2563eb", borderRadius: 12, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: "#fff", marginBottom: 16, boxShadow: "0 18px 40px rgba(37,99,235,0.32), inset 0 1px 0 rgba(255,255,255,0.22)" }}>A</div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#f3f6fb" }}>ArchiveDash</h1>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "#7c8aa0" }}>Reseller P&L Dashboard</p>
           </div>
 
-          <div style={{ background: "#111827", borderRadius: 12, border: "1px solid #1f2937", padding: 24 }}>
-            <div style={{ display: "flex", gap: 0, marginBottom: 20 }}>
+          <div style={{ ...cardSurface, padding: 24, boxShadow: `${cardSurface.boxShadow}, 0 24px 70px rgba(0,0,0,0.35)` }}>
+            <div style={{ display: "flex", gap: 3, marginBottom: 20, padding: 3, background: "#0d1117", border: "1px solid #232c3c", borderRadius: 9 }}>
               {["login", "signup"].map((m) => (
                 <button key={m} onClick={() => { setAuthMode(m); setError(""); setMessage(""); }}
-                  style={{ flex: 1, padding: "8px 0", fontSize: 13, fontWeight: authMode === m ? 600 : 400, color: authMode === m ? "#f1f5f9" : "#6b7280", background: authMode === m ? "#1f2937" : "transparent", border: "none", borderRadius: 6, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ flex: 1, padding: "8px 0", fontSize: 13, fontWeight: authMode === m ? 700 : 500, color: authMode === m ? "#f3f6fb" : "#7c8aa0", background: authMode === m ? "#1f2937" : "transparent", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>
                   {m === "login" ? "Log in" : "Sign up"}
                 </button>
               ))}

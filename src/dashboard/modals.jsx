@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, sanitizeHtml, stripHtml, genId, formatMoney, currency, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
+import { DEF_CATEGORIES, getDefaultSize, getSizes, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, FONT_SIZES, TEMPLATES, FREQ_OPTIONS, FREQ_LABEL, CURRENCY_OPTIONS, SUB_CATEGORIES, renderTemplate, sanitizeHtml, stripHtml, genId, formatMoney, currency, computeProfit, estimateEbayFee, today, frequencyLabel, subAmountAud, subMonthlyAud, inp, sel, primaryBtn, ghostBtn, cb, badge, Modal, UnsavedDialog, Field, Row } from "./shared.jsx";
 
 // ─── Edit Inv Modal ───
 function EditInvModal({ item, onSave, onClose, categories, customers, platforms = [] }) {
@@ -34,18 +34,18 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers }) {
   const up = (u) => { setEf({ ...ef, ...u }); };
   const gc = () => { setShowU(true); };
   const sp = parseFloat(ef.salePrice)||0, ship = parseFloat(ef.shippingPrice)||0, fees = parseFloat(ef.platformFees)||0, cost = parseFloat(ef.costPrice)||0;
-  const preview = sp - cost - ship - fees;
+  const preview = computeProfit({ salePrice: sp, cost, shipping: ship, fees });
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit sale">
-    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#4b5563" }}>{ef.category} · {sale.size || "OS"}{sale.brand ? ` · ${sale.brand}` : ""}</div></div>
+    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#56627a" }}>{ef.category} · {sale.size || "OS"}{sale.brand ? ` · ${sale.brand}` : ""}</div></div>
     <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Sale price (AU$)" req><input type="number" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} /></Field><Field label="Fees"><input type="number" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Customer"><input list="cust-list2" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} /><datalist id="cust-list2">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field></Row>
     <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(cost)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(sp)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(cost)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => onSave({ ...sale, ...ef, costPrice: cost, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: preview })} style={primaryBtn}>Save</button></div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
@@ -58,17 +58,17 @@ function SellModal({ item, onSell, onClose, platforms, customers }) {
   const up = (u) => { setSf({ ...sf, ...u }); setDirty(true); };
   const gc = () => { if (dirty) setShowU(true); else onClose(); };
   const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
-  const preview = sp - item.price - ship - fees;
+  const preview = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Create a new sale">
-    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{item.name}</div><div style={{ fontSize: 12, color: "#4b5563" }}>Cost: {currency(item.price)} · {item.category} · {item.size||"OS"}{item.brand ? ` · ${item.brand}` : ""}</div></div>
+    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{item.name}</div><div style={{ fontSize: 12, color: "#56627a" }}>Cost: {currency(item.price)} · {item.category} · {item.size||"OS"}{item.brand ? ` · ${item.brand}` : ""}</div></div>
     <Row><Field label="Sale price" req><input type="number" step="0.01" value={sf.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} placeholder="0" autoFocus /></Field><Field label="Sale date"><input type="date" value={sf.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={sf.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Fees"><input type="number" step="0.01" value={sf.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Platform" req><select value={sf.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Customer"><input list="cust-sell" value={sf.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-sell">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field><Field label="Tags"><input value={sf.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
     {sp > 0 && <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 4, display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(item.price)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(sp)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(item.price)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!sf.salePrice) return; onSell(sf); }} style={primaryBtn}>Create sale</button></div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
@@ -153,7 +153,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
   return (<><Modal open={true} onClose={onClose} guardedClose={requestClose} title={`Bulk edit ${items.length} items`} maxWidth={980}>
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 560px", minWidth: 0 }}>
-    <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
+    <p style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
     <Field label="Set product title"><input value={nameSet} onChange={(e) => setNameSet(e.target.value)} style={inp} placeholder="Same title for all selected" /></Field>
     <Row><Field label="Find in title"><input value={titleFind} onChange={(e) => setTitleFind(e.target.value)} style={inp} placeholder="Text to replace" /></Field>
     <Field label="Replace with"><input value={titleReplace} onChange={(e) => setTitleReplace(e.target.value)} style={inp} placeholder="Replacement text" /></Field></Row>
@@ -179,22 +179,22 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={requestClose} style={ghostBtn}>Cancel</button>
     <button onClick={apply} style={primaryBtn}>Apply to {items.length} items</button></div>
       </div>
-      <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #1f2937", borderRadius: 10, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
-        <div style={{ color: "#f1f5f9", fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Selection summary</div>
+      <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
+        <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Selection summary</div>
         <div style={{ display: "grid", gap: 8 }}>
           {summaryRows.map(([label, value]) => (
             <div key={label} style={{ display: "grid", gridTemplateColumns: "76px 1fr", gap: 8, alignItems: "baseline" }}>
-              <span style={{ color: "#4b5563", fontSize: 11 }}>{label}</span>
+              <span style={{ color: "#56627a", fontSize: 11 }}>{label}</span>
               <span style={{ color: "#d1d5db", fontSize: 12, fontWeight: 650, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
             </div>
           ))}
         </div>
         {previewNames.length > 0 && (
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1f2937" }}>
-            <div style={{ color: "#4b5563", fontSize: 11, marginBottom: 6 }}>Titles</div>
+          <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #232c3c" }}>
+            <div style={{ color: "#56627a", fontSize: 11, marginBottom: 6 }}>Titles</div>
             <div style={{ display: "grid", gap: 5 }}>
               {previewNames.map((name) => <div key={name} title={name} style={{ color: "#9ca3af", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>)}
-              {productCount > previewNames.length && <div style={{ color: "#4b5563", fontSize: 11 }}>+{productCount - previewNames.length} more</div>}
+              {productCount > previewNames.length && <div style={{ color: "#56627a", fontSize: 11 }}>+{productCount - previewNames.length} more</div>}
             </div>
           </div>
         )}
@@ -221,7 +221,7 @@ function EditExpModal({ expense, onSave, onClose }) {
 function BulkEditExpModal({ items, onSave, onClose }) {
   const [cat, setCat] = useState("");
   return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} expenses`}>
-    <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave blank to keep current values.</p>
+    <p style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 14 }}>Leave blank to keep current values.</p>
     <Field label="Category"><select value={cat} onChange={(e) => setCat(e.target.value)} style={sel}><option value="">— No change —</option>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={onClose} style={ghostBtn}>Cancel</button>
     <button onClick={() => { const updates = {}; if (cat) updates.expCategory = cat; onSave(updates); }} style={primaryBtn}>Apply to {items.length} expenses</button></div>
@@ -235,11 +235,11 @@ function BulkEditSaleModal({ items, onSave, onClose, platforms }) {
   const totalRevenue = items.reduce((a, s) => a + s.salePrice, 0);
   return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} sales`}>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Selected</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{items.length} sales</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length} sales</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </div>
-    <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
+    <p style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
     <Row><Field label="Platform"><select value={plat} onChange={(e) => setPlat(e.target.value)} style={sel}><option value="">— No change —</option>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field>
     <Field label="Category"><select value={cat} onChange={(e) => setCat(e.target.value)} style={sel}><option value="">— No change —</option>{DEF_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field></Row>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}><button onClick={onClose} style={ghostBtn}>Cancel</button>
@@ -258,7 +258,7 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
   const previews = items.map((item) => {
     const r = rows.find((x) => x.id === item.id) || {};
     const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: sp - item.price - ship - fees };
+    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
   });
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
@@ -266,21 +266,21 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
 
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title={`Sell ${items.length} items`}>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Items</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{items.length}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Total profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Items</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Total profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </div>
     <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-bulk" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-bulk">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
     <div style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af", marginBottom: 8, marginTop: 4 }}>Per-item pricing</div>
-    <div style={{ maxHeight: 280, overflowY: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
+    <div style={{ maxHeight: 280, overflowY: "auto", borderRadius: 8, border: "1px solid #232c3c" }}>
       {items.map((item) => {
         const r = rows.find((x) => x.id === item.id) || {};
         const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-        const profit = sp - item.price - ship - fees;
-        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293744", background: "#0d1117" }}>
+        const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
+        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <div><span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}</span><span style={{ fontSize: 11, color: "#6b7280", marginLeft: 6 }}>{item.size||"OS"}</span></div>
-            <span style={{ fontSize: 11, color: "#6b7280" }}>Cost: {currency(item.price)}</span>
+            <div><span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}</span><span style={{ fontSize: 11, color: "#7c8aa0", marginLeft: 6 }}>{item.size||"OS"}</span></div>
+            <span style={{ fontSize: 11, color: "#7c8aa0" }}>Cost: {currency(item.price)}</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 80px", gap: 6, alignItems: "center" }}>
             <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
@@ -325,7 +325,7 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
   const previews = selectedItems.map((item) => {
     const r = rows[item.id] || {};
     const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: sp - item.price - ship - fees };
+    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
   });
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
@@ -334,38 +334,38 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
     <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Selected</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </div>
     <Field label="Search inventory"><input value={query} onChange={(e) => setQuery(e.target.value)} style={inp} placeholder="Search name, brand, category..." autoFocus /></Field>
     <div style={{ display: "grid", gridTemplateColumns: "minmax(340px, 0.95fr) minmax(500px, 1.3fr)", gap: 14, minHeight: 360 }}>
-      <div style={{ border: "1px solid #1f2937", borderRadius: 8, overflow: "auto", maxHeight: 360, background: "#0d1117" }}>
-        {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#4b5563", fontSize: 12 }}>No inventory matches.</div>}
+      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: 360, background: "#0d1117" }}>
+        {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#56627a", fontSize: 12 }}>No inventory matches.</div>}
         {filtered.map((item, index) => {
           const checked = selectedIds.has(item.id);
           return (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #1f293722", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#111827") }}>
+            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #232c3c22", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#121a2b") }}>
               <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                <div style={{ color: "#6b7280", fontSize: 10 }}>{item.category}{item.brand ? ` · ${item.brand}` : ""} · {item.size || "OS"}</div>
+                <div style={{ color: "#7c8aa0", fontSize: 10 }}>{item.category}{item.brand ? ` · ${item.brand}` : ""} · {item.size || "OS"}</div>
               </div>
-              <div style={{ color: "#f1f5f9", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
+              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
             </div>
           );
         })}
       </div>
-      <div style={{ border: "1px solid #1f2937", borderRadius: 8, overflow: "auto", maxHeight: 360, background: "#0d1117" }}>
-        {selectedItems.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#4b5563", fontSize: 12 }}>Select inventory to price the sale.</div>}
+      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: 360, background: "#0d1117" }}>
+        {selectedItems.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#56627a", fontSize: 12 }}>Select inventory to price the sale.</div>}
         {selectedItems.map((item) => {
           const r = rows[item.id] || {};
           const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-          const profit = sp - item.price - ship - fees;
+          const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
           return (
-            <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293744", background: "#0d1117" }}>
+            <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
-                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ fontSize: 10, color: "#6b7280" }}>Cost {currency(item.price)}</div></div>
+                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ fontSize: 10, color: "#7c8aa0" }}>Cost {currency(item.price)}</div></div>
                 <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(120px, 1fr)) 92px", gap: 8, alignItems: "end" }}>
@@ -388,7 +388,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
   const saleTotal = Number(draft.sale_price || 0);
   const shipTotal = Number(draft.shipping_price || 0);
   const rawFeeTotal = Number(draft.platform_fees || 0);
-  const feeTotal = rawFeeTotal > 0 ? rawFeeTotal : Number((saleTotal * EBAY_AU_FEE_RATE + EBAY_AU_FIXED_ORDER_FEE).toFixed(2));
+  const feeTotal = rawFeeTotal > 0 ? rawFeeTotal : estimateEbayFee(saleTotal);
   const [shared, setShared] = useState({
     platform: "eBay AU",
     saleDate: draft.sale_date || today(),
@@ -405,7 +405,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
   const previews = items.map((item) => {
     const r = rows.find((x) => x.id === item.id) || {};
     const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: sp - item.price - ship - fees };
+    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
   });
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
   const totalShip = previews.reduce((a, p) => a + p.ship, 0);
@@ -416,24 +416,24 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
   return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
       <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.item_title}</div>
-      <div style={{ color: "#6b7280", fontSize: 11 }}>Order {draft.order_id || "unknown"} · qty {qty} · {draft.buyer_username || "Unknown buyer"}</div>
+      <div style={{ color: "#7c8aa0", fontSize: 11 }}>Order {draft.order_id || "unknown"} · qty {qty} · {draft.buyer_username || "Unknown buyer"}</div>
     </div>
     <Row cols={3}><Field label="Platform"><input value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} /></Field></Row>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Shipping</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalShip)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Fees</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalFees)}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Shipping</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalShip)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalFees)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
     </div>
     {rawFeeTotal <= 0 && <div style={{ fontSize: 11, color: "#fbbf24", margin: "-2px 0 10px" }}>Fees are estimated from eBay AU Pro Basic Tier 4 at {(EBAY_AU_FEE_RATE * 100).toFixed(2)}% + {currency(EBAY_AU_FIXED_ORDER_FEE)}. Edit them before recording if eBay shows a different amount.</div>}
-    <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #1f2937" }}>
+    <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #232c3c" }}>
       {items.map((item) => {
         const r = rows.find((x) => x.id === item.id) || {};
         const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-        const profit = sp - item.price - ship - fees;
-        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #1f293744", background: "#0d1117" }}>
+        const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
+        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
-            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ color: "#6b7280", fontSize: 11 }}>{item.category} · cost {currency(item.price)}</div></div>
+            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ color: "#7c8aa0", fontSize: 11 }}>{item.category} · cost {currency(item.price)}</div></div>
             <div style={{ color: profit>=0?"#34d399":"#f87171", fontSize: 13, fontWeight: 800 }}>{currency(profit)}</div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
@@ -469,16 +469,16 @@ function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
   return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review Gmail Inventory" maxWidth={720}>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
       <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.subject || draft.item_title}</div>
-      <div style={{ color: "#6b7280", fontSize: 11 }}>{draft.sender || "Unknown sender"} · {draft.email_date || "No date"}</div>
+      <div style={{ color: "#7c8aa0", fontSize: 11 }}>{draft.sender || "Unknown sender"} · {draft.email_date || "No date"}</div>
     </div>
     <Field label="Product name" req><input value={form.name} onChange={(e) => up({ name: e.target.value })} style={inp} autoFocus /></Field>
     <Row cols={3}><Field label="Category"><select value={form.category} onChange={(e) => up({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={form.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(form.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Unit cost"><input type="number" step="0.01" value={form.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={form.quantity} onChange={(e) => up({ quantity: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={form.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={form.preorderDate} onChange={(e) => up({ preorderDate: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Brand / vendor"><input value={form.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={form.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, fontSize: 12 }}>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Source</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Quantity</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{form.quantity || 1}</div></div>
-      <div><div style={{ color: "#4b5563", marginBottom: 2 }}>Total cost</div><div style={{ color: "#f1f5f9", fontWeight: 700 }}>{currency(total)}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Source</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Quantity</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{form.quantity || 1}</div></div>
+      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Total cost</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(total)}</div></div>
     </div>
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!form.name || !form.price) return; onAdd(draft, form); }} style={primaryBtn}>Add Inventory</button></div>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
@@ -507,24 +507,27 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   }
 
   const fontSize = note.fontSize || 14;
+  const locked = Boolean(note.locked);
   const updateContent = () => {
+    if (locked) return;
     if (editorRef.current) onUpdate({ content: sanitizeHtml(editorRef.current.innerHTML) });
   };
 
   const exec = (cmd, val = null) => {
+    if (locked) return;
     document.execCommand(cmd, false, val);
     updateContent();
   };
 
   const undoRedo = (cmd) => {
-    if (!editorRef.current) return;
+    if (locked || !editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(cmd);
     requestAnimationFrame(updateContent);
   };
 
   const insertHtml = (html) => {
-    if (!editorRef.current) return;
+    if (locked || !editorRef.current) return;
     editorRef.current.focus();
     document.execCommand("insertHTML", false, sanitizeHtml(html));
     updateContent();
@@ -546,6 +549,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   };
 
   const bumpFont = (delta) => {
+    if (locked) return;
     const idx = FONT_SIZES.indexOf(fontSize);
     const nextIdx = Math.max(0, Math.min(FONT_SIZES.length - 1, (idx === -1 ? 2 : idx) + delta));
     onUpdate({ fontSize: FONT_SIZES[nextIdx] });
@@ -555,6 +559,10 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   const onEditorClick = (e) => {
     const t = e.target;
     if (t && t.tagName === "INPUT" && t.type === "checkbox") {
+      if (locked) {
+        e.preventDefault();
+        return;
+      }
       if (t.checked) t.setAttribute("checked", "checked"); else t.removeAttribute("checked");
       requestAnimationFrame(updateContent);
     }
@@ -562,20 +570,21 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
 
   const onEditorPaste = (e) => {
     e.preventDefault();
+    if (locked) return;
     const html = e.clipboardData?.getData("text/html");
     const text = e.clipboardData?.getData("text/plain") || "";
     if (html) insertHtml(html);
     else insertPlainText(text);
   };
 
-  const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
+  const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, minHeight: 0 }}>
-      <div style={{ display: "flex", gap: isMobile ? 3 : 4, padding: isMobile ? "6px 8px" : "8px 12px", borderBottom: "1px solid #1f2937", flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ display: "flex", gap: isMobile ? 3 : 4, padding: isMobile ? "6px 8px" : "8px 12px", borderBottom: "1px solid #232c3c", flexWrap: "wrap", alignItems: "center" }}>
         <button onMouseDown={(e) => { e.preventDefault(); undoRedo("undo"); }} title="Undo" style={tBtn}>↶</button>
         <button onMouseDown={(e) => { e.preventDefault(); undoRedo("redo"); }} title="Redo" style={tBtn}>↷</button>
-        <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
+        <span style={{ width: 1, height: 18, background: "#232c3c", margin: "0 2px" }} />
         <button onMouseDown={(e) => { e.preventDefault(); exec("bold"); }} title="Bold" style={{ ...tBtn, fontWeight: 800 }}>B</button>
         <button onMouseDown={(e) => { e.preventDefault(); exec("italic"); }} title="Italic" style={{ ...tBtn, fontStyle: "italic" }}>I</button>
         <button onMouseDown={(e) => { e.preventDefault(); exec("underline"); }} title="Underline" style={{ ...tBtn, textDecoration: "underline" }}>U</button>
@@ -583,9 +592,9 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         <button onMouseDown={(e) => { e.preventDefault(); insertCheckbox(); }} title="Insert checkbox" style={{ ...tBtn, fontSize: 12 }}>☑</button>
 
         {!compact && !isMobile && (<>
-          <span style={{ width: 1, height: 18, background: "#1f2937", margin: "0 2px" }} />
+          <span style={{ width: 1, height: 18, background: "#232c3c", margin: "0 2px" }} />
           <button onMouseDown={(e) => { e.preventDefault(); bumpFont(-1); }} title="Smaller text" style={{ ...tBtn, fontWeight: 700 }}>A−</button>
-          <select value={fontSize} onChange={(e) => onUpdate({ fontSize: parseInt(e.target.value) })} title="Font size" style={{ ...sel, height: 28, padding: "0 6px", fontSize: 12, width: 64, flexShrink: 0 }}>
+          <select disabled={locked} value={fontSize} onChange={(e) => !locked && onUpdate({ fontSize: parseInt(e.target.value) })} title="Font size" style={{ ...sel, height: 28, padding: "0 6px", fontSize: 12, width: 64, flexShrink: 0, opacity: locked ? 0.45 : 1, cursor: locked ? "not-allowed" : "pointer" }}>
             {FONT_SIZES.map((f) => <option key={f} value={f}>{f}px</option>)}
           </select>
           <button onMouseDown={(e) => { e.preventDefault(); bumpFont(1); }} title="Bigger text" style={{ ...tBtn, fontSize: 15, fontWeight: 700 }}>A+</button>
@@ -597,13 +606,13 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
             {tplOpen && (
               <>
                 <div onClick={() => setTplOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
-                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #1f2937", borderRadius: 8, padding: 4, minWidth: 220, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
+                <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #232c3c", borderRadius: 8, padding: 4, minWidth: 220, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
                   {templates.map((t) => (
-                    <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#1f2937"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
+                    <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
                   ))}
                   {onManageTemplates && (<>
-                    <div style={{ height: 1, background: "#1f2937", margin: "4px 0" }} />
-                    <button onMouseDown={(e) => { e.preventDefault(); setTplOpen(false); onManageTemplates(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#1f2937"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>⚙ Manage templates…</button>
+                    <div style={{ height: 1, background: "#232c3c", margin: "4px 0" }} />
+                    <button onMouseDown={(e) => { e.preventDefault(); setTplOpen(false); onManageTemplates(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>⚙ Manage templates…</button>
                   </>)}
                 </div>
               </>
@@ -618,13 +627,14 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
       <div
         ref={editorRef}
         className="np-edit"
-        contentEditable
+        contentEditable={!locked}
+        aria-readonly={locked}
         onInput={updateContent}
         onClick={onEditorClick}
         onPaste={onEditorPaste}
         onDrop={(e) => e.preventDefault()}
         suppressContentEditableWarning
-        style={{ flex: 1, background: "#0d1117", color: "#e5e7eb", border: "none", padding: 16, fontSize, lineHeight: 1.7, outline: "none", fontFamily: "'DM Sans', sans-serif", overflowY: "auto", minHeight: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}
+        style={{ flex: 1, background: locked ? "#0b1220" : "#0d1117", color: locked ? "#cbd5e1" : "#e5e7eb", border: "none", padding: 16, fontSize, lineHeight: 1.7, outline: "none", fontFamily: "'DM Sans', sans-serif", overflowY: "auto", minHeight: 0, whiteSpace: "pre-wrap", wordBreak: "break-word", cursor: locked ? "default" : "text" }}
       />
     </div>
   );
@@ -681,7 +691,7 @@ function SubModal({ sub, onSave, onClose }) {
       <Field label="Currency"><select value={currencyCode} onChange={(e) => up({ currency: e.target.value })} style={sel}>{CURRENCY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}</select></Field>
       <Field label="AUD rate"><input type="number" step="0.0001" disabled={!isForeign} value={isForeign ? sf.fxRateToAud : 1} onChange={(e) => up({ fxRateToAud: e.target.value, fxUpdatedAt: today() })} style={{ ...inp, opacity: isForeign ? 1 : 0.55 }} placeholder="1.0000" /></Field>
     </Row>
-    {isForeign && <div style={{ margin: "-4px 0 10px", fontSize: 11, color: fxStatus.startsWith("Could") ? "#fbbf24" : "#6b7280" }}>{fxStatus || "Rate is stored on this subscription and can be edited per charge."}</div>}
+    {isForeign && <div style={{ margin: "-4px 0 10px", fontSize: 11, color: fxStatus.startsWith("Could") ? "#fbbf24" : "#7c8aa0" }}>{fxStatus || "Rate is stored on this subscription and can be edited per charge."}</div>}
     <Row cols={3}>
       <Field label="Category"><select value={sf.category || "Other"} onChange={(e) => up({ category: e.target.value })} style={sel}>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
       <Field label="Frequency"><select value={sf.frequency} onChange={(e) => up({ frequency: e.target.value })} style={sel}>{FREQ_OPTIONS.map((f) => <option key={f} value={f}>{FREQ_LABEL[f]}</option>)}</select></Field>
@@ -691,8 +701,8 @@ function SubModal({ sub, onSave, onClose }) {
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", marginBottom: 10 }}><input type="checkbox" checked={sf.active} onChange={(e) => up({ active: e.target.checked })} style={cb} /> Active (auto-log when due)</label>
     {parseFloat(sf.amount) > 0 && (
       <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, fontSize: 12, color: "#9ca3af" }}>
-        <div>Charge: <span style={{ color: "#f1f5f9", fontWeight: 600 }}>{formatMoney(sf.amount, currencyCode)}</span>{isForeign && <span style={{ color: "#4b5563" }}> = {currency(audAmount)}</span>}</div>
-        <div style={{ marginTop: 4 }}>Monthly equivalent: <span style={{ color: "#f1f5f9", fontWeight: 600 }}>{currency(me)}</span><span style={{ color: "#4b5563" }}> · {currency(me * 12)}/yr · {frequencyLabel(sf.frequency, sf.customDays)}</span></div>
+        <div>Charge: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{formatMoney(sf.amount, currencyCode)}</span>{isForeign && <span style={{ color: "#56627a" }}> = {currency(audAmount)}</span>}</div>
+        <div style={{ marginTop: 4 }}>Monthly equivalent: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(me)}</span><span style={{ color: "#56627a" }}> · {currency(me * 12)}/yr · {frequencyLabel(sf.frequency, sf.customDays)}</span></div>
       </div>
     )}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 14 }}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={save} style={primaryBtn}>{sub ? "Save" : "Add subscription"}</button></div>
@@ -726,8 +736,8 @@ function TemplateManagerModal({ templates, onSave, onClose }) {
   const gc = () => { if (dirty || editingId) setShowU(true); else onClose(); };
 
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Manage templates">
-    <p style={{ fontSize: 12, color: "#6b7280", margin: "0 0 12px" }}>
-      Templates inserted from the notepad toolbar. HTML is allowed. Use <code style={{ background: "#1f2937", padding: "1px 4px", borderRadius: 3 }}>{"${date}"}</code> to insert today's Sydney date when used.
+    <p style={{ fontSize: 12, color: "#7c8aa0", margin: "0 0 12px" }}>
+      Templates inserted from the notepad toolbar. HTML is allowed. Use <code style={{ background: "#232c3c", padding: "1px 4px", borderRadius: 3 }}>{"${date}"}</code> to insert today's Sydney date when used.
     </p>
 
     {editingId ? (
@@ -750,11 +760,11 @@ function TemplateManagerModal({ templates, onSave, onClose }) {
       {list.map((t) => (
         <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#0d1117", borderRadius: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}{t.builtIn && <span style={badge("#1f2937", "#6b7280")}>SEED</span>}</div>
-            <div style={{ fontSize: 10, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripHtml(t.body).slice(0, 80) || "Empty"}</div>
+            <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}{t.builtIn && <span style={badge("#232c3c", "#7c8aa0")}>SEED</span>}</div>
+            <div style={{ fontSize: 10, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripHtml(t.body).slice(0, 80) || "Empty"}</div>
           </div>
-          <button onClick={() => startEdit(t)} style={{ padding: "4px 9px", background: "#1f2937", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => removeTpl(t.id)} style={{ padding: "4px 9px", background: "#1f2937", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+          <button onClick={() => startEdit(t)} style={{ padding: "4px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => removeTpl(t.id)} style={{ padding: "4px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
         </div>
       ))}
     </div>
