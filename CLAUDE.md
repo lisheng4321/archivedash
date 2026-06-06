@@ -16,8 +16,8 @@ Before editing the main worktree:
 ## Suggested Claude Tasks
 
 - Review large files for clean extraction points.
-- Split `src/dashboard/modals.jsx` into domain modules with a barrel export.
-- Extract dashboard subpages from `src/Dashboard.jsx` when the prop boundary is clear.
+- Extract remaining dashboard subpages such as Backup and Notepad from `src/Dashboard.jsx` when the prop boundary is clear.
+- Continue splitting large modal domain files only when a specific domain needs work; keep `src/dashboard/modals.jsx` as the barrel export.
 - Review Supabase migrations and functions for security or deployment risks.
 
 ## Verification

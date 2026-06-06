@@ -21,11 +21,11 @@ ArchiveDash is a Vite + React dashboard backed by Supabase. This file is shared 
 
 - `src/App.jsx` handles login/signup and renders the dashboard after auth.
 - `src/Dashboard.jsx` is still the main application coordinator. It owns app state, persistence, and cross-page actions.
-- `src/dashboard/pages/` contains domain pages such as inventory, sales, reports, customers, settings, health, and pricing.
+- `src/dashboard/pages/` contains domain pages such as dashboard home, inventory, sales, reports, customers, settings, health, and pricing.
 - `src/dashboard/components/` contains reusable dashboard-only components.
 - `src/dashboard/shared/` contains constants, date helpers, money helpers, note sanitizing, style objects, and base UI components.
 - `src/dashboard/shared.jsx` is a temporary barrel for shared modules.
-- `src/dashboard/modals.jsx` is still large and is a good next split target.
+- `src/dashboard/modals.jsx` is a compatibility barrel for domain modal modules under `src/dashboard/modals/`.
 - `src/pricing/pricingEngine.js` holds pricing comparison logic.
 - `supabase/functions/` contains Edge Functions.
 - `supabase/migrations/` contains database migrations.
@@ -34,8 +34,8 @@ ArchiveDash is a Vite + React dashboard backed by Supabase. This file is shared 
 
 Good next steps:
 
-- Split `src/dashboard/modals.jsx` by domain while keeping a barrel export.
-- Extract `DashboardHomePage`, `BackupPage`, and `NotepadPage` from `src/Dashboard.jsx`.
+- Extract `BackupPage` and `NotepadPage` from `src/Dashboard.jsx`.
+- Continue splitting large modal domain files only when a specific domain needs work; keep `src/dashboard/modals.jsx` as the compatibility barrel.
 - Move page-specific helpers out of `src/Dashboard.jsx` only when the page receives enough context to own them cleanly.
 - Eventually replace imports from `src/dashboard/shared.jsx` with imports from `src/dashboard/shared/index.js` or direct shared modules.
 

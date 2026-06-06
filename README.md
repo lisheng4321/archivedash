@@ -102,8 +102,9 @@ src/
   dashboard/
     components/               # Dashboard-only components
     inventory.js              # Inventory/listing helper functions
-    modals.jsx                # Modal barrel, still a split target
-    pages/                    # Inventory, sales, reports, customers, settings, health, pricing pages
+    modals.jsx                # Compatibility barrel for domain modal modules
+    modals/                   # Inventory, sales, expenses, notes, and subscription modals
+    pages/                    # Dashboard home, inventory, sales, reports, customers, settings, health, pricing pages
     settings.js               # Settings defaults and normalizers
     shared.jsx                # Temporary shared barrel
     shared/                   # Constants, dates, money, notes, styles, UI primitives

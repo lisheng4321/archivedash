@@ -8,6 +8,14 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [0.6.20] - 2026-06-06
+
+### Changed
+- **Dashboard reorganization** moves the dashboard home view into `DashboardHomePage`, leaving `Dashboard.jsx` focused on app state and cross-page coordination.
+- **Agent handoff docs** now describe `src/dashboard/modals.jsx` as the current modal compatibility barrel instead of an unsplit target.
+
+---
+
 ## [0.6.19] - 2026-05-17
 
 ### Added
