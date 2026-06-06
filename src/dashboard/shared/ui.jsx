@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import "./appStyles.js";
 import { VERSION } from "./constants.js";
 import { cardSurface, destructiveBtn, ghostBtn, primaryBtn, smallCaps } from "./styles.js";
@@ -41,6 +41,7 @@ function UnsavedDialog({ open, onDiscard, onCancel }) {
 }
 
 function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560 }) {
+  const isMobile = useIsMobile();
   const backdropPointerDown = useRef(false);
   if (!open) return null;
   const close = guardedClose || onClose;
@@ -49,19 +50,42 @@ function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560 })
     if (backdropPointerDown.current && e.target === e.currentTarget) close();
     backdropPointerDown.current = false;
   };
-  return (<div onMouseDown={backdropDown} onMouseUp={backdropUp} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div role="dialog" aria-modal="true" style={{ ...cardSurface, width: "100%", maxWidth, maxHeight: "90vh", overflowY: "auto", boxShadow: `${cardSurface.boxShadow}, 0 30px 90px rgba(0,0,0,0.5)` }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 20px", borderBottom: "1px solid #232c3c", background: "#121a2b" }}>
+  return (<div onMouseDown={backdropDown} onMouseUp={backdropUp} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "center", padding: isMobile ? 8 : 16, boxSizing: "border-box" }}>
+    <div role="dialog" aria-modal="true" style={{ ...cardSurface, width: "100%", maxWidth: isMobile ? "100%" : maxWidth, maxHeight: isMobile ? "calc(100vh - 16px)" : "90vh", overflowY: "auto", borderRadius: isMobile ? 10 : cardSurface.borderRadius, boxShadow: `${cardSurface.boxShadow}, 0 30px 90px rgba(0,0,0,0.5)` }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: isMobile ? "12px 14px" : "14px 20px", borderBottom: "1px solid #232c3c", background: "#121a2b" }}>
         <h3 style={{ margin: 0, color: "#f3f6fb", fontSize: 15, fontWeight: 600 }}>{title}</h3>
         <button aria-label="Close" onClick={close} style={{ width: 30, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1f2937", border: "1px solid #232c3c", borderRadius: 8, color: "#9aa6bb", fontSize: 18, cursor: "pointer" }}>{"\u2715"}</button>
       </div>
-      <div style={{ padding: 20 }}>{children}</div>
+      <div style={{ padding: isMobile ? 14 : 20 }}>{children}</div>
     </div>
   </div>);
 }
 
 const Field = ({ label, req, children }) => (<div style={{ marginBottom: 14 }}><label style={{ fontSize: 12, color: "#9aa6bb", display: "block", marginBottom: 5, fontWeight: 600 }}>{label}{req && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}</label>{children}</div>);
-const Row = ({ children, cols = 2 }) => <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }}>{children}</div>;
+const Row = ({ children, cols = 2 }) => {
+  const isMobile = useIsMobile();
+  return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`, gap: isMobile ? 0 : 12 }}>{children}</div>;
+};
+function ModalActions({ children, justify = "flex-end", mobileStack = true, marginTop = 14, style }) {
+  const isMobile = useIsMobile();
+  const stack = isMobile && mobileStack;
+  const actionChildren = stack ? Children.map(children, (child) => (
+    isValidElement(child) ? cloneElement(child, { style: { ...child.props.style, width: "100%" } }) : child
+  )) : children;
+  return (
+    <div style={{ display: "flex", justifyContent: stack ? "stretch" : justify, gap: 8, marginTop, flexDirection: stack ? "column-reverse" : "row", ...style }}>
+      {actionChildren}
+    </div>
+  );
+}
+function ResponsiveGrid({ children, columns, mobileColumns = "1fr", gap = 12, style, ...props }) {
+  const isMobile = useIsMobile();
+  return (
+    <div {...props} style={{ display: "grid", gridTemplateColumns: isMobile ? mobileColumns : columns, gap, ...style }}>
+      {children}
+    </div>
+  );
+}
 function KPI({ label, value, accent }) { return (<div style={{ ...cardSurface, padding: "14px 16px", flex: 1, minWidth: 0 }}><div style={{ ...smallCaps, marginBottom: 5 }}>{label}</div><div style={{ fontSize: 20, fontWeight: 750, color: accent || "#f3f6fb", fontVariantNumeric: "tabular-nums" }}>{value}</div></div>); }
 
 function TopBar({ saveStatus, isMobile }) {
@@ -126,6 +150,8 @@ export {
   Modal,
   Field,
   Row,
+  ModalActions,
+  ResponsiveGrid,
   KPI,
   TopBar,
   EmptyState,

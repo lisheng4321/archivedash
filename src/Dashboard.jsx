@@ -14,7 +14,7 @@ import { compareInventorySize, customerKey, listedPlatformsFor, orderKeyForSale,
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory, subCategoryColor } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, KPI, TopBar } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, TIME_RANGES, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -2574,12 +2574,12 @@ export default function App({ onLogout, userEmail }) {
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
         <Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-          <button onClick={clearInventoryDraft} style={{ ...ghostBtn, color: "#9ca3af" }}>Clear form</button>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd" }}>Queue {parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}</button>
-            <button onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button>
-            <button onClick={addInventory} style={primaryBtn}>{invQueue.length ? `Add ${invQueue.length} queued` : `Add ${parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}`}</button>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
+          <button onClick={clearInventoryDraft} style={{ ...ghostBtn, color: "#9ca3af", ...(isMobile ? { width: "100%" } : {}) }}>Clear form</button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexDirection: isMobile ? "column" : "row", width: isMobile ? "100%" : "auto" }}>
+            <button onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd", ...(isMobile ? { width: "100%" } : {}) }}>Queue {parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}</button>
+            <button onClick={guardedCloseAdd} style={{ ...ghostBtn, ...(isMobile ? { width: "100%" } : {}) }}>Cancel</button>
+            <button onClick={addInventory} style={{ ...primaryBtn, ...(isMobile ? { width: "100%" } : {}) }}>{invQueue.length ? `Add ${invQueue.length} queued` : `Add ${parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}`}</button>
           </div>
         </div>
         {invQueue.length > 0 && (
@@ -2593,7 +2593,7 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ maxHeight: 154, overflowY: "auto" }}>
               {invQueue.map((item) => (
-                <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 76px 78px 54px", gap: 8, alignItems: "center", padding: "8px 11px", borderTop: "1px solid #232c3c22", fontSize: 12 }}>
+                <ResponsiveGrid key={item.id} columns="minmax(0,1fr) 76px 78px 54px" mobileColumns="minmax(0, 1fr) auto" gap={8} style={{ alignItems: "center", padding: "8px 11px", borderTop: "1px solid #232c3c22", fontSize: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
                     <div style={{ color: "#7c8aa0", fontSize: 10, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
@@ -2601,7 +2601,7 @@ export default function App({ onLogout, userEmail }) {
                   <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{item.size || "OS"}</span>
                   <span style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>
                   <button onClick={() => removeQueuedInventory(item.id)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
-                </div>
+                </ResponsiveGrid>
               ))}
             </div>
           </div>
@@ -2613,7 +2613,7 @@ export default function App({ onLogout, userEmail }) {
         <Field label="Name" req><input value={expForm.name} onChange={(e) => setExpForm({ ...expForm, name: e.target.value })} style={inp} placeholder="e.g. eBay Sub" /></Field>
         <Row><Field label="Price (AU$)" req><input type="number" step="0.01" value={expForm.amount} onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })} style={inp} /></Field><Field label="Date"><input type="date" value={expForm.purchaseDate} onChange={(e) => setExpForm({ ...expForm, purchaseDate: e.target.value })} style={inp} /></Field></Row>
         <Row><Field label="Category"><select value={expForm.expCategory} onChange={(e) => setExpForm({ ...expForm, expCategory: e.target.value })} style={sel}>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Tags"><input value={expForm.tags} onChange={(e) => setExpForm({ ...expForm, tags: e.target.value })} style={inp} /></Field></Row>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { if (!expForm.name||!expForm.amount) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></div>
+        <ModalActions marginTop={6}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { if (!expForm.name||!expForm.amount) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></ModalActions>
       </Modal>
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} />}
