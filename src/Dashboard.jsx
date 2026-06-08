@@ -3,6 +3,7 @@ import { load, save, supabase, isSupabaseConfigured } from "./supabase.js";
 import Calculator from "./Calculator";
 import CustomersPage from "./dashboard/pages/CustomersPage.jsx";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
+import BackupPage from "./dashboard/pages/BackupPage.jsx";
 import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
 import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
@@ -15,9 +16,53 @@ import { compareInventorySize, customerKey, listedPlatformsFor, orderKeyForSale,
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory, subCategoryColor } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
+
+// ═══ SAMPLE / DEMO DATA ═══
+// First-run "Explore with sample data" seeds these records. Every demo record is
+// tagged with `demo: true` so it can be removed as a set, and carries a "sample"
+// tag so it stays visible and exports/imports like normal data. Loading or
+// clearing sample data reuses the existing persistence keys; nothing is renamed.
+const SAMPLE_TAG = "sample";
+const FIRST_RUN_DISMISS_KEY = "archivedash-firstrun-dismissed-v1";
+const isDemoRecord = (record) => Boolean(record && record.demo);
+
+const buildSampleSale = ({ name, category, size = "OS", brand = "", costPrice, salePrice, shippingPrice = 0, platform, saleDate, customer = "" }) => {
+  const fees = platform === "eBay AU" ? estimateEbayFee(salePrice) : Math.round(salePrice * 0.1 * 100) / 100;
+  return {
+    id: genId(), name, category, size, brand,
+    costPrice, salePrice, shippingPrice, platformFees: fees,
+    profit: computeProfit({ salePrice, cost: costPrice, shipping: shippingPrice, fees }),
+    platform, saleDate, tags: SAMPLE_TAG, purchaseDate: "", preorderDate: "", customer, demo: true,
+  };
+};
+
+const buildSampleInventory = (over) => ({
+  id: genId(), size: "OS", brand: "", preorderDate: "", listedPlatforms: [], customer: "",
+  tags: SAMPLE_TAG, addedAt: Date.now(), demo: true, ...over,
+});
+
+const buildSampleData = () => ({
+  inventory: [
+    buildSampleInventory({ name: "Nike Dunk Low Panda", category: "Sneakers", size: "US 9", price: 130, ebayListedPrice: 210, brand: "Nike", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(38) }),
+    buildSampleInventory({ name: "Jordan 4 Black Cat", category: "Sneakers", size: "US 10", price: 320, ebayListedPrice: 470, brand: "Jordan", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(96) }),
+    buildSampleInventory({ name: "Supreme Box Logo Hoodie", category: "Apparel", size: "L", price: 240, brand: "Supreme", listedPlatforms: ["Facebook Marketplace"], purchaseDate: daysAgo(21) }),
+    buildSampleInventory({ name: "Pokemon 151 Booster Box", category: "Collectables", size: "OS", price: 180, brand: "Pokemon", purchaseDate: daysAgo(9), preorderDate: daysAgo(-7) }),
+    buildSampleInventory({ name: "Louis Vuitton Card Holder", category: "Accessories", size: "OS", price: 350, brand: "Louis Vuitton", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(63) }),
+  ],
+  sales: [
+    buildSampleSale({ name: "Nike Dunk Low UNC", category: "Sneakers", size: "US 9", brand: "Nike", costPrice: 120, salePrice: 210, shippingPrice: 12, platform: "eBay AU", saleDate: daysAgo(4), customer: "Jordan M" }),
+    buildSampleSale({ name: "Yeezy Slide Onyx", category: "Sneakers", size: "US 10", brand: "adidas", costPrice: 70, salePrice: 130, shippingPrice: 10, platform: "StockX", saleDate: daysAgo(11) }),
+    buildSampleSale({ name: "CS2 Knife Skin", category: "Collectables", size: "OS", costPrice: 40, salePrice: 95, shippingPrice: 0, platform: "CSFloat", saleDate: daysAgo(17), customer: "Alex T" }),
+    buildSampleSale({ name: "Vintage Nike Tee", category: "Apparel", size: "M", brand: "Nike", costPrice: 25, salePrice: 60, shippingPrice: 9, platform: "Depop", saleDate: daysAgo(24) }),
+  ],
+  expenses: [
+    { id: genId(), name: "Shipping supplies", amount: 45, purchaseDate: daysAgo(14), tags: SAMPLE_TAG, expCategory: "Shipping & Fulfillment", demo: true },
+    { id: genId(), name: "Cook group membership", amount: 30, purchaseDate: daysAgo(7), tags: SAMPLE_TAG, expCategory: "Cook Groups & Retail Memberships", demo: true },
+  ],
+});
 
 // ═══ MAIN APP ═══
 export default function App({ onLogout, userEmail }) {
@@ -49,6 +94,8 @@ export default function App({ onLogout, userEmail }) {
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [bulkSellOpen, setBulkSellOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [dangerAction, setDangerAction] = useState(null); // { title, intro, counts, keyword, confirmLabel, snapshot, snapshotReason, run }
+  const [dangerBusy, setDangerBusy] = useState(false);
   const [selectedInv, setSelectedInv] = useState(new Set());
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
@@ -89,6 +136,13 @@ export default function App({ onLogout, userEmail }) {
   const [dashboardCustomizeOpen, setDashboardCustomizeOpen] = useState(false);
   const [navDragId, setNavDragId] = useState(null);
   const [mobileNavMoreOpen, setMobileNavMoreOpen] = useState(false);
+  const [firstRunDismissed, setFirstRunDismissed] = useState(() => {
+    try { return window.localStorage.getItem(FIRST_RUN_DISMISS_KEY) === "1"; } catch { return false; }
+  });
+  const dismissFirstRun = () => {
+    try { window.localStorage.setItem(FIRST_RUN_DISMISS_KEY, "1"); } catch { /* private-mode storage is optional */ }
+    setFirstRunDismissed(true);
+  };
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
@@ -608,6 +662,25 @@ export default function App({ onLogout, userEmail }) {
 
   const duplicateItem = async (item) => { await persistInv([{ ...item, id: genId(), addedAt: Date.now() }, ...inventory]); };
 
+  // ─── Sample / demo data ───
+  const hasSampleData = inventory.some(isDemoRecord) || sales.some(isDemoRecord) || expenses.some(isDemoRecord) || subs.some(isDemoRecord);
+  const isFirstRun = !loading && !firstRunDismissed && !hasSampleData
+    && inventory.length === 0 && sales.length === 0 && expenses.length === 0 && subs.length === 0;
+  const loadSampleData = async () => {
+    if (hasSampleData) return;
+    const sample = buildSampleData();
+    await persistInv([...sample.inventory, ...inventory]);
+    await persistSales([...sample.sales, ...sales]);
+    await persistExp([...sample.expenses, ...expenses]);
+    setPage("dashboard");
+  };
+  const removeSampleData = async () => {
+    if (inventory.some(isDemoRecord)) await persistInv(inventory.filter((r) => !isDemoRecord(r)));
+    if (sales.some(isDemoRecord)) await persistSales(sales.filter((r) => !isDemoRecord(r)));
+    if (expenses.some(isDemoRecord)) await persistExp(expenses.filter((r) => !isDemoRecord(r)));
+    if (subs.some(isDemoRecord)) await persistSubs(subs.filter((r) => !isDemoRecord(r)));
+  };
+
   const handleSell = async (item, sf) => {
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
     const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
@@ -897,9 +970,10 @@ export default function App({ onLogout, userEmail }) {
   const updateBackupSettings = async (updates) => {
     await persistSettings({ ...settings, backup: { ...backupSettings, ...updates } });
   };
-  const restoreSupabaseBackup = async (snapshot) => {
-    if (!snapshot || !window.confirm(`Restore backup from ${new Date(snapshot.createdAt).toLocaleString()}? This replaces current local data.`)) return;
-    const data = snapshot.data || {};
+  // Worker: applies a snapshot to local data. Confirmation is handled by the
+  // Danger Zone dialog before this runs.
+  const applySupabaseBackup = async (snapshot) => {
+    const data = snapshot?.data || {};
     await persistInv(Array.isArray(data.inventory) ? data.inventory : []);
     await persistSales(Array.isArray(data.sales) ? data.sales : []);
     await persistExp(Array.isArray(data.expenses) ? data.expenses : []);
@@ -912,6 +986,79 @@ export default function App({ onLogout, userEmail }) {
     if (data.settings) await persistSettings(normalizeSettings(data.settings));
     setBackupStatus("Backup restored.");
     setTimeout(() => setBackupStatus(""), 4000);
+  };
+
+  const restoreSupabaseBackup = (snapshot) => {
+    if (!snapshot) return;
+    const c = snapshot.counts || {};
+    setDangerAction({
+      title: "Restore snapshot",
+      intro: `Restoring the snapshot from ${new Date(snapshot.createdAt).toLocaleString()} replaces all current local data with the records below.`,
+      counts: [
+        { label: "Inventory", value: `${c.inventory || 0} (now ${inventory.length})` },
+        { label: "Sales", value: `${c.sales || 0} (now ${sales.length})` },
+        { label: "Expenses", value: `${c.expenses || 0} (now ${expenses.length})` },
+        { label: "Subscriptions", value: `${c.subs || 0} (now ${subs.length})` },
+        { label: "Notes", value: `${c.notes || 0} (now ${notes.length})` },
+      ],
+      keyword: "RESTORE",
+      confirmLabel: "Restore",
+      snapshot: true,
+      snapshotReason: "pre-restore",
+      run: () => applySupabaseBackup(snapshot),
+    });
+  };
+
+  const requestReplaceImport = () => {
+    setDangerAction({
+      title: "Replace all data",
+      intro: "Replace import overwrites every current record with the contents of the file you choose next. There is no merge.",
+      counts: [
+        { label: "Inventory", value: inventory.length },
+        { label: "Sales", value: sales.length },
+        { label: "Expenses", value: expenses.length },
+        { label: "Subscriptions", value: subs.length },
+        { label: "Notes", value: notes.length },
+      ],
+      keyword: "REPLACE",
+      confirmLabel: "Choose file & replace",
+      snapshot: true,
+      snapshotReason: "pre-replace",
+      run: () => { importBackup("replace"); },
+    });
+  };
+
+  const requestClearAll = () => {
+    setDangerAction({
+      title: "Clear all data",
+      intro: "This permanently removes inventory, sales, and expenses from this account.",
+      counts: [
+        { label: "Inventory", value: inventory.length },
+        { label: "Sales", value: sales.length },
+        { label: "Expenses", value: expenses.length },
+      ],
+      keyword: "DELETE",
+      confirmLabel: "Clear all data",
+      snapshot: true,
+      snapshotReason: "pre-clear",
+      run: async () => { await persistInv([]); await persistSales([]); await persistExp([]); },
+    });
+  };
+
+  const confirmDangerAction = async () => {
+    if (!dangerAction) return;
+    const action = dangerAction;
+    setDangerBusy(true);
+    try {
+      if (action.snapshot && supabase) {
+        const backedUp = await createSupabaseBackup(action.snapshotReason || "pre-action");
+        if (!backedUp) return;
+      }
+      await action.run();
+    } finally {
+      setDangerBusy(false);
+      setDangerAction(null);
+    }
   };
 
   useEffect(() => {
@@ -1658,6 +1805,19 @@ export default function App({ onLogout, userEmail }) {
   const mobileMoreNavItems = orderedNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
   const activeNavId = page === "subs" ? "expenses" : ["health", "backup"].includes(page) ? "settings" : page;
   const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === activeNavId);
+  // Alert severity per nav item: 3 = critical (red), 2 = warning (amber), 1 = info (blue), 0 = none.
+  const navAlertSeverity = (id) => {
+    if (id === "settings" && (health.issues > 0 || health.warnings > 0 || health.actions > 0)) {
+      return health.issues > 0 ? 3 : health.warnings > 0 ? 2 : 1;
+    }
+    if (id === "expenses" && subStats.overdue.length > 0) return 3;
+    if (id === "dashboard" && upcomingPreorders.length > 0) return 1;
+    return 0;
+  };
+  const severityColor = (s) => (s >= 3 ? "#ef4444" : s === 2 ? "#f59e0b" : s === 1 ? "#60a5fa" : null);
+  // Roll hidden (More-menu) nav alerts onto the More button using the highest severity.
+  const mobileMoreSeverity = mobileMoreNavItems.reduce((max, n) => Math.max(max, navAlertSeverity(n.id)), 0);
+  const mobileMoreAlertColor = severityColor(mobileMoreSeverity);
   const renderNavIcon = (n) => {
     if (n.id === "pricing") {
       return (
@@ -1676,9 +1836,7 @@ export default function App({ onLogout, userEmail }) {
   const renderNavButton = (n, zone) => (
     <button key={n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: isMobile ? 38 : 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: isMobile ? "pointer" : "grab", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#56627a", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       {renderNavIcon(n)}
-      {n.id === "expenses" && subStats.overdue.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#ef4444" }} />}
-      {n.id === "dashboard" && upcomingPreorders.length > 0 && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: "#60a5fa" }} />}
-      {n.id === "settings" && (health.issues > 0 || health.warnings > 0 || health.actions > 0) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: health.issues > 0 ? "#ef4444" : health.warnings > 0 ? "#f59e0b" : "#60a5fa" }} />}
+      {severityColor(navAlertSeverity(n.id)) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: severityColor(navAlertSeverity(n.id)) }} />}
     </button>
   );
 
@@ -1729,6 +1887,10 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Inventory row (mobile + desktop) ───
+  const sampleTag = (record) => isDemoRecord(record) ? (
+    <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 999, background: "#241a08", border: "1px solid #92400e66", color: "#fbbf24", fontSize: 9, fontWeight: 800, letterSpacing: 0.3, verticalAlign: "middle", whiteSpace: "nowrap" }}>SAMPLE</span>
+  ) : null;
+
   const invRow = (item, isGroupChild, index = 0) => {
     if (isMobile) {
       return (
@@ -1736,7 +1898,7 @@ export default function App({ onLogout, userEmail }) {
           <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -1761,7 +1923,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 5, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...(isGroupChild ? childAccent : {}) }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}</div>{item.brand && <div style={{ fontSize: 10, color: "#7c8aa0" }}>{item.brand}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
@@ -1822,7 +1984,7 @@ export default function App({ onLogout, userEmail }) {
           <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={{ ...cb, marginTop: 3 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}{sampleTag(s)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(s.salePrice)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -1842,7 +2004,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 4, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer" }}>
         <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
-        <div><span style={{ color: "#e5e7eb" }}>{s.name}</span><div style={{ fontSize: 10, color: "#56627a" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
+        <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 10, color: "#56627a" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}><PlatformBadge platform={s.platform} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "center" }}>{s.size||"OS"}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
@@ -2007,9 +2169,11 @@ export default function App({ onLogout, userEmail }) {
             <button
               onClick={() => setMobileNavMoreOpen((v) => !v)}
               title="More"
+              aria-label={mobileMoreAlertColor ? "More (alerts need attention)" : "More"}
               style={{ width: 42, height: 38, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: mobileMoreActive || mobileNavMoreOpen ? "#1e293b" : "transparent", color: mobileMoreActive || mobileNavMoreOpen ? "#60a5fa" : "#56627a", position: "relative", flexShrink: 0 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12h.01 M19 12h.01 M5 12h.01" /></svg>
+              {mobileMoreAlertColor && !mobileNavMoreOpen && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: mobileMoreAlertColor }} />}
             </button>
             {mobileNavMoreOpen && (
               <div style={{ position: "fixed", left: 10, right: 10, bottom: 66, zIndex: 160, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 8, display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 6, boxShadow: "0 -12px 28px rgba(0,0,0,0.36)" }}>
@@ -2017,6 +2181,7 @@ export default function App({ onLogout, userEmail }) {
                   <button key={n.id} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: "9px 10px", borderRadius: 8, border: "1px solid #232c3c", background: activeNavId === n.id ? "#1e293b" : "#0d1117", color: activeNavId === n.id ? "#93c5fd" : "#d1d5db", fontFamily: "inherit", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d={n.icon} /></svg>
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{navLabels[n.id] || n.id}</span>
+                    {severityColor(navAlertSeverity(n.id)) && <span style={{ marginLeft: "auto", width: 7, height: 7, borderRadius: "50%", background: severityColor(navAlertSeverity(n.id)), flexShrink: 0 }} />}
                   </button>
                 ))}
               </div>
@@ -2041,13 +2206,35 @@ export default function App({ onLogout, userEmail }) {
           </div>
         )}
 
+        {/* SAMPLE DATA BANNER */}
+        {hasSampleData && (
+          <div style={{ margin: pagePad, marginBottom: 0, background: "#241a08", border: "1px solid #92400e66", borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 12, color: "#fbbf24", fontWeight: 700 }}>Sample data is loaded. These records are tagged SAMPLE and are not real sales.</span>
+            <button onClick={removeSampleData} style={{ ...ghostBtn, padding: "6px 12px", fontSize: 12, color: "#fca5a5" }}>Remove sample data</button>
+          </div>
+        )}
+
+        {/* FIRST-RUN / EMPTY INSTALL */}
+        {page === "dashboard" && isFirstRun && (
+          <div style={{ padding: pagePad, paddingBottom: 0 }}>
+            <EmptyState
+              title="Welcome to ArchiveDash"
+              hint="Start tracking your reseller P&L right away, or explore the dashboard with sample inventory, sales, and expenses you can remove anytime."
+              actions={[
+                { label: "Explore with sample data", primary: true, onClick: loadSampleData },
+                { label: "Start clean", onClick: dismissFirstRun },
+              ]}
+            />
+          </div>
+        )}
+
         {/* DASHBOARD */}
         {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, ebayImports, setEbayQueueOpen, loadEbayImports, gmailImports, setGmailQueueOpen, loadGmailImports, upcomingPreorderGroups, upcomingPreorders, setPage, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
         {/* INVENTORY */}
         {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
-        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, connectEbay, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* PRICING */}
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
@@ -2228,8 +2415,8 @@ export default function App({ onLogout, userEmail }) {
                         {n.pinned && <span style={{ fontSize: 9, color: "#fbbf24" }}>●</span>}
                         {n.locked && <span title="Locked" aria-label="Locked" style={{ fontSize: 11, color: "#93c5fd", lineHeight: 1 }}>🔒</span>}
                         <div style={{ fontSize: 13, color: isActive ? "#f3f6fb" : "#d1d5db", fontWeight: isActive ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title || "Untitled"}</div>
-                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↑</button>
-                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: "1px 5px", fontSize: 10 }}>↓</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: "5px 7px", fontSize: 12, minWidth: 28, minHeight: 28 }}>↑</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: "5px 7px", fontSize: 12, minWidth: 28, minHeight: 28 }}>↓</button>
                       </div>
                       <div style={{ fontSize: 9, color: "#56627a", marginTop: 2 }}>{dateStr}</div>
                     </div>
@@ -2247,11 +2434,15 @@ export default function App({ onLogout, userEmail }) {
                 </div>
               ) : (
                 <>
-                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-                    <input value={activeNote.title} disabled={Boolean(activeNote.locked)} onChange={(e) => updateNote(activeNote.id, { title: e.target.value })} placeholder="Note title" style={{ ...inp, flex: 1, minWidth: 200, fontSize: 15, fontWeight: 600, opacity: activeNote.locked ? 0.72 : 1, cursor: activeNote.locked ? "not-allowed" : "text" }} />
-                    <button onClick={() => toggleLockNote(activeNote.id)} title={activeNote.locked ? "Unlock editing" : "Lock editing"} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: activeNote.locked ? "#93c5fd" : "#9ca3af", border: activeNote.locked ? "1px solid #2563eb66" : ghostBtn.border }}>{activeNote.locked ? "Locked" : "Lock"}</button>
-                    <button onClick={() => togglePinNote(activeNote.id)} title={activeNote.pinned ? "Unpin" : "Pin"} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: activeNote.pinned ? "#fbbf24" : "#9ca3af" }}>{activeNote.pinned ? "★" : "☆"}</button>
-                    <button onClick={() => setConfirmDel({ type: "note", id: activeNote.id, name: activeNote.title || "Untitled" })} style={{ ...ghostBtn, padding: "7px 10px", fontSize: 12, color: "#f87171" }}>Delete</button>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <input value={activeNote.title} disabled={Boolean(activeNote.locked)} onChange={(e) => updateNote(activeNote.id, { title: e.target.value })} placeholder="Note title" style={{ ...inp, flex: 1, minWidth: 200, minHeight: 40, fontSize: 15, fontWeight: 600, opacity: activeNote.locked ? 0.72 : 1, cursor: activeNote.locked ? "not-allowed" : "text" }} />
+                    {/* Routine note controls grouped together */}
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button onClick={() => toggleLockNote(activeNote.id)} title={activeNote.locked ? "Unlock editing" : "Lock editing"} style={{ ...ghostBtn, padding: "9px 14px", minHeight: 40, minWidth: 44, fontSize: 13, color: activeNote.locked ? "#93c5fd" : "#9ca3af", border: activeNote.locked ? "1px solid #2563eb66" : ghostBtn.border }}>{activeNote.locked ? "Locked" : "Lock"}</button>
+                      <button onClick={() => togglePinNote(activeNote.id)} title={activeNote.pinned ? "Unpin" : "Pin"} style={{ ...ghostBtn, padding: "9px 14px", minHeight: 40, minWidth: 44, fontSize: 13, color: activeNote.pinned ? "#fbbf24" : "#9ca3af" }}>{activeNote.pinned ? "★" : "☆"}</button>
+                    </div>
+                    {/* Destructive control separated from routine controls */}
+                    <button onClick={() => setConfirmDel({ type: "note", id: activeNote.id, name: activeNote.title || "Untitled" })} title="Delete note" style={{ ...ghostBtn, marginLeft: "auto", padding: "9px 14px", minHeight: 40, minWidth: 44, fontSize: 13, color: "#f87171", background: "#2a1a1d", border: "1px solid #ef444444" }}>Delete</button>
                   </div>
                   <div style={{ flex: 1, background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}>
                     <NotepadEditor note={activeNote} onUpdate={(changes) => updateNote(activeNote.id, changes)} isMobile={isMobile} templates={userTemplates || []} onManageTemplates={() => setTplManagerOpen(true)} onExport={() => exportNoteTxt(activeNote)} />
@@ -2273,7 +2464,7 @@ export default function App({ onLogout, userEmail }) {
             <button onClick={() => setPage("health")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>System Health</button>
             <button onClick={() => setPage("backup")} style={ghostBtn}>Backup & Restore</button>
           </div>
-          <HealthPage ctx={{ pagePad: 0, isMobile, health, loadEbayImports, loadGmailImports, supabase, ebayBusy, gmailBusy, ebayImports, gmailImports, setPage, setEbayQueueOpen, setGmailQueueOpen, syncEbayOrders, syncGmailInventory, inventory, sales }} />
+          <HealthPage ctx={{ pagePad: 0, isMobile, health, loadEbayImports, loadGmailImports, supabase, ebayBusy, gmailBusy, ebayStatus, gmailStatus, ebayImports, gmailImports, setPage, setEbayQueueOpen, setGmailQueueOpen, syncEbayOrders, syncGmailInventory, inventory, sales }} />
         </div>)}
 
         {/* ══ BACKUP ══ */}
@@ -2284,72 +2475,11 @@ export default function App({ onLogout, userEmail }) {
             <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
             <button onClick={() => setPage("backup")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Backup & Restore</button>
           </div>
-          <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#f3f6fb" }}>Backup & Restore</h3>
-          <p style={{ margin: "0 0 20px", fontSize: 13, color: "#56627a" }}>Export or import your data.</p>
-          {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.1fr) minmax(320px, 0.9fr)", gap: 14, alignItems: "start" }}>
-          <div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Weekly Supabase backup</div>
-                <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Saves a full snapshot when ArchiveDash opens after 7 days.</p>
-              </div>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer" }}>
-                <input type="checkbox" checked={backupSettings.autoWeekly} onChange={(e) => updateBackupSettings({ autoWeekly: e.target.checked })} style={cb} />
-                Enabled
-              </label>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Destination<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>Supabase</span></div>
-              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Last backup<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backupSettings.lastRunAt ? new Date(backupSettings.lastRunAt).toLocaleString() : "Never"}</span></div>
-              <label style={{ fontSize: 12, color: "#7c8aa0" }}>Keep snapshots
-                <input type="number" min="1" max="52" value={backupSettings.retention} onChange={(e) => updateBackupSettings({ retention: Math.max(1, Math.min(52, Number(e.target.value) || DEFAULT_BACKUP_SETTINGS.retention)) })} style={{ ...inp, marginTop: 5, maxWidth: 90 }} />
-              </label>
-              <div style={{ fontSize: 12, color: "#7c8aa0" }}>Saved snapshots<br /><span style={{ color: "#e5e7eb", fontWeight: 600 }}>{backups.length}</span></div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button onClick={() => createSupabaseBackup("manual")} disabled={!supabase} style={primaryBtn}>Run backup now</button>
-              {!supabase && <span style={{ fontSize: 12, color: "#f59e0b", alignSelf: "center" }}>Supabase is not configured.</span>}
-            </div>
-          </div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Export</div>
-            <p style={{ fontSize: 12, color: "#7c8aa0", margin: "0 0 12px" }}>{inventory.length} items · {sales.length} sales · {expenses.length} expenses · {subs.length} subs · {notes.length} notes</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={exportJSON} style={primaryBtn}>Download JSON</button><button onClick={exportCSV} style={ghostBtn}>Export Sales CSV</button></div>
-          </div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Import</div>
-            <p style={{ fontSize: 12, color: "#7c8aa0", margin: "0 0 12px" }}>Merge adds new records safely. Replace overwrites everything.</p>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={() => importBackup("merge")} style={primaryBtn}>Merge import (safe)</button><button onClick={() => { if (confirm("Replace ALL data?")) importBackup("replace"); }} style={{ ...ghostBtn, color: "#f59e0b", border: "1px solid #f59e0b44" }}>Replace import</button></div>
-          </div>
-          </div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb" }}>Snapshot history</div>
-              <span style={{ fontSize: 11, color: "#56627a" }}>{backups.length} saved</span>
-            </div>
-            {backups.length === 0 ? (
-              <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: "26px 10px", background: "#0d1117", borderRadius: 10 }}>No Supabase snapshots yet.</div>
-            ) : backups.slice(0, 8).map((snapshot) => (
-              <div key={snapshot.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid #232c3c22" }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700 }}>{new Date(snapshot.createdAt).toLocaleString()}</div>
-                  <div style={{ color: "#7c8aa0", fontSize: 11 }}>{snapshot.counts?.inventory || 0} items - {snapshot.counts?.sales || 0} sales - {snapshot.counts?.notes || 0} notes</div>
-                </div>
-                <button onClick={() => restoreSupabaseBackup(snapshot)} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Restore</button>
-              </div>
-            ))}
-          </div>
-          </div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #ef444433", padding: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f87171", marginBottom: 4 }}>Danger Zone</div>
-            <button onClick={async () => { if (confirm("Delete ALL data?")) { await persistInv([]); await persistSales([]); await persistExp([]); } }} style={{ ...ghostBtn, color: "#f87171", border: "1px solid #ef444444" }}>Clear all data</button>
-          </div>
+          <BackupPage ctx={{ isMobile, backupStatus, backupSettings, updateBackupSettings, backups, createSupabaseBackup, supabase, inventory, sales, expenses, subs, notes, exportJSON, exportCSV, importBackup, restoreSupabaseBackup, requestReplaceImport, requestClearAll }} />
         </div>)}
 
         {/* SETTINGS */}
-        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, CUSTS, settings, persistSettings, setPage, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, onLogout, userEmail }} />}
+        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, CUSTS, settings, persistSettings, setPage, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}
@@ -2464,6 +2594,18 @@ export default function App({ onLogout, userEmail }) {
       {bulkEditExpOpen && <BulkEditExpModal items={expenses.filter((e) => selectedExp.has(e.id))} onSave={handleBulkEditExp} onClose={() => setBulkEditExpOpen(false)} />}
       {bulkEditSaleOpen && <BulkEditSaleModal items={sales.filter((s) => selectedSales.has(s.id))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} />}
       <ConfirmDialog open={!!confirmDel} msg={confirmDel?.type==="multi"||confirmDel?.type==="multi-exp"||confirmDel?.type==="multi-sale"?`Delete ${confirmDel.name}?`:`Delete "${confirmDel?.name}"?`} onConfirm={handleDelete} onCancel={() => setConfirmDel(null)} />
+      <DangerConfirmDialog
+        open={!!dangerAction}
+        title={dangerAction?.title}
+        intro={dangerAction?.intro}
+        counts={dangerAction?.counts}
+        keyword={dangerAction?.keyword}
+        confirmLabel={dangerAction?.confirmLabel}
+        snapshotNote={dangerAction?.snapshot && supabase ? "A Supabase snapshot will be saved before this runs." : ""}
+        busy={dangerBusy}
+        onConfirm={confirmDangerAction}
+        onCancel={() => { if (!dangerBusy) setDangerAction(null); }}
+      />
     </div>
   );
 }

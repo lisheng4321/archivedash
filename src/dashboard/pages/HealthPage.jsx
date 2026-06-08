@@ -1,4 +1,5 @@
 import { ghostBtn, primaryBtn } from "../shared.jsx";
+import { IntegrationPill } from "../shared/integrationState.jsx";
 
 export default function HealthPage({ ctx }) {
   const {
@@ -10,6 +11,8 @@ export default function HealthPage({ ctx }) {
     supabase,
     ebayBusy,
     gmailBusy,
+    ebayStatus,
+    gmailStatus,
     ebayImports,
     gmailImports,
     setPage,
@@ -20,6 +23,7 @@ export default function HealthPage({ ctx }) {
     inventory,
     sales,
   } = ctx;
+  const configured = !!supabase;
 
   return (<div style={{ padding: pagePad, maxWidth: 980 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
@@ -61,19 +65,27 @@ export default function HealthPage({ ctx }) {
               <div style={{ fontSize: 14, color: "#f3f6fb", fontWeight: 700, marginBottom: 10 }}>Queues</div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
                 <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
-                  <div style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 4 }}>eBay awaiting postage</div>
-                  <div style={{ fontSize: 24, color: ebayImports.length ? "#60a5fa" : "#f3f6fb", fontWeight: 800, marginBottom: 10 }}>{ebayImports.length}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: "#7c8aa0" }}>eBay awaiting postage</div>
+                    <IntegrationPill status={ebayStatus} busy={ebayBusy} configured={configured} />
+                  </div>
+                  <div style={{ fontSize: 24, color: ebayImports.length ? "#60a5fa" : "#f3f6fb", fontWeight: 800, marginBottom: ebayStatus ? 6 : 10 }}>{ebayImports.length}</div>
+                  {ebayStatus && <div style={{ fontSize: 11, color: "#7c8aa0", lineHeight: 1.4, marginBottom: 10 }}>{ebayStatus}</div>}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); }} style={{ ...primaryBtn, padding: "6px 10px", fontSize: 12 }}>Open Sales</button>
-                    <button onClick={syncEbayOrders} disabled={!supabase || ebayBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync</button>
+                    <button onClick={syncEbayOrders} disabled={!supabase || ebayBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync now</button>
                   </div>
                 </div>
                 <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
-                  <div style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 4 }}>Gmail inventory drafts</div>
-                  <div style={{ fontSize: 24, color: gmailImports.length ? "#60a5fa" : "#f3f6fb", fontWeight: 800, marginBottom: 10 }}>{gmailImports.length}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                    <div style={{ fontSize: 12, color: "#7c8aa0" }}>Gmail inventory drafts</div>
+                    <IntegrationPill status={gmailStatus} busy={gmailBusy} configured={configured} />
+                  </div>
+                  <div style={{ fontSize: 24, color: gmailImports.length ? "#60a5fa" : "#f3f6fb", fontWeight: 800, marginBottom: gmailStatus ? 6 : 10 }}>{gmailImports.length}</div>
+                  {gmailStatus && <div style={{ fontSize: 11, color: "#7c8aa0", lineHeight: 1.4, marginBottom: 10 }}>{gmailStatus}</div>}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                     <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); }} style={{ ...primaryBtn, padding: "6px 10px", fontSize: 12 }}>Open Inventory</button>
-                    <button onClick={syncGmailInventory} disabled={!supabase || gmailBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync</button>
+                    <button onClick={syncGmailInventory} disabled={!supabase || gmailBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync now</button>
                   </div>
                 </div>
               </div>

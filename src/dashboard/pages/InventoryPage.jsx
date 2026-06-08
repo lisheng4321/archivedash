@@ -1,4 +1,4 @@
-import { cb, currency, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
+import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
 
@@ -94,6 +94,16 @@ export default function InventoryPage({ ctx }) {
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
       </div>
 
+      {inventory.length === 0 ? (
+        <EmptyState
+          title="No inventory yet"
+          hint="Add your first item by hand, or import receipts from Gmail to build inventory automatically."
+          actions={[
+            { label: "+ Add inventory", primary: true, onClick: openAddInventory },
+            { label: gmailBusy ? "Syncing Gmail…" : "Import receipts from Gmail", disabled: gmailBusy, onClick: async () => { setGmailQueueOpen(true); await syncGmailInventory(); } },
+          ]}
+        />
+      ) : (
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 115px 0.7fr 80px 85px 100px 55px 130px", gap: 5, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
@@ -102,7 +112,7 @@ export default function InventoryPage({ ctx }) {
           </div>
         )}
         {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}
-        {groupedInv.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No inventory</div>}
+        {groupedInv.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No items match these filters.</div>}
         {groupedInv.map((item, idx) => {
           if (!item._group) return invRow(item, false, idx);
           const key = item.name;
@@ -115,6 +125,7 @@ export default function InventoryPage({ ctx }) {
           );
         })}
       </div>
+      )}
 
       {selectedInv.size > 0 && (
         <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#121a2b", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 10, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>

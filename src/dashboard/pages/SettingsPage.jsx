@@ -1,25 +1,65 @@
 import { useState } from "react";
 import { ghostBtn, inp, primaryBtn } from "../shared.jsx";
+import { IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
 
 const removeButton = {
   background: "none",
   border: "none",
   color: "#f87171",
   cursor: "pointer",
-  fontSize: 14,
-  padding: 0,
+  fontSize: 16,
+  lineHeight: 1,
+  padding: "6px 8px",
+  marginLeft: 2,
+  minWidth: 32,
+  minHeight: 32,
+  borderRadius: 6,
+};
+const confirmRemoveButton = {
+  background: "#ef4444",
+  border: "none",
+  color: "#fff",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 600,
+  padding: "6px 10px",
   marginLeft: 4,
+  minHeight: 32,
+  borderRadius: 6,
+};
+const keepButton = {
+  background: "#232c3c",
+  border: "1px solid #38415a",
+  color: "#cbd5e1",
+  cursor: "pointer",
+  fontSize: 12,
+  padding: "6px 10px",
+  marginLeft: 4,
+  minHeight: 32,
+  borderRadius: 6,
 };
 
 function ChipList({ items, onRemove, emptyLabel }) {
+  const [pending, setPending] = useState(null);
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-      {items.map((item) => (
-        <div key={item} style={{ display: "flex", alignItems: "center", gap: 4, background: "#232c3c", borderRadius: 6, padding: "5px 10px", fontSize: 13, color: "#e5e7eb" }}>
-          {item}
-          <button onClick={() => onRemove(item)} style={removeButton}>x</button>
-        </div>
-      ))}
+      {items.map((item) => {
+        const confirming = pending === item;
+        return (
+          <div key={item} style={{ display: "flex", alignItems: "center", gap: 4, background: confirming ? "#2a1a1d" : "#232c3c", border: confirming ? "1px solid #ef444455" : "1px solid transparent", borderRadius: 6, padding: "4px 8px 4px 10px", fontSize: 13, color: "#e5e7eb" }}>
+            {item}
+            {confirming ? (
+              <>
+                <span style={{ fontSize: 11, color: "#fca5a5", marginLeft: 4 }}>Remove?</span>
+                <button onClick={() => { onRemove(item); setPending(null); }} style={confirmRemoveButton} aria-label={`Confirm remove ${item}`}>Remove</button>
+                <button onClick={() => setPending(null)} style={keepButton} aria-label={`Keep ${item}`}>Keep</button>
+              </>
+            ) : (
+              <button onClick={() => setPending(item)} style={removeButton} aria-label={`Remove ${item}`} title={`Remove ${item}`}>x</button>
+            )}
+          </div>
+        );
+      })}
       {items.length === 0 && emptyLabel && <span style={{ fontSize: 12, color: "#56627a" }}>{emptyLabel}</span>}
     </div>
   );
@@ -56,8 +96,12 @@ export default function SettingsPage({ ctx }) {
     setGmailQueueOpen,
     setPage,
     settings,
+    supabase,
+    syncEbayOrders,
+    syncGmailInventory,
     userEmail,
   } = ctx;
+  const configured = !!supabase;
   const [newCat, setNewCat] = useState("");
   const [newPlat, setNewPlat] = useState("");
   const [newCust, setNewCust] = useState("");
@@ -93,29 +137,37 @@ export default function SettingsPage({ ctx }) {
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>eBay Connection</div>
-            <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect or refresh eBay here. Orders power Sales; active listings power Market Review.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb" }}>eBay Connection</span>
+              <IntegrationPill status={ebayStatus} busy={ebayBusy} configured={configured} />
+            </div>
+            <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect to set up the link; sync to pull recent orders. Orders power Sales; active listings power Market Review.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect / refresh eBay</button>
+            <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
+            <button onClick={syncEbayOrders} disabled={!configured || ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
             <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
           </div>
         </div>
-        {ebayStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{ebayStatus}</div>}
+        {ebayStatus && <div style={{ fontSize: 12, color: integrationTone({ status: ebayStatus, busy: ebayBusy, configured }).color }}>{ebayStatus}</div>}
         <div style={{ fontSize: 12, color: "#56627a" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Gmail Inventory Import</div>
-            <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect Gmail here. Review purchase confirmations from Inventory before adding stock.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb" }}>Gmail Inventory Import</span>
+              <IntegrationPill status={gmailStatus} busy={gmailBusy} configured={configured} />
+            </div>
+            <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect to set up the link; sync to scan recent receipts. Review purchase confirmations from Inventory before adding stock.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={connectGmail} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
+            <button onClick={syncGmailInventory} disabled={!configured || gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
             <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
           </div>
         </div>
-        {gmailStatus && <div style={{ fontSize: 12, color: "#93c5fd" }}>{gmailStatus}</div>}
+        {gmailStatus && <div style={{ fontSize: 12, color: integrationTone({ status: gmailStatus, busy: gmailBusy, configured }).color }}>{gmailStatus}</div>}
         <div style={{ fontSize: 12, color: "#56627a" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>

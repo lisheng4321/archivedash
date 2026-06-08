@@ -335,3 +335,25 @@ export const buildPricingReviews = ({ inventory = [], comps = SAMPLE_COMPS, prof
     };
   });
 };
+
+export const STALE_SYNC_DAYS = 7;
+
+// Classify the evidence behind a review's recommendation so the UI can label it
+// (Live, Stale, Sample, Manual) and avoid implying more confidence than the
+// underlying data supports. Freshness is passed in because lastSyncAt lives in
+// the page, not the engine.
+export const reviewEvidenceSource = (review, { lastSyncAt = "", currentDate } = {}) => {
+  if (!review) return "none";
+  const included = Array.isArray(review.included) ? review.included : [];
+  if (included.length) {
+    if (included.some((comp) => comp?.source === "sample")) return "sample";
+    if (!lastSyncAt) return "stale";
+    const synced = new Date(lastSyncAt);
+    if (Number.isNaN(synced.getTime())) return "stale";
+    const reviewDate = currentDate || new Date().toISOString().slice(0, 10);
+    const ageDays = Math.floor((new Date(`${reviewDate}T00:00:00`) - synced) / DAY_MS);
+    return ageDays > STALE_SYNC_DAYS ? "stale" : "live";
+  }
+  const manualPrice = review.currentPriceSource === "manualOverride" || review.currentPriceSource === "manualListing";
+  return manualPrice ? "manual" : "none";
+};

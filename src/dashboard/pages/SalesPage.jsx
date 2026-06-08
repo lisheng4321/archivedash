@@ -1,4 +1,4 @@
-import { cb, currency, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
+import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
 
@@ -11,6 +11,7 @@ export default function SalesPage({ ctx }) {
     setBulkEditSaleOpen,
     setConfirmDel,
     syncEbayOrders,
+    connectEbay,
     ebayBusy,
     setEbayQueueOpen,
     ebayImports,
@@ -90,6 +91,16 @@ export default function SalesPage({ ctx }) {
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{filteredSales.length} shown</span>
       </div>
 
+      {sales.length === 0 ? (
+        <EmptyState
+          title="No sales yet"
+          hint="Record your first sale by hand, or connect eBay to pull in orders awaiting postage automatically."
+          actions={[
+            { label: "+ Add Sale", primary: true, onClick: () => setAddSaleOpen(true) },
+            connectEbay ? { label: ebayBusy ? "Connecting…" : "Connect eBay", disabled: ebayBusy, onClick: connectEbay } : null,
+          ]}
+        />
+      ) : (
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px 1.8fr 0.8fr 55px 85px 75px 75px 75px 80px", gap: 4, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
@@ -98,9 +109,10 @@ export default function SalesPage({ ctx }) {
           </div>
         )}
         {mobileSelectAll(selectedSales.size === filteredSales.length && filteredSales.length > 0, toggleAllSales, filteredSales.length)}
-        {filteredSales.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No sales</div>}
+        {filteredSales.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No sales match these filters.</div>}
         {filteredSales.map((s, idx) => saleRow(s, idx))}
       </div>
+      )}
     </div>
   );
 }

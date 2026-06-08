@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { isSupabaseConfigured, supabase } from "../../supabase.js";
-import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices } from "../../pricing/pricingEngine.js";
-import { currency, computeProfit, estimateEbayFee, ghostBtn, KPI, primaryBtn, today } from "../shared.jsx";
+import { buildPricingProfiles, buildPricingReviews, inventoryWithEbayListingPrices, reviewEvidenceSource } from "../../pricing/pricingEngine.js";
+import { currency, computeProfit, EmptyState, estimateEbayFee, ghostBtn, KPI, primaryBtn, today } from "../shared.jsx";
 
 const panel = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8 };
 const muted = { color: "#7c8aa0" };
@@ -299,6 +299,38 @@ const badge = (label, tone) => (
   </span>
 );
 
+const evidenceTone = {
+  live: { label: "Live", bg: "#0e2a3b", fg: "#67e8f9" },
+  stale: { label: "Stale", bg: "#3b2f1f", fg: "#fbbf24" },
+  sample: { label: "Sample", bg: "#2f243d", fg: "#c4b5fd" },
+  manual: { label: "Manual", bg: "#1e293b", fg: "#93c5fd" },
+};
+
+const evidenceHint = {
+  live: "Recommendation is based on freshly synced live eBay comps.",
+  stale: "Recommendation is based on cached comps. Sync live eBay comps to confirm.",
+  sample: "Recommendation is based on sample data, not live market comps.",
+  manual: "Recommendation is based on a manual price, not live comps.",
+};
+
+const evidencePill = (source) => {
+  const tone = evidenceTone[source];
+  if (!tone) return null;
+  return (
+    <span title={evidenceHint[source]} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 800, lineHeight: 1.05, whiteSpace: "nowrap" }}>
+      <span style={{ width: 6, height: 6, borderRadius: 999, background: tone.fg }} />
+      {tone.label}
+    </span>
+  );
+};
+
+const evidenceQualifier = (source) => {
+  if (source === "stale") return "Based on cached comps - sync live eBay comps to confirm this recommendation.";
+  if (source === "sample") return "Based on sample data, not live market comps.";
+  if (source === "manual") return "Based on a manual price. No live comps support this recommendation yet.";
+  return "No live comps yet - sync eBay comps for a confident recommendation.";
+};
+
 const suggestionText = (review) => {
   if (review.action === "hold") return "Hold";
   if (review.action === "missing_price") return "Add price";
@@ -531,6 +563,7 @@ export default function PricingPage({ ctx }) {
   const excludedCount = reviews.reduce((sum, review) => sum + review.excluded.length, 0);
   const hiddenCount = baseProfiles.filter((profile) => tweaks[profile.id]?.hidden).length;
   const lastSyncAt = syncMeta.lastSyncAt || "";
+  const reviewDate = today();
 
   const markSyncComplete = (message) => {
     const nextMeta = { lastSyncAt: new Date().toISOString() };
@@ -742,11 +775,95 @@ export default function PricingPage({ ctx }) {
     markSyncComplete(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
   };
 
+  const addCardSection = showAddCard ? (
+    <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <div>
+          <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>Add market card</div>
+          <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
+          <button onClick={() => setCardSource("inventory")} style={{ ...ghostBtn, background: cardSource === "inventory" ? "#1e293b" : undefined, color: cardSource === "inventory" ? "#93c5fd" : undefined }}>From inventory</button>
+        </div>
+      </div>
+      {cardSource === "inventory" && (
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Inventory item
+          <select value={cardDraft.inventoryId} onChange={(e) => applyInventoryCard(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
+            <option value="">Select item</option>
+            {inventory.map((item) => {
+              const profileId = pricingProfileIdForName(item.name);
+              return <option key={item.id} value={item.id}>{item.name}{tweaks[profileId]?.hidden ? " (hidden)" : ""}</option>;
+            })}
+          </select>
+        </label>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.2fr 0.7fr", gap: 10, marginTop: cardSource === "inventory" ? 10 : 0 }}>
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Card name
+          <input value={cardDraft.name} onChange={(e) => setCardDraft((prev) => ({ ...prev, name: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Product name" />
+        </label>
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Search query
+          <input value={cardDraft.query} onChange={(e) => setCardDraft((prev) => ({ ...prev, query: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="eBay search terms" />
+        </label>
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Current price
+          <input type="number" step="0.01" value={cardDraft.currentPrice} onChange={(e) => setCardDraft((prev) => ({ ...prev, currentPrice: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Optional" />
+        </label>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Must include
+          <input value={cardDraft.required} onChange={(e) => setCardDraft((prev) => ({ ...prev, required: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="comma, separated, terms" />
+        </label>
+        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+          Exclude
+          <input value={cardDraft.exclude} onChange={(e) => setCardDraft((prev) => ({ ...prev, exclude: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} />
+        </label>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+        <button onClick={() => setShowAddCard(false)} style={ghostBtn}>Cancel</button>
+        <button onClick={addCustomCard} style={primaryBtn}>{cardSource === "inventory" ? "Open card" : "Add card"}</button>
+      </div>
+    </div>
+  ) : null;
+
   if (!selected) {
-    return <div style={{ padding: pagePad, color: "#7c8aa0" }}>No pricing profiles yet.</div>;
+    return (
+      <div style={{ padding: pagePad }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Market Review</h2>
+            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>Inventory-driven AU active comp matching</p>
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
+            <button onClick={() => { setCardSource("manual"); setShowAddCard((value) => !value); }} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
+          </div>
+        </div>
+        {syncStatus && (
+          <div style={{ margin: "-6px 0 14px" }}>
+            <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>
+          </div>
+        )}
+        {addCardSection}
+        <EmptyState
+          title="No products to price yet"
+          hint="Add inventory or a manual market card, then sync eBay comps to see live AU pricing."
+          actions={[
+            { label: "+ Add a manual card", primary: true, onClick: () => { setCardSource("manual"); setShowAddCard(true); } },
+            { label: syncBusy ? "Syncing…" : "Sync comps", disabled: syncBusy, onClick: syncEbayListingsAndComps },
+          ]}
+        />
+      </div>
+    );
   }
 
   const tone = statusStyle(selected.status);
+  const selectedEvidence = reviewEvidenceSource(selected, { lastSyncAt, currentDate: reviewDate });
+  const selectedLive = selectedEvidence === "live";
   const selectedTweak = tweaks[selected.profile.id] || {};
   const priceLabel = selected.currentPriceSource === "manualListing" ? "Manual match" : selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
   const selectedPrice = selected.currentPriceSource === "notListed" ? "Not listed" : selected.currentPrice ? currency(selected.currentPrice) : "Missing";
@@ -787,60 +904,7 @@ export default function PricingPage({ ctx }) {
         <KPI label="Rejected comps" value={excludedCount} accent={excludedCount ? "#f87171" : undefined} />
       </div>
 
-      {showAddCard && (
-        <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-            <div>
-              <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>Add market card</div>
-              <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
-              <button onClick={() => setCardSource("inventory")} style={{ ...ghostBtn, background: cardSource === "inventory" ? "#1e293b" : undefined, color: cardSource === "inventory" ? "#93c5fd" : undefined }}>From inventory</button>
-            </div>
-          </div>
-          {cardSource === "inventory" && (
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Inventory item
-              <select value={cardDraft.inventoryId} onChange={(e) => applyInventoryCard(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
-                <option value="">Select item</option>
-                {inventory.map((item) => {
-                  const profileId = pricingProfileIdForName(item.name);
-                  return <option key={item.id} value={item.id}>{item.name}{tweaks[profileId]?.hidden ? " (hidden)" : ""}</option>;
-                })}
-              </select>
-            </label>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.2fr 0.7fr", gap: 10, marginTop: cardSource === "inventory" ? 10 : 0 }}>
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Card name
-              <input value={cardDraft.name} onChange={(e) => setCardDraft((prev) => ({ ...prev, name: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Product name" />
-            </label>
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Search query
-              <input value={cardDraft.query} onChange={(e) => setCardDraft((prev) => ({ ...prev, query: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="eBay search terms" />
-            </label>
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Current price
-              <input type="number" step="0.01" value={cardDraft.currentPrice} onChange={(e) => setCardDraft((prev) => ({ ...prev, currentPrice: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Optional" />
-            </label>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Must include
-              <input value={cardDraft.required} onChange={(e) => setCardDraft((prev) => ({ ...prev, required: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="comma, separated, terms" />
-            </label>
-            <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-              Exclude
-              <input value={cardDraft.exclude} onChange={(e) => setCardDraft((prev) => ({ ...prev, exclude: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} />
-            </label>
-          </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-            <button onClick={() => setShowAddCard(false)} style={ghostBtn}>Cancel</button>
-            <button onClick={addCustomCard} style={primaryBtn}>{cardSource === "inventory" ? "Open card" : "Add card"}</button>
-          </div>
-        </div>
-      )}
+      {addCardSection}
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "320px minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10, position: isMobile ? "static" : "sticky", top: 12, maxHeight: isMobile ? "none" : "calc(100vh - 190px)", minHeight: 0 }}>
@@ -867,17 +931,22 @@ export default function PricingPage({ ctx }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: isMobile ? "visible" : "auto", paddingRight: isMobile ? 0 : 3, minHeight: 0 }}>
           {visibleReviews.map((review) => {
             const reviewTone = statusStyle(review.status);
+            const reviewEvidence = reviewEvidenceSource(review, { lastSyncAt, currentDate: reviewDate });
+            const reviewLive = reviewEvidence === "live";
             const isSelected = selected.profile.id === review.profile.id;
             return (
               <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#121a2b", borderColor: isSelected ? "#2563eb66" : "#232c3c", fontFamily: "inherit" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px", gap: 8, alignItems: "start", marginBottom: 8 }}>
                   <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
-                  {badge(review.status, reviewTone)}
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                    {badge(review.status, reviewTone)}
+                    {evidencePill(reviewEvidence)}
+                  </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 50px minmax(0, 1fr)", gap: 8, fontSize: 11, alignItems: "start" }}>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "manualListing" ? "Manual match" : review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
                   <div style={{ minWidth: 0 }}><div style={smallCaps}>Rank</div><div style={{ color: review.rank ? "#e5e7eb" : "#7c8aa0", fontWeight: 800, overflowWrap: "anywhere" }}>{rankText(review)}</div></div>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere" }}>{suggestionText(review)}</div></div>
+                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere", opacity: reviewLive ? 1 : 0.55 }}>{suggestionText(review)}</div></div>
                 </div>
               </button>
             );
@@ -894,6 +963,7 @@ export default function PricingPage({ ctx }) {
                   <h3 style={{ margin: 0, color: "#f3f6fb", fontSize: 16, fontWeight: 800 }}>{selected.profile.name}</h3>
                   {badge(selected.status, tone)}
                   {badge(`${selected.confidence} confidence`, selected.confidence === "High" ? { bg: "#123326", fg: "#86efac" } : selected.confidence === "Medium" ? { bg: "#3b2f1f", fg: "#fbbf24" } : { bg: "#3b1f2b", fg: "#f9a8d4" })}
+                  {evidencePill(selectedEvidence)}
                 </div>
                 <div style={{ color: "#7c8aa0", fontSize: 12 }}>{selected.profile.strategy}</div>
               </div>
@@ -903,10 +973,13 @@ export default function PricingPage({ ctx }) {
               <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
               <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
               <div><div style={smallCaps}>Rank</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{rankText(selected)}</div></div>
-              <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800 }}>{suggestionText(selected)}</div></div>
+              <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800, opacity: selectedLive ? 1 : 0.55 }}>{suggestionText(selected)}</div></div>
             </div>
 
             <div style={{ color: "#9ca3af", fontSize: 13, lineHeight: 1.5 }}>{selected.reason}</div>
+            {!selectedLive && (
+              <div style={{ marginTop: 8, color: "#7c8aa0", fontSize: 12, lineHeight: 1.45 }}>{evidenceQualifier(selectedEvidence)}</div>
+            )}
             {selected.matchedEbayListing && (
               <div style={{ marginTop: 8, color: "#93c5fd", fontSize: 12, lineHeight: 1.45 }}>
                 Matched eBay listing: {selected.matchedEbayListing.ebayListingTitle || selected.matchedEbayListing.name || "Untitled listing"}
