@@ -1,22 +1,80 @@
 # ArchiveDash
 
-Reseller P&L tracking dashboard. Built with React + Supabase. Hosted on Vercel.
+ArchiveDash is a practical reseller P&L dashboard for tracking inventory, sales, expenses, subscriptions, customer activity, notes, backup/restore workflows, and pricing review evidence.
 
-## Setup (15 min)
+It is built with React + Vite, backed by Supabase, and deployed on Vercel.
 
-### Step 1: Supabase (database + auth)
+## What It Covers
 
-1. Go to [supabase.com](https://supabase.com) → **Start your project** (free tier)
-2. Create a new project. Pick any name/password/region
-3. Wait for the project to finish provisioning (~2 min)
-4. Go to **SQL Editor** (left sidebar) → **New query**
-5. Paste the contents of `supabase-setup.sql` → click **Run**
-6. Go to **Settings** → **API** (left sidebar)
-7. Copy your **Project URL** and **anon public** key — you'll need these next
+- Inventory tracking with categories, platforms, preorder flags, aging, grouped sizes, and bulk actions.
+- Sales history with profit, fees, customer attribution, eBay order imports, and CSV export.
+- Expenses and subscriptions with recurring-cost tracking.
+- Customers, reports, dashboard KPIs, and an eBay fee calculator.
+- Multi-note Notepad with locking, pinning, templates, export, and a floating quick-note panel.
+- Backup and Restore with JSON export, merge import, typed confirmations for destructive actions, Supabase snapshots, and a separate Danger Zone.
+- Market Review with live/stale/manual evidence labels and confidence-aware pricing suggestions.
+- eBay and Gmail integration surfaces for sales imports, inventory receipt imports, and pricing comps.
 
-### Fix Supabase Security Advisor findings
+## Quick Setup
 
-If Advisor reports that `public.gmail_oauth_states` or `public.gmail_tokens` has RLS disabled, apply the included migration after logging in with the Supabase CLI:
+### 1. Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a project.
+2. Open the Supabase SQL Editor.
+3. Run `supabase-setup.sql`.
+4. Open Settings > API.
+5. Copy the Project URL and anon public key.
+
+### 2. Deploy To Vercel
+
+1. Push this repo to GitHub.
+2. Import it into [Vercel](https://vercel.com).
+3. Add these environment variables:
+
+```text
+VITE_SUPABASE_URL=your-project-url
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+4. Deploy.
+5. Open the deployed app, sign up, confirm your email, and log in.
+
+### 3. Import Existing Data
+
+In ArchiveDash, go to Settings > Backup & Restore.
+
+- Use **Merge import (safe)** to add data from a backup without clearing current data.
+- Use **Replace import** only when you intend to overwrite current data. It requires typed confirmation.
+- Use **Clear all data** only when resetting inventory, sales, and expenses. It requires typed confirmation.
+
+When Supabase backups are configured, destructive restore/replace/clear flows save a pre-action snapshot first.
+
+## Local Development
+
+```bash
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Fill `.env` with your Supabase URL and anon key.
+
+On Windows, if Vite has trouble loading local config from this workspace, use:
+
+```bash
+npm run dev:local
+npm run build:local
+```
+
+Standard production build:
+
+```bash
+npm run build
+```
+
+## Supabase Security
+
+If Supabase Security Advisor reports OAuth token/state tables with weak access controls, apply the included migrations after linking the project with the Supabase CLI:
 
 ```bash
 npx supabase login
@@ -24,103 +82,94 @@ npx supabase db push --linked
 npx supabase db advisors --linked --type security
 ```
 
-The migration enables RLS on the Gmail OAuth tables, removes browser-role access, and keeps service-role access for the Edge Functions that manage OAuth tokens.
+The migrations enable RLS on OAuth state/token tables, remove browser-role access to stored integration tokens, and keep service-role access for Edge Functions.
 
-### Step 2: Deploy to Vercel
+## eBay And Gmail Integrations
 
-1. Push this folder to a GitHub repo (public or private)
-2. Go to [vercel.com](https://vercel.com) → **Add New Project** → Import your repo
-3. In the **Environment Variables** section, add:
-   - `VITE_SUPABASE_URL` = your Project URL from step 6
-   - `VITE_SUPABASE_ANON_KEY` = your anon key from step 6
-4. Click **Deploy**
-5. Your app is live at `your-project.vercel.app`
+ArchiveDash uses Supabase Edge Functions for eBay and Gmail flows.
 
-### Step 3: Create your account
-
-1. Open your Vercel URL
-2. Click **Sign up** → enter your email + password
-3. Check your email for a confirmation link
-4. Click the link → go back to the app → **Log in**
-
-### Step 4: Import your data
-
-1. Log in to the app
-2. Go to **Backup** → **Merge import (safe)**
-3. Upload your `archivedash-full-import.json` backup file
-4. All 1,372+ sales, inventory, and expenses will be imported
-
-## Local development
-
-```bash
-cp .env.example .env
-# Fill in your Supabase URL and anon key in .env
-npm install
-npm run dev
-```
-
-On Windows, if Vite has trouble loading the local config from this workspace, use:
-
-```bash
-npm run dev:local
-npm run build:local
-```
-
-## Live eBay pricing comps
-
-The Pricing page can fetch live AU active comps through the `ebay-sync-pricing-comps` Supabase Edge Function.
-
-Required Supabase Edge Function secrets:
-
-```bash
-EBAY_CLIENT_ID=your-ebay-client-id
-EBAY_CLIENT_SECRET=your-ebay-client-secret
-```
-
-Deploy the functions from the project folder:
+Useful eBay functions include:
 
 ```bash
 supabase functions deploy ebay-oauth-start
+supabase functions deploy ebay-oauth-callback
+supabase functions deploy ebay-sync-orders
 supabase functions deploy ebay-sync-listings
 supabase functions deploy ebay-sync-pricing-comps
 ```
 
-Reconnect eBay from Settings after deploying `ebay-oauth-start`; the listing sync needs the `sell.inventory.readonly` scope.
+Useful Gmail functions include:
 
-Sold comps are not live yet. eBay's official sold-history route is Marketplace Insights, which requires limited-release access from eBay.
+```bash
+supabase functions deploy gmail-oauth-start
+supabase functions deploy gmail-oauth-callback
+supabase functions deploy gmail-sync-inventory
+```
 
-## File structure
+Required eBay secrets:
 
 ```text
-index.html                    # Entry point
+EBAY_CLIENT_ID=your-ebay-client-id
+EBAY_CLIENT_SECRET=your-ebay-client-secret
+```
+
+Reconnect integrations from Settings after deploying OAuth-related functions. The app surfaces eBay and Gmail as connected, not connected, action needed, or setup needed so integration state is visible before using queues or pricing workflows.
+
+## Project Docs
+
+Planning, handoff, and verification docs live in `docs/`:
+
+- `docs/roadmap.md` - product and engineering roadmap.
+- `docs/smoke-test.md` - manual release and workflow checks.
+- `docs/agent-handoff.md` - controls for Codex, Claude Code, and Claude Design.
+- `docs/design-brief.md` - compact design direction.
+- `docs/design-audit-actions.md` - first-sprint audit actions and follow-up queue.
+
+Agent-facing root docs:
+
+- `AGENTS.md` - shared instructions for coding agents.
+- `CLAUDE.md` - Claude-specific handoff notes.
+
+## File Structure
+
+```text
+index.html                    # Vite entry point
 src/
   main.jsx                    # React mount
   App.jsx                     # Auth wrapper
-  Dashboard.jsx               # Main app coordinator and remaining dashboard views
-  Calculator.jsx              # eBay fee calculator
-  supabase.js                 # Supabase client and app data persistence
+  Dashboard.jsx               # Main app coordinator and remaining inline dashboard views
+  Calculator.jsx              # Fee calculator
+  supabase.js                 # Supabase client and app persistence
+  storage.js                  # Storage helpers
   dashboard/
     components/               # Dashboard-only components
-    inventory.js              # Inventory/listing helper functions
-    modals.jsx                # Compatibility barrel for domain modal modules
-    modals/                   # Inventory, sales, expenses, notes, and subscription modals
-    pages/                    # Dashboard home, inventory, sales, reports, customers, settings, health, pricing pages
+    inventory.js              # Inventory/listing helpers
+    modals.jsx                # Compatibility barrel for modal modules
+    modals/                   # Inventory, sales, expenses, notes, subscription modals
+    pages/                    # Extracted dashboard pages
     settings.js               # Settings defaults and normalizers
     shared.jsx                # Temporary shared barrel
     shared/                   # Constants, dates, money, notes, styles, UI primitives
-    subscriptions.js          # Subscription display helpers
+    subscriptions.js          # Subscription helpers
   pricing/
-    pricingEngine.js          # Pricing profile and comp evaluation logic
+    pricingEngine.js          # Pricing comparison and evidence logic
 supabase/
   functions/                  # Supabase Edge Functions
   migrations/                 # Database migrations
+docs/                         # Roadmap, handoff, smoke-test, and design docs
 supabase-setup.sql            # Initial database schema
-AGENTS.md                     # Shared agent guide for Codex, Claude, and other agents
-CLAUDE.md                     # Claude-specific handoff notes
 package.json
 vite.config.js
 ```
 
-## Agent workflow
+## Agent Workflow
 
-This repo is being reorganised gradually. Codex, Claude, and any other agents should read `AGENTS.md` before editing. Claude-specific notes live in `CLAUDE.md`; Claude worktrees are kept under `.claude/worktrees/` and are ignored by git.
+ArchiveDash is being reorganized gradually. Before editing, agents should read `AGENTS.md` and the relevant docs in `docs/`.
+
+Current guardrails:
+
+- Do not edit inside `.claude/`.
+- Keep changes scoped to the active task.
+- Preserve compatibility barrels while migration is gradual.
+- Do not rename persistence keys without a tested migration plan.
+- Run `npm run build` before handing off app-code changes.

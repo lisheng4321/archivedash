@@ -8,6 +8,26 @@ All notable changes to ArchiveDash. Format based on [Keep a Changelog](https://k
 
 ---
 
+## [Unreleased] - 2026-06-08
+
+### Added
+- **Backup and Restore typed confirmations** for restore, replace import, and clear all data, including record-count summaries and pre-action Supabase snapshot prompts.
+- **First-run and empty-state guidance** with next actions for Inventory, Sales, Market Review, and a removable sample-data path.
+- **Market Review evidence labels** for live, stale, sample, and manual recommendation sources.
+- **Integration state badges** for eBay and Gmail setup/connection clarity in Settings and System Health.
+
+### Changed
+- **Mobile state visibility** now surfaces failed saves and saving state more clearly, including alert rollups for hidden mobile navigation items.
+- **Destructive controls** are more separated across Backup, Notepad, and Settings chip removal flows.
+- **Dashboard reorganization** now includes extracted `BackupPage` and `NotepadPage` components under `src/dashboard/pages/`.
+- **Project docs** moved into `docs/` with clearer names for roadmap, handoff, smoke-test, design brief, and audit action notes.
+
+### Fixed
+- **Backup destructive flows** now fail closed when a required pre-action Supabase snapshot cannot be created.
+- **Pricing stale-evidence age** now avoids rounding a just-under-threshold sync into the next day.
+
+---
+
 ## [0.6.20] - 2026-06-06
 
 ### Changed
