@@ -1,6 +1,32 @@
 import { useState } from "react";
 import { DEF_CATEGORIES, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, currency, computeProfit, estimateEbayFee, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid, useIsMobile } from "../shared.jsx";
 
+function SaleItemIdentity({ item, showCost = true, compact = false }) {
+  const meta = [item.category, item.brand].filter(Boolean);
+  const sizeLabel = item.size || "OS";
+  const labelStyle = {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: compact ? 17 : 20,
+    padding: compact ? "1px 6px" : "2px 7px",
+    borderRadius: 6,
+    background: "#172554",
+    border: "1px solid #2563eb66",
+    color: "#bfdbfe",
+    fontSize: compact ? 10 : 11,
+    fontWeight: 800,
+    lineHeight: 1.2,
+    flexShrink: 0,
+  };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: compact ? "3px 6px" : "4px 8px", color: "#7c8aa0", fontSize: compact ? 10 : 11, marginTop: compact ? 3 : 4 }}>
+      <span style={labelStyle}>Size {sizeLabel}</span>
+      {meta.map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}
+      {showCost && <span>Cost {currency(item.price)}</span>}
+    </div>
+  );
+}
+
 function EditSaleModal({ sale, onSave, onClose, platforms, customers }) {
   const [ef, setEf] = useState({ name: sale.name, category: sale.category, costPrice: sale.costPrice, salePrice: sale.salePrice, shippingPrice: sale.shippingPrice, platformFees: sale.platformFees, platform: sale.platform, saleDate: sale.saleDate, tags: sale.tags || "", brand: sale.brand || "", customer: sale.customer || "" });
   const [showU, setShowU] = useState(false);
@@ -100,9 +126,11 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
         const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
         const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
         return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-            <div><span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}</span><span style={{ fontSize: 11, color: "#7c8aa0", marginLeft: 6 }}>{item.size||"OS"}</span></div>
-            <span style={{ fontSize: 11, color: "#7c8aa0" }}>Cost: {currency(item.price)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "flex-start" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+              <SaleItemIdentity item={item} />
+            </div>
           </div>
           <ResponsiveGrid columns="1fr 1fr 1fr 80px" mobileColumns="1fr 1fr" gap={6} style={{ alignItems: "center" }}>
             <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
@@ -170,7 +198,7 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
               <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
               <div style={{ minWidth: 0 }}>
                 <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                <div style={{ color: "#7c8aa0", fontSize: 10 }}>{item.category}{item.brand ? ` · ${item.brand}` : ""} · {item.size || "OS"}</div>
+                <SaleItemIdentity item={item} showCost={false} compact />
               </div>
               <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
             </div>
@@ -186,7 +214,7 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
           return (
             <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7, alignItems: "flex-start" }}>
-                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ fontSize: 10, color: "#7c8aa0" }}>Cost {currency(item.price)}</div></div>
+                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><SaleItemIdentity item={item} /></div>
                 <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>Remove</button>
               </div>
               <ResponsiveGrid columns="repeat(3, minmax(120px, 1fr)) 92px" mobileColumns="1fr 1fr" gap={8} style={{ alignItems: "end" }}>
@@ -254,9 +282,10 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
         const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
         return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
-            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><div style={{ color: "#7c8aa0", fontSize: 11 }}>{item.category} · cost {currency(item.price)}</div></div>
+            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div></div>
             <div style={{ color: profit>=0?"#34d399":"#f87171", fontSize: 13, fontWeight: 800 }}>{currency(profit)}</div>
           </div>
+          <div style={{ marginBottom: 7 }}><SaleItemIdentity item={item} /></div>
           <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="1fr" gap={6}>
             <Field label="Sale price"><input type="number" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
             <Field label="Shipping"><input type="number" step="0.01" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
