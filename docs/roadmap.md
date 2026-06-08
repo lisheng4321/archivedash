@@ -6,7 +6,7 @@ ArchiveDash is a practical reseller P&L dashboard. The roadmap favors data safet
 
 - App version: 0.6.20.
 - `main` is the live source of truth; Claude worktrees under `.claude/` are isolated and ignored.
-- `src/Dashboard.jsx` remains the main coordinator for app state, persistence, navigation, backup, notepad, expenses, and subscriptions.
+- `src/Dashboard.jsx` remains the main coordinator for app state, persistence, navigation, expenses, subscriptions, and cross-page actions.
 - Core domain pages already live under `src/dashboard/pages/`.
 - Modal code is split by domain under `src/dashboard/modals/`, with `src/dashboard/modals.jsx` kept as the compatibility barrel.
 - ArchiveDash Scout stays separate and should feed ArchiveDash through reviewed CSV/JSON or a future import bridge.
@@ -76,17 +76,24 @@ Goal: freeze the core shape so future work is less risky.
 
 Run this alongside the product phases.
 
-- Extract `BackupPage` from `src/Dashboard.jsx`.
-- Extract `NotepadPage` from `src/Dashboard.jsx`.
+- `BackupPage` and `NotepadPage` are extracted into `src/dashboard/pages/`.
+- Extract remaining large inline page blocks from `src/Dashboard.jsx`, starting with subscriptions or expenses when that workflow receives focused work.
 - Continue splitting large modal domain files only when touching that domain.
 - Keep compatibility barrels during gradual migration.
 - Eventually replace imports from `src/dashboard/shared.jsx` with `src/dashboard/shared/index.js` or direct shared modules.
 - Do not rename persistence keys such as `arch-inv2`, `arch-sales2`, `arch-exp2`, or `arch-settings` without a tested migration plan.
 
-## Suggested First Sprint
+## Completed First Sprint
 
-1. Use `AGENT_HANDOFF.md`, `DESIGN_BRIEF.md`, and `SMOKE_TEST.md` as the shared control pack.
-2. Ask Claude Design for a focused mobile and confidence audit of Backup, Settings, Pricing, Notepad, and navigation.
-3. Ask Claude Code to extract `BackupPage` from `src/Dashboard.jsx`.
-4. Have Codex verify the live checkout, review diffs, run the build, and update docs if needed.
-5. Continue with backup/mobile polish before extracting `NotepadPage`.
+1. Used `docs/agent-handoff.md`, `docs/design-brief.md`, and `docs/smoke-test.md` as the shared control pack.
+2. Completed a focused mobile and confidence audit of Backup, Settings, Pricing, Notepad, and navigation.
+3. Hardened Backup and Restore, improved mobile state visibility, clarified eBay/Gmail connection state, separated destructive controls, added next-action empty states, and improved Market Review evidence clarity.
+4. Extracted `BackupPage` and `NotepadPage` from `src/Dashboard.jsx`.
+5. Build-verified the sprint and performed browser QA.
+
+## Suggested Next Sprint
+
+1. Keep using the docs in `docs/` as the control pack.
+2. Run a focused smoke pass on backup/import/restore, notes, mobile nav, integration badges, and pricing evidence after each release candidate.
+3. Extract the next inline page only when that workflow is being improved, with subscriptions or expenses as the likely next targets.
+4. Update README and changelog so setup, recovery, and safety behavior match the live app.

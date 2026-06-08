@@ -20,7 +20,7 @@ ArchiveDash is a Vite + React dashboard backed by Supabase. This file is shared 
 ## Current Structure
 
 - `src/App.jsx` handles login/signup and renders the dashboard after auth.
-- `src/Dashboard.jsx` is still the main application coordinator. It owns app state, persistence, and cross-page actions.
+- `src/Dashboard.jsx` is still the main application coordinator. It owns app state, persistence, navigation, and cross-page actions.
 - `src/dashboard/pages/` contains domain pages such as dashboard home, inventory, sales, reports, customers, settings, health, and pricing.
 - `src/dashboard/components/` contains reusable dashboard-only components.
 - `src/dashboard/shared/` contains constants, date helpers, money helpers, note sanitizing, style objects, and base UI components.
@@ -34,7 +34,7 @@ ArchiveDash is a Vite + React dashboard backed by Supabase. This file is shared 
 
 Good next steps:
 
-- Extract `BackupPage` and `NotepadPage` from `src/Dashboard.jsx`.
+- Extract the remaining large inline page blocks from `src/Dashboard.jsx`, starting with subscriptions or expenses when that workflow receives focused work.
 - Continue splitting large modal domain files only when a specific domain needs work; keep `src/dashboard/modals.jsx` as the compatibility barrel.
 - Move page-specific helpers out of `src/Dashboard.jsx` only when the page receives enough context to own them cleanly.
 - Eventually replace imports from `src/dashboard/shared.jsx` with imports from `src/dashboard/shared/index.js` or direct shared modules.

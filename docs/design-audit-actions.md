@@ -2,7 +2,7 @@
 
 Source: Claude Design audit exported as `ArchiveDash Design Audit.html`.
 
-This file turns the design audit into an implementation queue. Keep `ROADMAP.md`, `AGENT_HANDOFF.md`, `DESIGN_BRIEF.md`, and `SMOKE_TEST.md` as the broader control pack.
+This file turns the design audit into an implementation queue. Keep `docs/roadmap.md`, `docs/agent-handoff.md`, `docs/design-brief.md`, and `docs/smoke-test.md` as the broader control pack.
 
 ## Audit Summary
 
@@ -40,9 +40,9 @@ The audit found that ArchiveDash is structurally sound and already dense/practic
 Status: implemented and build-verified.
 
 Scope:
-- Backup and Restore UI in `src/Dashboard.jsx`.
-- Future extraction to `BackupPage`.
-- `ConfirmDialog` in `src/dashboard/shared/ui.jsx` if needed.
+- Backup and Restore UI, now extracted to `src/dashboard/pages/BackupPage.jsx`.
+- Destructive-flow state and handlers in `src/Dashboard.jsx`.
+- `ConfirmDialog` and `DangerConfirmDialog` in `src/dashboard/shared/ui.jsx`.
 
 Implementation notes:
 - Route Restore, Replace import, and Clear all data through in-app confirmation.
@@ -116,8 +116,8 @@ Implementation note:
 Status: implemented and build-verified.
 
 Scope:
-- Backup block in `src/Dashboard.jsx`.
-- Notepad full-page controls in `src/Dashboard.jsx`.
+- Backup controls in `src/dashboard/pages/BackupPage.jsx`.
+- Notepad full-page controls in `src/dashboard/pages/NotepadPage.jsx`.
 - `ChipList` in `src/dashboard/pages/SettingsPage.jsx`.
 
 Implementation notes:
@@ -182,24 +182,24 @@ Implementation note:
 
 ## First Sprint Status
 
-All six first-sprint design-audit items are implemented and build-verified. The remaining work is manual browser verification across the affected flows, then choosing the next roadmap slice.
+All six first-sprint design-audit items are implemented, build-verified, and browser-audited. `BackupPage` and `NotepadPage` have also been extracted from `src/Dashboard.jsx`.
 
 ## Recommended Claude Code Task
 
-Use this for the next roadmap slice after browser verification.
+Use this for the next focused page cleanup after the shipped checkpoint is stable.
 
 ```text
 You are working in ArchiveDash, a Vite + React reseller P&L dashboard backed by Supabase.
 
-Read AGENTS.md, ROADMAP.md, AGENT_HANDOFF.md, SMOKE_TEST.md, and DESIGN_AUDIT_ACTIONS.md first.
+Read AGENTS.md, docs/roadmap.md, docs/agent-handoff.md, docs/smoke-test.md, and docs/design-audit-actions.md first.
 
 Task:
-Extract BackupPage from src/Dashboard.jsx now that Backup and Restore has been hardened.
+Extract the next focused page from src/Dashboard.jsx. Prefer SubscriptionsPage or an ExpensesPage only if that workflow is the active task.
 
 Implement:
-- Move the Backup and Restore page markup into a focused page component under src/dashboard/pages/.
-- Keep all existing behavior from the hardened Backup and Restore flow.
-- Preserve existing persistence keys and import/export/snapshot behavior.
+- Move only the selected page markup into a focused page component under src/dashboard/pages/.
+- Keep all existing behavior from the selected workflow.
+- Preserve existing persistence keys and data behavior.
 - Keep the change focused; do not refactor unrelated Dashboard state.
 - Keep compatibility barrels and existing imports working.
 
@@ -227,5 +227,5 @@ Handoff:
 - Confirm no `.claude/` files were copied into the repo.
 - Confirm persistence keys were not renamed.
 - Run `npm run build`.
-- Manually inspect Backup and Restore flows.
+- Manually inspect the affected workflow.
 - Update this file when items are completed or reprioritized.

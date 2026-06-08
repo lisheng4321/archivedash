@@ -32,7 +32,7 @@ Paste this into Claude Code for a bounded engineering task.
 ```text
 You are working in ArchiveDash, a Vite + React reseller P&L dashboard backed by Supabase.
 
-Read AGENTS.md, ROADMAP.md, AGENT_HANDOFF.md, and SMOKE_TEST.md first.
+Read AGENTS.md, docs/roadmap.md, docs/agent-handoff.md, and docs/smoke-test.md first.
 
 Task:
 [Describe one specific implementation task here.]
@@ -63,7 +63,7 @@ Paste this into Claude Design for a bounded audit or design pass.
 ```text
 You are reviewing ArchiveDash, a practical reseller P&L dashboard.
 
-Read ROADMAP.md and DESIGN_BRIEF.md first.
+Read docs/roadmap.md and docs/design-brief.md first.
 
 Task:
 Audit these areas:
@@ -113,10 +113,10 @@ Report:
 - Any issues to fix before continuing.
 ```
 
-## Good First Tasks
+## Good Next Tasks
 
-- Extract `BackupPage` from `src/Dashboard.jsx`.
-- Audit Backup and Settings mobile usability.
-- Extract `NotepadPage` from `src/Dashboard.jsx`.
+- Run a focused smoke pass after each pushed release candidate.
+- Extract a remaining inline page from `src/Dashboard.jsx` when that workflow receives focused work.
+- Review Backup and Settings mobile usability after real device use.
 - Review pricing persistence and Scout import boundaries.
 - Review Supabase functions and migrations for deployment or security risk.
