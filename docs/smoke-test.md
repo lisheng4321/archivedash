@@ -64,6 +64,10 @@ Run the relevant parts of this checklist before trusting changes. For app-code e
 - Add a subscription.
 - Edit frequency, category, currency, and next due date.
 - Log overdue subscriptions.
+- Log a monthly subscription due on the 29th-31st and confirm the next due date clamps to the end of a shorter following month instead of overflowing into the month after.
+- Log all overdue with a subscription several periods behind and confirm one expense per missed period, with the next due date landing in the future.
+- Log a subscription with no next due date and confirm the expense is dated today and a next due date is set.
+- Search or filter subscriptions to zero results and confirm the "Clear filters" empty state restores the list.
 - Confirm dashboard subscription totals update.
 
 ## Notepad

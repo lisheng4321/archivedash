@@ -52,14 +52,25 @@ const sydneyDate = (date) => {
 
 const today = () => sydneyDate(new Date());
 
+// Advance by whole months without day-of-month overflow (Jan 31 + 1mo = Feb 28, not Mar 3).
+const addMonthsClamped = (d, months) => {
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+};
+
 const advanceDate = (dateStr, freq, customDays) => {
   const d = new Date(dateStr + "T00:00:00");
   if (isNaN(d.getTime())) return today();
   if (freq === "weekly") d.setDate(d.getDate() + 7);
   else if (freq === "fortnightly") d.setDate(d.getDate() + 14);
-  else if (freq === "monthly") d.setMonth(d.getMonth() + 1);
-  else if (freq === "yearly") d.setFullYear(d.getFullYear() + 1);
+  else if (freq === "yearly") addMonthsClamped(d, 12);
   else if (freq === "custom") d.setDate(d.getDate() + frequencyDays(freq, customDays));
+  // Unknown frequencies fall back to monthly (matches frequencyDays/monthlyEquiv)
+  // so the returned date always moves forward.
+  else addMonthsClamped(d, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 

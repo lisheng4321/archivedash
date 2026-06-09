@@ -10,12 +10,13 @@ import PricingPage from "./dashboard/pages/PricingPage.jsx";
 import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 import SettingsPage from "./dashboard/pages/SettingsPage.jsx";
+import SubscriptionsPage from "./dashboard/pages/SubscriptionsPage.jsx";
 import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx";
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { compareInventorySize, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
-import { subCategory, subCategoryColor } from "./dashboard/subscriptions.js";
+import { subCategory } from "./dashboard/subscriptions.js";
 
 import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
 
@@ -862,12 +863,13 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const logSub = async (sub) => {
+    const chargeDate = sub.nextDue || today();
     const subCurrency = String(sub.currency || "AUD").toUpperCase();
     const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
-    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: sub.nextDue, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
+    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: chargeDate, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
     const expResult = await persistExp([newExp, ...expenses]);
     if (expResult?.ok === false) return;
-    await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(s.nextDue, s.frequency, s.customDays), lastLogged: sub.nextDue } : s));
+    await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(chargeDate, s.frequency, s.customDays), lastLogged: chargeDate } : s));
   };
 
   const logAllOverdue = async () => {
@@ -884,7 +886,9 @@ export default function App({ onLogout, userEmail }) {
         const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
         newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" });
         lastLogged = cur;
-        cur = advanceDate(cur, sub.frequency, sub.customDays);
+        const next = advanceDate(cur, sub.frequency, sub.customDays);
+        if (next <= cur) break; // safety: never loop on a date that does not advance
+        cur = next;
       }
       updatedSubs = updatedSubs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: cur, lastLogged } : s);
     }
@@ -1475,25 +1479,6 @@ export default function App({ onLogout, userEmail }) {
     });
     return sorted;
   }, [subs, subSearch, subCatFilter, subSort, fxRates]);
-
-  const setSubSortField = (field) => {
-    setSubSort((prev) => {
-      const prevField = prev.replace(/_(asc|desc)$/, "");
-      const prevDir = prev.endsWith("_desc") ? "desc" : "asc";
-      const nextDir = prevField === field && prevDir === "asc" ? "desc" : "asc";
-      return `${field}_${nextDir}`;
-    });
-  };
-  const subSortIcon = (field) => subSort.startsWith(`${field}_`) ? (subSort.endsWith("_asc") ? " ↑" : " ↓") : "";
-  const subHeaderBtn = (field, label) => (
-    <button onClick={() => setSubSortField(field)} style={{ background: "transparent", border: "none", color: subSort.startsWith(`${field}_`) ? "#93c5fd" : "#56627a", padding: 0, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-      {label}{subSortIcon(field)}
-    </button>
-  );
-  const subCatChip = (cat) => {
-    const [bg, fg] = subCategoryColor(cat);
-    return <span style={{ display: "inline-flex", alignItems: "center", width: "fit-content", padding: "2px 7px", borderRadius: 999, background: bg, color: fg, fontSize: 10, fontWeight: 700, lineHeight: 1.2 }}>{cat}</span>;
-  };
 
   // ─── Filtered Inventory ───
   const filteredInv = useMemo(() => {
@@ -2282,107 +2267,7 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* ══ SUBSCRIPTIONS ══ */}
-        {page === "subs" && (<div style={{ padding: pagePad }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Subscriptions</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{subStats.active.length} active · {currency(subStats.monthlyBurn)}/mo · {currency(subStats.annualCost)}/yr</p>
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {subStats.overdue.length > 0 && <button onClick={logAllOverdue} style={{ ...primaryBtn, background: "#dc2626" }}>Log {subStats.overdue.length} overdue</button>}
-              <button onClick={() => setSubModalOpen("new")} style={primaryBtn}>+ Add subscription</button>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-            <button onClick={() => setPage("subs")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Subscriptions{subStats.overdue.length > 0 ? ` (${subStats.overdue.length})` : ""}</button>
-            <button onClick={() => setPage("expenses")} style={ghostBtn}>Expenses</button>
-          </div>
-          {subStats.overdue.length > 0 && (
-            <div style={{ background: "#3b1f1f", border: "1px solid #ef444466", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#fca5a5" }}>
-              {subStats.overdue.length} subscription{subStats.overdue.length === 1 ? " is" : "s are"} overdue. Click "Log overdue" to auto-create expense entries and roll dates forward.
-            </div>
-          )}
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-            <KPI label="Active" value={subStats.active.length} />
-            <KPI label="Monthly burn" value={currency(subStats.monthlyBurn)} accent="#f59e0b" />
-            <KPI label="Annual cost" value={currency(subStats.annualCost)} accent="#f59e0b" />
-            <KPI label="Overdue" value={subStats.overdue.length} accent={subStats.overdue.length > 0 ? "#f87171" : undefined} />
-          </div>
-          {subStats.byCategory.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: 8, marginBottom: 12 }}>
-              {subStats.byCategory.map(({ category, count, monthly }) => {
-                const [bg, fg] = subCategoryColor(category);
-                return (
-                  <button key={category} onClick={() => setSubCatFilter(category)} style={{ background: subCatFilter === category ? bg : "#121a2b", border: `1px solid ${subCatFilter === category ? fg : "#232c3c"}`, borderRadius: 8, padding: "9px 12px", textAlign: "left", cursor: "pointer", fontFamily: "inherit" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                      <span style={{ color: fg, fontSize: 12, fontWeight: 800 }}>{category}</span>
-                      <span style={{ color: "#7c8aa0", fontSize: 10 }}>{count}</span>
-                    </div>
-                    <div style={{ marginTop: 4, color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>{currency(monthly)}<span style={{ color: "#7c8aa0", fontSize: 10, fontWeight: 600 }}> /mo</span></div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <input placeholder="Search subscriptions..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} style={{ ...inp, maxWidth: 210 }} />
-            <select value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-            <select value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="category_asc">Category A-Z</option><option value="name_asc">Name A-Z</option></select>
-            {(subSearch || subCatFilter !== "All" || subSort !== "nextDue_asc") && <button onClick={() => { setSubSearch(""); setSubCatFilter("All"); setSubSort("nextDue_asc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
-          </div>
-          <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
-            {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600 }}>
-                {subHeaderBtn("name", "Name")}{subHeaderBtn("category", "Category")}{subHeaderBtn("amount", "Amount")}{subHeaderBtn("frequency", "Frequency")}{subHeaderBtn("monthly", "Monthly")}{subHeaderBtn("nextDue", "Next due")}<span>Actions</span>
-              </div>
-            )}
-            {sortedSubs.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No subscriptions yet. Add eBay Pro, software subs, etc.</div>}
-            {sortedSubs.map((s) => {
-              const t = today();
-              const isOverdue = s.active && s.nextDue && s.nextDue <= t;
-              const me = subMonthlyAud(s, fxRates);
-              const amountAud = subAmountAud(s, fxRates);
-              const code = String(s.currency || "AUD").toUpperCase();
-              const amountLabel = code === "AUD" ? currency(s.amount) : `${formatMoney(s.amount, code)} (${currency(amountAud)})`;
-              const freqText = frequencyLabel(s.frequency, s.customDays);
-              const category = subCategory(s);
-              if (isMobile) {
-                return (
-                  <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
-                      <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>{amountLabel}</div>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#7c8aa0" }}>{freqText} · {currency(me)}/mo · due {s.nextDue}</span></div>
-                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 9px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Log</button>}
-                      <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                      <button onClick={() => toggleSubActive(s)} style={{ padding: "4px 9px", background: "#232c3c", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "Pause" : "Resume"}</button>
-                      <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
-                    </div>
-                  </div>
-                );
-              }
-              return (
-                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
-                  <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 10, color: "#7c8aa0" }}>{s.tags}</div>}</div>
-                  <span>{subCatChip(category)}</span>
-                  <span style={{ color: "#f3f6fb", fontWeight: 500 }}>{amountLabel}</span>
-                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{freqText}</span>
-                  <span style={{ color: "#9ca3af", fontSize: 12 }}>{currency(me)}</span>
-                  <span style={{ color: isOverdue ? "#f87171" : "#7c8aa0", fontSize: 12 }}>{s.nextDue || "—"}</span>
-                  <div style={{ display: "flex", gap: 3 }}>
-                    {s.active && <button onClick={() => logSub(s)} style={{ padding: "4px 7px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 500 }}>Log</button>}
-                    <button onClick={() => setSubModalOpen(s)} style={{ padding: "4px 7px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-                    <button onClick={() => toggleSubActive(s)} title={s.active ? "Pause" : "Resume"} style={{ padding: "4px 7px", background: "#232c3c", color: s.active ? "#fbbf24" : "#34d399", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>{s.active ? "⏸" : "▶"}</button>
-                    <button onClick={() => setConfirmDel({ type: "sub", id: s.id, name: s.name })} style={{ padding: "4px 7px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>)}
+        {page === "subs" && <SubscriptionsPage ctx={{ pagePad, isMobile, subStats, subsCount: subs.length, sortedSubs, subSearch, setSubSearch, subCatFilter, setSubCatFilter, subSort, setSubSort, setPage, setSubModalOpen, logSub, logAllOverdue, toggleSubActive, setConfirmDel, fxRates }} />}
 
         {/* ══ NOTEPAD (full page) ══ */}
         {page === "notepad" && <NotepadPage ctx={{ pagePad, isMobile, notes, activeNote, activeNoteId, setActiveNoteId, noteSearch, setNoteSearch, sortedNotes, createNote, updateNote, moveNote, toggleLockNote, togglePinNote, setConfirmDel, userTemplates, setTplManagerOpen, exportNoteTxt }} />}
