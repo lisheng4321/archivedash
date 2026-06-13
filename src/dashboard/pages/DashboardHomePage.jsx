@@ -1,5 +1,23 @@
 import PeriodComparisonChart from "../components/PeriodComparisonChart.jsx";
-import { TIME_RANGES, cb, currency, ghostBtn, inp, KPI, preorderBadge, sel, subAmountAud } from "../shared.jsx";
+import { TIME_RANGES, cardSurface, cb, currency, ghostBtn, inp, KPI, preorderBadge, sel, smallCaps, subAmountAud } from "../shared.jsx";
+
+function ProfitMarginKPI({ profitLabel, profitValue, profitVisible, marginLabel, marginValue, marginVisible, accent }) {
+  if (!profitVisible && !marginVisible) return null;
+  const primaryLabel = profitVisible ? profitLabel : marginLabel;
+  const primaryValue = profitVisible ? profitValue : marginValue;
+  return (
+    <div style={{ ...cardSurface, padding: "14px 16px", minWidth: 0 }}>
+      <div style={{ ...smallCaps, marginBottom: 5 }}>{primaryLabel}</div>
+      <div style={{ fontSize: 20, fontWeight: 750, color: accent, fontVariantNumeric: "tabular-nums" }}>{primaryValue}</div>
+      {profitVisible && marginVisible && (
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginTop: 8, paddingTop: 7, borderTop: "1px solid #232c3c" }}>
+          <span style={{ fontSize: 11, color: "#8b97ad", fontWeight: 700 }}>{marginLabel}</span>
+          <span style={{ fontSize: 14, color: accent, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{marginValue}</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardHomePage({ ctx }) {
   const {
@@ -147,35 +165,30 @@ export default function DashboardHomePage({ ctx }) {
         </div>
       )}
 
-      {dashboardCards.netProfitGraph && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: "16px 20px 12px", marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4, gap: 8 }}>
-          <div>
+      {dashboardCards.netProfitGraph && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: isMobile ? "14px 14px 12px" : "16px 20px 12px", marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "start", marginBottom: 4, gap: isMobile ? 12 : 20 }}>
+          <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 3 }}>Net Profit</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
               <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 700, color: stats.netProfit>=0?"#34d399":"#f87171" }}>{currency(stats.netProfit)}</div>
-              <div title={`Current period ${periodComparison.currentStart} to ${periodComparison.currentEnd}: ${currency(periodComparison.current)} - Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${currency(periodComparison.previous)}`} style={{ fontSize: 12, color: periodComparison.delta >= 0 ? "#34d399" : "#f87171", background: periodComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${periodComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700 }}>
+              <div title={`Current period ${periodComparison.currentStart} to ${periodComparison.currentEnd}: ${currency(periodComparison.current)} - Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${currency(periodComparison.previous)}`} style={{ fontSize: isMobile ? 11 : 12, color: periodComparison.delta >= 0 ? "#34d399" : "#f87171", background: periodComparison.delta >= 0 ? "#0d1f17" : "#1f1215", border: `1px solid ${periodComparison.delta >= 0 ? "#16653466" : "#7f1d1d66"}`, borderRadius: 999, padding: "3px 8px", fontWeight: 700, lineHeight: 1.25 }}>
                 {periodComparison.pct === null ? "new vs previous period" : `${periodComparison.delta >= 0 ? "+" : ""}${periodComparison.pct.toFixed(1)}% vs previous period`}
               </div>
             </div>
           </div>
-          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, color: "#7c8aa0" }}>Sales volume</div><div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 600, color: "#f3f6fb" }}>{periodComparison.salesCount}</div><div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} sales`} style={{ fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: 2 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div></div>
+          <div style={{ textAlign: "right", minWidth: isMobile ? 76 : 110 }}><div style={{ fontSize: isMobile ? 11 : 12, color: "#8b97ad", whiteSpace: "nowrap" }}>Sales volume</div><div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: "#f3f6fb" }}>{periodComparison.salesCount}</div><div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} sales`} style={{ fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: 2, lineHeight: 1.25 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div></div>
         </div>
         <PeriodComparisonChart points={periodTrend} isMobile={isMobile} />
       </div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 18 }}>
         {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
-        {dashboardCards.netProfit && <KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} />}
-        {dashboardCards.grossProfit && <KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />}
+        <ProfitMarginKPI profitLabel="Net profit" profitValue={currency(stats.netProfit)} profitVisible={dashboardCards.netProfit} marginLabel="Net margin" marginValue={(stats.netMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.netMargin} accent={stats.netProfit>=0?"#34d399":"#f87171"} />
+        <ProfitMarginKPI profitLabel="Gross profit" profitValue={currency(stats.grossProfit)} profitVisible={dashboardCards.grossProfit} marginLabel="Gross margin" marginValue={(stats.grossMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.grossMargin} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />
         {dashboardCards.inventorySpend && <KPI label="Inventory spend" value={currency(stats.inventorySpend)} />}
         {dashboardCards.inventoryValue && <KPI label="Inventory value" value={currency(stats.invValue)} />}
         {dashboardCards.salesCount && <KPI label="Sales count" value={stats.cnt} />}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 18 }}>
         {dashboardCards.avgOrderValue && <KPI label="Avg. order value" value={currency(stats.aov)} />}
-        {dashboardCards.netMargin && <KPI label="Net margin" value={(stats.netMargin * 100).toFixed(1) + "%"} accent={stats.netMargin>=0?"#34d399":"#f87171"} />}
-        {dashboardCards.grossMargin && <KPI label="Gross margin" value={(stats.grossMargin * 100).toFixed(1) + "%"} accent={stats.grossMargin>=0?"#34d399":"#f87171"} />}
         {dashboardCards.totalExpenses && <KPI label="Total expenses" value={currency(stats.totalExpenses)} />}
         {dashboardCards.platformFees && <KPI label="Platform fees" value={currency(stats.totalFees)} />}
         {dashboardCards.monthlySubs && <KPI label="Monthly subs" value={currency(subStats.monthlyBurn)} />}

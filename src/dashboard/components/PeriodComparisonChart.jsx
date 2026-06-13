@@ -16,8 +16,8 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
     { key: "empty-2", label: "End", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
   ];
   const width = 1000;
-  const height = isMobile ? 180 : 168;
-  const pad = { top: 10, right: 22, bottom: 28, left: 76 };
+  const height = isMobile ? 188 : 168;
+  const pad = { top: 10, right: isMobile ? 10 : 22, bottom: 28, left: isMobile ? 62 : 76 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
   const values = chartPoints.flatMap((p) => [Number(p.current) || 0, Number(p.previous) || 0, 0]);
@@ -39,6 +39,10 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
   const span = max === min ? 1 : max - min;
   const tickValues = [];
   for (let value = min; value <= max + step / 2; value += step) tickValues.push(Math.abs(value) < 0.0001 ? 0 : value);
+  const mobileTickInterval = Math.max(1, Math.ceil((tickValues.length - 1) / 3));
+  const labeledTicks = isMobile && tickValues.length > 4
+    ? tickValues.filter((_, index) => index === 0 || index === tickValues.length - 1 || index % mobileTickInterval === 0)
+    : tickValues;
   const xFor = (index) => pad.left + (chartPoints.length <= 1 ? plotW / 2 : (index / (chartPoints.length - 1)) * plotW);
   const yFor = (value) => pad.top + ((max - value) / span) * plotH;
   const pathFor = (key) => chartPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(2)} ${yFor(Number(p[key]) || 0).toFixed(2)}`).join(" ");
@@ -51,7 +55,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
 
   return (
     <div style={{ position: "relative", height, width: "100%" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="img" aria-label="Net profit current period compared with previous period" style={{ display: "block", overflow: "visible" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="group" aria-label="Interactive net profit chart comparing the current and previous periods" style={{ display: "block", overflow: "visible" }}>
         {tickValues.map((value) => (
           <g key={value}>
             <line x1={pad.left} x2={width - pad.right} y1={yFor(value)} y2={yFor(value)} stroke={value === 0 ? "#334155" : "#232c3c"} strokeWidth={value === 0 ? "1.2" : "1"} />
@@ -67,8 +71,15 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
               width={Math.min(hoverBand, width - pad.right - Math.max(pad.left, xFor(i) - hoverBand / 2))}
               height={plotH}
               fill="transparent"
+              role="button"
+              tabIndex="0"
+              aria-label={`${p.label || shortDateLabel(p.currentDate)}: current ${currency(p.current || 0)}, previous ${currency(p.previous || 0)}, ${p.currentSales || 0} ${(p.currentSales || 0) === 1 ? "unit" : "units"} sold versus ${p.previousSales || 0} ${(p.previousSales || 0) === 1 ? "unit" : "units"}`}
               onMouseEnter={() => setHoverIndex(i)}
-              onMouseLeave={() => setHoverIndex(null)}
+              onMouseLeave={() => { if (!isMobile) setHoverIndex(null); }}
+              onFocus={() => setHoverIndex(i)}
+              onBlur={() => setHoverIndex(null)}
+              onClick={() => setHoverIndex((current) => current === i ? null : i)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHoverIndex((current) => current === i ? null : i); } }}
             />
           </g>
         ))}
@@ -78,8 +89,8 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
           <circle cx={hoverX} cy={yFor(Number(hoverPoint.previous) || 0)} r="4" fill="#64748b" stroke="#0f172a" strokeWidth="2" />
         </>}
       </svg>
-      {tickValues.map((value) => (
-        <div key={value} style={{ position: "absolute", left: 0, top: yFor(value) - 7, width: 68, textAlign: "right", color: value === 0 ? "#94a3b8" : "#64748b", fontSize: 11, pointerEvents: "none" }}>{currency(value)}</div>
+      {labeledTicks.map((value) => (
+        <div key={value} style={{ position: "absolute", left: 0, top: yFor(value) - 7, width: isMobile ? 54 : 68, textAlign: "right", color: value === 0 ? "#9aa6bb" : "#718096", fontSize: 11, pointerEvents: "none" }}>{currency(value)}</div>
       ))}
       {labelIndexes.map((index) => {
         const point = chartPoints[index];
