@@ -25,7 +25,7 @@ export default function BackupPage({ ctx }) {
 
   return (<>
           <h3 style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#f3f6fb" }}>Backup & Restore</h3>
-          <p style={{ margin: "0 0 20px", fontSize: 13, color: "#56627a" }}>Export or import your data.</p>
+          <p style={{ margin: "0 0 20px", fontSize: 13, color: "#8b97ad" }}>Export or import your data.</p>
           {backupStatus&&<div style={{ background: "#1e3a5f", border: "1px solid #2563eb", borderRadius: 8, padding: "10px 14px", marginBottom: 14, fontSize: 13, color: "#93c5fd" }}>{backupStatus}</div>}
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1.1fr) minmax(320px, 0.9fr)", gap: 14, alignItems: "start" }}>
           <div>
@@ -67,10 +67,10 @@ export default function BackupPage({ ctx }) {
           <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb" }}>Snapshot history</div>
-              <span style={{ fontSize: 11, color: "#56627a" }}>{backups.length} saved</span>
+              <span style={{ fontSize: 11, color: "#8b97ad" }}>{backups.length} saved</span>
             </div>
             {backups.length === 0 ? (
-              <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: "26px 10px", background: "#0d1117", borderRadius: 10 }}>No Supabase snapshots yet.</div>
+              <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: "26px 10px", background: "#0d1117", borderRadius: 12 }}>No Supabase snapshots yet.</div>
             ) : backups.slice(0, 8).map((snapshot) => (
               <div key={snapshot.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid #232c3c22" }}>
                 <div style={{ minWidth: 0 }}>

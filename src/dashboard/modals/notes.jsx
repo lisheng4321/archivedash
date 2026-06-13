@@ -94,7 +94,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     else insertPlainText(text);
   };
 
-  const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 13, cursor: "pointer", flexShrink: 0 };
+  const tBtn = { width: isMobile ? 28 : 30, height: isMobile ? 26 : 28, background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 13, cursor: "pointer", flexShrink: 0 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height, minHeight: 0 }}>
@@ -125,11 +125,11 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
                 <div onClick={() => setTplOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
                 <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #232c3c", borderRadius: 8, padding: 4, minWidth: 220, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
                   {templates.map((t) => (
-                    <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
+                    <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 6, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
                   ))}
                   {onManageTemplates && (<>
                     <div style={{ height: 1, background: "#232c3c", margin: "4px 0" }} />
-                    <button onMouseDown={(e) => { e.preventDefault(); setTplOpen(false); onManageTemplates(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", borderRadius: 5, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>⚙ Manage templates…</button>
+                    <button onMouseDown={(e) => { e.preventDefault(); setTplOpen(false); onManageTemplates(); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#9ca3af", fontSize: 11, cursor: "pointer", borderRadius: 6, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>⚙ Manage templates…</button>
                   </>)}
                 </div>
               </>
@@ -188,7 +188,7 @@ function TemplateManagerModal({ templates, onSave, onClose }) {
     </p>
 
     {editingId ? (
-      <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+      <div style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginBottom: 14 }}>
         <Field label="Name" req><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} style={inp} placeholder="e.g. Quick listing" autoFocus /></Field>
         <Field label="Body (HTML allowed)">
           <textarea value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} style={{ ...inp, minHeight: 160, fontFamily: "'JetBrains Mono', monospace", fontSize: 12, lineHeight: 1.5, resize: "vertical" }} placeholder='<b>Title</b><div>Item: </div><div><label><input type="checkbox"> Step 1</label></div>' />
@@ -208,10 +208,10 @@ function TemplateManagerModal({ templates, onSave, onClose }) {
         <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "#0d1117", borderRadius: 8 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}{t.builtIn && <span style={badge("#232c3c", "#7c8aa0")}>SEED</span>}</div>
-            <div style={{ fontSize: 10, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripHtml(t.body).slice(0, 80) || "Empty"}</div>
+            <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{stripHtml(t.body).slice(0, 80) || "Empty"}</div>
           </div>
-          <button onClick={() => startEdit(t)} style={{ padding: "4px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>Edit</button>
-          <button onClick={() => removeTpl(t.id)} style={{ padding: "4px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer" }}>✕</button>
+          <button onClick={() => startEdit(t)} style={{ padding: "4px 9px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>Edit</button>
+          <button onClick={() => removeTpl(t.id)} style={{ padding: "4px 9px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>✕</button>
         </div>
       ))}
     </div>

@@ -55,7 +55,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#56627a", fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b97ad", fontFamily: "'DM Sans', sans-serif" }}>
         Loading...
       </div>
     );
@@ -92,7 +92,7 @@ export default function App() {
             <div style={{ display: "flex", gap: 3, marginBottom: 20, padding: 3, background: "#0d1117", border: "1px solid #232c3c", borderRadius: 9 }}>
               {["login", "signup"].map((m) => (
                 <button key={m} onClick={() => { setAuthMode(m); setError(""); setMessage(""); }}
-                  style={{ flex: 1, padding: "8px 0", fontSize: 13, fontWeight: authMode === m ? 700 : 500, color: authMode === m ? "#f3f6fb" : "#7c8aa0", background: authMode === m ? "#1f2937" : "transparent", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit" }}>
+                  style={{ flex: 1, padding: "8px 0", fontSize: 13, fontWeight: authMode === m ? 700 : 500, color: authMode === m ? "#f3f6fb" : "#7c8aa0", background: authMode === m ? "#1f2937" : "transparent", border: "none", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
                   {m === "login" ? "Log in" : "Sign up"}
                 </button>
               ))}

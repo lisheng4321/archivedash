@@ -60,7 +60,7 @@ function ChipList({ items, onRemove, emptyLabel }) {
           </div>
         );
       })}
-      {items.length === 0 && emptyLabel && <span style={{ fontSize: 12, color: "#56627a" }}>{emptyLabel}</span>}
+      {items.length === 0 && emptyLabel && <span style={{ fontSize: 12, color: "#8b97ad" }}>{emptyLabel}</span>}
     </div>
   );
 }
@@ -150,7 +150,7 @@ export default function SettingsPage({ ctx }) {
           </div>
         </div>
         {ebayStatus && <div style={{ fontSize: 12, color: integrationTone({ status: ebayStatus, busy: ebayBusy, configured }).color }}>{ebayStatus}</div>}
-        <div style={{ fontSize: 12, color: "#56627a" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
+        <div style={{ fontSize: 12, color: "#8b97ad" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -168,7 +168,7 @@ export default function SettingsPage({ ctx }) {
           </div>
         </div>
         {gmailStatus && <div style={{ fontSize: 12, color: integrationTone({ status: gmailStatus, busy: gmailBusy, configured }).color }}>{gmailStatus}</div>}
-        <div style={{ fontSize: 12, color: "#56627a" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
+        <div style={{ fontSize: 12, color: "#8b97ad" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Categories</div>

@@ -26,6 +26,29 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 ::-webkit-scrollbar-thumb:hover { background: #2f3a4e; background-clip: padding-box; }
 ::selection { background: rgba(37,99,235,0.32); }
 input, select, textarea { font-family: inherit; }
+body { font-variant-numeric: tabular-nums; }
+.ad-nav-tip::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid #232c3c;
+  background: #1a2333;
+  color: #f3f6fb;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+  z-index: 220;
+}
+.ad-nav-tip:hover::after,
+.ad-nav-tip:focus-visible::after { opacity: 1; }
 `;
 
 if (typeof document !== "undefined" && !document.getElementById("ad-global-styles")) {

@@ -27,7 +27,7 @@ export default function NotepadPage({ ctx }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
             <div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Notepad</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>
                 {notes.length} note{notes.length === 1 ? "" : "s"}
                 {activeNote && activeNote.updatedAt ? ` · saved ${new Date(activeNote.updatedAt).toLocaleString("en-AU", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", day: "numeric", month: "short" })}` : ""}
               </p>
@@ -51,13 +51,13 @@ export default function NotepadPage({ ctx }) {
                   return (
                     <div key={n.id} onClick={() => setActiveNoteId(n.id)} style={{ padding: "8px 10px", borderRadius: 8, marginBottom: 3, cursor: "pointer", background: isActive ? "#1e293b" : "transparent", border: isActive ? "1px solid #2563eb55" : "1px solid transparent" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
-                        {n.pinned && <span style={{ fontSize: 9, color: "#fbbf24" }}>●</span>}
+                        {n.pinned && <span style={{ fontSize: 11, color: "#fbbf24" }}>●</span>}
                         {n.locked && <span title="Locked" aria-label="Locked" style={{ fontSize: 11, color: "#93c5fd", lineHeight: 1 }}>🔒</span>}
                         <div style={{ fontSize: 13, color: isActive ? "#f3f6fb" : "#d1d5db", fontWeight: isActive ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{n.title || "Untitled"}</div>
-                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: "5px 7px", fontSize: 12, minWidth: 28, minHeight: 28 }}>↑</button>
-                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: "5px 7px", fontSize: 12, minWidth: 28, minHeight: 28 }}>↓</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, -1); }} title="Move up" style={{ ...ghostBtn, padding: isMobile ? 0 : "5px 7px", fontSize: 12, minWidth: isMobile ? 40 : 28, minHeight: isMobile ? 40 : 28 }}>↑</button>
+                        <button onClick={(e) => { e.stopPropagation(); moveNote(n.id, 1); }} title="Move down" style={{ ...ghostBtn, padding: isMobile ? 0 : "5px 7px", fontSize: 12, minWidth: isMobile ? 40 : 28, minHeight: isMobile ? 40 : 28 }}>↓</button>
                       </div>
-                      <div style={{ fontSize: 9, color: "#56627a", marginTop: 2 }}>{dateStr}</div>
+                      <div style={{ fontSize: 11, color: "#8b97ad", marginTop: 2 }}>{dateStr}</div>
                     </div>
                   );
                 })}
@@ -68,7 +68,7 @@ export default function NotepadPage({ ctx }) {
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8, minWidth: 0, minHeight: 0 }}>
               {!activeNote ? (
                 <div style={{ flex: 1, background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
-                  <div style={{ color: "#56627a", fontSize: 13 }}>No note selected</div>
+                  <div style={{ color: "#8b97ad", fontSize: 13 }}>No note selected</div>
                   <button onClick={() => createNote()} style={primaryBtn}>+ Create your first note</button>
                 </div>
               ) : (

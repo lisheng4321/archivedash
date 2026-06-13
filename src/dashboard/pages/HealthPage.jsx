@@ -29,7 +29,7 @@ export default function HealthPage({ ctx }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
             <div>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>System Health</h2>
-              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>
+              <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>
                 {health.issues} issue{health.issues === 1 ? "" : "s"} · {health.warnings} warning{health.warnings === 1 ? "" : "s"} · {health.actions} queue action{health.actions === 1 ? "" : "s"}
               </p>
             </div>
@@ -64,7 +64,7 @@ export default function HealthPage({ ctx }) {
             <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 18 }}>
               <div style={{ fontSize: 14, color: "#f3f6fb", fontWeight: 700, marginBottom: 10 }}>Queues</div>
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10 }}>
-                <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
+                <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 12, padding: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <div style={{ fontSize: 12, color: "#7c8aa0" }}>eBay awaiting postage</div>
                     <IntegrationPill status={ebayStatus} busy={ebayBusy} configured={configured} />
@@ -76,7 +76,7 @@ export default function HealthPage({ ctx }) {
                     <button onClick={syncEbayOrders} disabled={!supabase || ebayBusy} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Sync now</button>
                   </div>
                 </div>
-                <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
+                <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 12, padding: 14 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginBottom: 4 }}>
                     <div style={{ fontSize: 12, color: "#7c8aa0" }}>Gmail inventory drafts</div>
                     <IntegrationPill status={gmailStatus} busy={gmailBusy} configured={configured} />

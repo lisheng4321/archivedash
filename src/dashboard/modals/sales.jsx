@@ -13,13 +13,13 @@ function SaleItemIdentity({ item, showCost = true, compact = false }) {
     background: "#172554",
     border: "1px solid #2563eb66",
     color: "#bfdbfe",
-    fontSize: compact ? 10 : 11,
+    fontSize: 11,
     fontWeight: 800,
     lineHeight: 1.2,
     flexShrink: 0,
   };
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: compact ? "3px 6px" : "4px 8px", color: "#7c8aa0", fontSize: compact ? 10 : 11, marginTop: compact ? 3 : 4 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: compact ? "3px 6px" : "4px 8px", color: "#7c8aa0", fontSize: 11, marginTop: compact ? 3 : 4 }}>
       <span style={labelStyle}>Size {sizeLabel}</span>
       {meta.map((part, index) => <span key={`${part}-${index}`}>{part}</span>)}
       {showCost && <span>Cost {currency(item.price)}</span>}
@@ -35,16 +35,16 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers }) {
   const sp = parseFloat(ef.salePrice)||0, ship = parseFloat(ef.shippingPrice)||0, fees = parseFloat(ef.platformFees)||0, cost = parseFloat(ef.costPrice)||0;
   const preview = computeProfit({ salePrice: sp, cost, shipping: ship, fees });
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit sale">
-    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#56627a" }}>{ef.category} Â· {sale.size || "OS"}{sale.brand ? ` Â· ${sale.brand}` : ""}</div></div>
+    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>{ef.category} Â· {sale.size || "OS"}{sale.brand ? ` Â· ${sale.brand}` : ""}</div></div>
     <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Sale price (AU$)" req><input type="number" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} /></Field><Field label="Fees"><input type="number" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Customer"><input list="cust-list2" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} /><datalist id="cust-list2">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field></Row>
-    <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 4, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(cost)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
+    <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 4, fontSize: 12 }}>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(cost)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </ResponsiveGrid>
     <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => onSave({ ...sale, ...ef, costPrice: cost, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: preview })} style={primaryBtn}>Save</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
@@ -60,15 +60,15 @@ function SellModal({ item, onSell, onClose, platforms, customers }) {
   const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
   const preview = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Create a new sale">
-    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{item.name}</div><div style={{ fontSize: 12, color: "#56627a" }}>Cost: {currency(item.price)} Â· {item.category} Â· {item.size||"OS"}{item.brand ? ` Â· ${item.brand}` : ""}</div></div>
+    <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{item.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>Cost: {currency(item.price)} Â· {item.category} Â· {item.size||"OS"}{item.brand ? ` Â· ${item.brand}` : ""}</div></div>
     <Row><Field label="Sale price" req><input type="number" step="0.01" value={sf.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} placeholder="0" autoFocus /></Field><Field label="Sale date"><input type="date" value={sf.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={sf.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Fees"><input type="number" step="0.01" value={sf.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Platform" req><select value={sf.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Customer"><input list="cust-sell" value={sf.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-sell">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field><Field label="Tags"><input value={sf.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
-    {sp > 0 && <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 4, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(item.price)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f59e0b", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
+    {sp > 0 && <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 4, fontSize: 12 }}>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(item.price)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </ResponsiveGrid>}
     <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!sf.salePrice) return; onSell(sf); }} style={primaryBtn}>Create sale</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
@@ -82,9 +82,9 @@ function BulkEditSaleModal({ items, onSave, onClose, platforms }) {
   const totalRevenue = items.reduce((a, s) => a + s.salePrice, 0);
   return (<Modal open={true} onClose={onClose} title={`Bulk edit ${items.length} sales`}>
     <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length} sales</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length} sales</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </ResponsiveGrid>
     <p style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 14 }}>Leave fields blank to keep current values.</p>
     <Row><Field label="Platform"><select value={plat} onChange={(e) => setPlat(e.target.value)} style={sel}><option value="">â€” No change â€”</option>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field>
@@ -114,9 +114,9 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
 
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title={`Sell ${items.length} items`}>
     <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Items</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Total profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Items</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{items.length}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Total profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
     </ResponsiveGrid>
     <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-bulk" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-bulk">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
     <div style={{ fontSize: 12, fontWeight: 600, color: "#9ca3af", marginBottom: 8, marginTop: 4 }}>Per-item pricing</div>
@@ -135,174 +135,184 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
           <ResponsiveGrid columns="1fr 1fr 1fr 80px" mobileColumns="1fr 1fr" gap={6} style={{ alignItems: "center" }}>
             <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
             <input type="number" step="0.01" placeholder="Ship $" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-            <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right" }}>{sp>0?currency(profit):"â€”"}</span>
-          </ResponsiveGrid>
-        </div>);
-      })}
-    </div>
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(shared, rows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Sell {items.length} items</button></ModalActions>
-  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
-}
+            <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees} onChang×‹h‘éì¶»§q«^uY\ÎˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏ‚ˆÜ[ˆİ[O^ŞÈ›ÛÚ^™NˆL‹›ÛÙZYÚˆŒÛÛÜˆÜŒÊ›Ùš]LÈˆÌÍÎNHˆˆÙÌMÌHŠNˆˆÌÍÍMLH‹^[YÛˆœšYÚˆ_OÜÜŒØİ\œ™[˜ŞJ›Ùš]
+Nˆ¸ %ŸOÜÜ[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]ŠNÂˆJ_BˆÙ]‚ˆ[Ù[Xİ[ÛœÏ]ÛˆÛÛXÚÏ^ÙØßHİ[O^ÙÚÜİŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
+HOˆÈYˆ
+X[šXÙY
+H™]\›ÈÛ”Ù[
+Ú\™Y›İÜÊNÈ_Hİ[O^ŞÈ‹‹œš[X\P‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”Ù[Ú][\Ë›[™İH][\ÏØ]ÛÓ[Ù[Xİ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚİÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
+HOˆÙ]ÚİÕJ˜[ÙJ_HÏÏŠNÂŸB‚‹ËÈ8¥ 8¥ 8¥ X[X[Ø[H[Ù[8¥ 8¥ 8¥ ‚™[˜İ[ÛˆX[X[Ø[S[Ù[
+È[™[ÜKÛ”Ù[ÛÛÜÙK]›Ü›\Ëİ\İÛY\œÈJHÂˆÛÛœİ\Ó[Øš[HH\ÙR\Ó[Øš[J
+NÂˆÛÛœİÜ]Y\KÙ]]Y\WHH\ÙTİ]JˆŠNÂˆÛÛœİÜÙ[XİYYËÙ]Ù[XİYY×HH\ÙTİ]J™]ÈÙ]
 
-// â”€â”€â”€ Manual Sale Modal â”€â”€â”€
+JNÂˆÛÛœİÜÚ\™YÙ]Ú\™YHH\ÙTİ]JÈ]›Ü›Nˆ]›Ü›\ÖÌ_“İ\ˆ‹Ø[Q]NˆÙ^J
+Kİ\İÛY\ˆˆˆJNÂˆÛÛœİÜ›İÜËÙ]›İÜ×HH\ÙTİ]JßJNÂˆÛÛœİÜÚİÕKÙ]ÚİÕWHH\ÙTİ]J˜[ÙJNÂˆÛÛœİØÈH
 
-function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
-  const isMobile = useIsMobile();
-  const [query, setQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const [shared, setShared] = useState({ platform: platforms[0]||"Other", saleDate: today(), customer: "" });
-  const [rows, setRows] = useState({});
-  const [showU, setShowU] = useState(false);
-  const gc = () => setShowU(true);
-  const q = query.trim().toLowerCase();
-  const filtered = inventory
-    .filter((item) => !q || [item.name, item.brand, item.category, item.tags, item.customer].some((v) => String(v || "").toLowerCase().includes(q)))
-    .slice(0, 80);
-  const selectedItems = inventory.filter((item) => selectedIds.has(item.id));
-  const toggle = (item) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(item.id)) next.delete(item.id);
-      else next.add(item.id);
-      return next;
-    });
-    setRows((prev) => prev[item.id] ? prev : { ...prev, [item.id]: { salePrice: "", shippingPrice: "", platformFees: "" } });
-  };
-  const updateRow = (id, u) => setRows((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...u } }));
-  const preparedRows = selectedItems.map((item) => ({ id: item.id, ...(rows[item.id] || {}) }));
-  const previews = selectedItems.map((item) => {
-    const r = rows[item.id] || {};
-    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
-  });
-  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
-  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
-  const allPriced = selectedItems.length > 0 && previews.every((p) => p.sp > 0);
+HOˆÙ]ÚİÕJYJNÂˆÛÛœİHH]Y\Kš[J
+KÓİÙ\Ø\ÙJ
+NÂˆÛÛœİš[\™YH[™[ÜBˆ™š[\Š
+][JHOˆ\HÚ][K›˜[YK][K˜œ˜[™][K˜Ø]YÛÜK][KYÜË][K˜İ\İÛY\—KœÛÛYJ
+ŠHOˆİš[™ÊˆˆŠKÓİÙ\Ø\ÙJ
+Kš[˜ÛY\ÊJJJBˆœÛXÙJ
+NÂˆÛÛœİÙ[XİY][\ÈH[™[ÜK™š[\Š
+][JHOˆÙ[XİYYËš\Ê][KšY
+JNÂˆÛÛœİÙÙÛHH
+][JHOˆÂˆÙ]Ù[XİYYÊ
+™]ŠHOˆÂˆÛÛœİ™^H™]ÈÙ]
+™]ŠNÂˆYˆ
+™^š\Ê][KšY
+JH™^™[]J][KšY
+NÂˆ[ÙH™^˜Y
+][KšY
+NÂˆ™]\›ˆ™^ÂˆJNÂˆÙ]›İÜÊ
+™]ŠHOˆ™]–Ú][KšYHÈ™]ˆˆÈ‹‹œ™]‹Ú][KšYNˆÈØ[TšXÙNˆˆ‹Ú\[™ÔšXÙNˆˆ‹]›Ü›Q™Y\ÎˆˆˆHJNÂˆNÂˆÛÛœİ\]T›İÈH
+YJHOˆÙ]›İÜÊ
+™]ŠHOˆ
+È‹‹œ™]‹ÚYNˆÈ‹‹Š™]–ÚYHßJK‹‹HHJJNÂˆÛÛœİ™\\™Y›İÜÈHÙ[XİY][\Ë›X\
 
-  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
-    <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
-    <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
-    </ResponsiveGrid>
-    <Field label="Search inventory"><input value={query} onChange={(e) => setQuery(e.target.value)} style={inp} placeholder="Search name, brand, category..." autoFocus={!isMobile} /></Field>
-    <ResponsiveGrid columns="minmax(340px, 0.95fr) minmax(500px, 1.3fr)" gap={isMobile ? 12 : 14} style={{ minHeight: isMobile ? 0 : 360 }}>
-      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 260 : 360, background: "#0d1117" }}>
-        {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#56627a", fontSize: 12 }}>No inventory matches.</div>}
-        {filtered.map((item, index) => {
-          const checked = selectedIds.has(item.id);
-          return (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #232c3c22", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#121a2b") }}>
-              <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                <SaleItemIdentity item={item} showCost={false} compact />
-              </div>
-              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 320 : 360, background: "#0d1117" }}>
-        {selectedItems.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#56627a", fontSize: 12 }}>Select inventory to price the sale.</div>}
-        {selectedItems.map((item) => {
-          const r = rows[item.id] || {};
-          const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-          const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
-          return (
-            <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7, alignItems: "flex-start" }}>
-                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><SaleItemIdentity item={item} /></div>
-                <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>Remove</button>
-              </div>
-              <ResponsiveGrid columns="repeat(3, minmax(120px, 1fr)) 92px" mobileColumns="1fr 1fr" gap={8} style={{ alignItems: "end" }}>
-                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" step="0.01" placeholder="Sale price" value={r.salePrice || ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Shipping</div><input type="number" step="0.01" placeholder="Shipping" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <div><div style={{ fontSize: 10, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Fees</div><input type="number" step="0.01" placeholder="Fees" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{sp>0?currency(profit):"â€”"}</span>
-              </ResponsiveGrid>
-            </div>
-          );
-        })}
-      </div>
-    </ResponsiveGrid>
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(selectedItems, shared, preparedRows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record {selectedItems.length || ""} Sale{selectedItems.length === 1 ? "" : "s"}</button></ModalActions>
-  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
-}
+][JHOˆ
+ÈYˆ][KšY‹‹Š›İÜÖÚ][KšYHßJHJJNÂˆÛÛœİ™]šY]ÜÈHÙ[XİY][\Ë›X\
 
-function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
-  const qty = Math.max(1, Number(draft.quantity || 1));
-  const saleTotal = Number(draft.sale_price || 0);
-  const shipTotal = Number(draft.shipping_price || 0);
-  const rawFeeTotal = Number(draft.platform_fees || 0);
-  const feeTotal = rawFeeTotal > 0 ? rawFeeTotal : estimateEbayFee(saleTotal);
-  const [shared, setShared] = useState({
-    platform: "eBay AU",
-    saleDate: draft.sale_date || today(),
-    customer: draft.buyer_username || "",
-  });
-  const [rows, setRows] = useState(items.map((item) => ({
-    id: item.id,
-    salePrice: (saleTotal / qty).toFixed(2),
-    shippingPrice: (shipTotal / qty).toFixed(2),
-    platformFees: (feeTotal / qty).toFixed(2),
-  })));
-  const [showU, setShowU] = useState(false);
-  const updateRow = (id, u) => setRows(rows.map((r) => r.id === id ? { ...r, ...u } : r));
-  const previews = items.map((item) => {
-    const r = rows.find((x) => x.id === item.id) || {};
-    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
-  });
-  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
-  const totalShip = previews.reduce((a, p) => a + p.ship, 0);
-  const totalFees = previews.reduce((a, p) => a + p.fees, 0);
-  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
-  const allPriced = previews.every((p) => p.sp > 0);
+][JHOˆÂˆÛÛœİˆH›İÜÖÚ][KšYHßNÂˆÛÛœİÜH\œÙQ›Ø]
+‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
+‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
+‹œ]›Ü›Q™Y\Ê_Âˆ™]\›ˆÈ‹‹š][KÜÚ\™Y\Ë›Ùš]ˆÛÛ\]T›Ùš]
+ÈØ[TšXÙNˆÜÛÜİˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJHNÂˆJNÂˆÛÛœİİ[›Ùš]H™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+Èœ›Ùš]
+NÂˆÛÛœİİ[™]™[YHH™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+ÈœÜ
+NÂˆÛÛœİ[šXÙYHÙ[XİY][\Ë›[™İˆ	‰ˆ™]šY]ÜË™]™\J
+
+HOˆœÜˆ
+NÂ‚ˆ™]\›ˆ
+[Ù[Ü[^İY_HÛÛÜÙO^ÛÛÛÜÙ_HİX\™YÛÜÙO^ÙØßH]OHYØ[HˆX^ÚY^ÎNO‚ˆ›İÈÛÛÏ^ÌßOšY[X™[H”]›Ü›Hˆ™\OÙ[Xİ˜[YO^ÜÚ\™Yœ]›Ü›_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™Y]›Ü›NˆK\™Ù]˜[YHJ_Hİ[O^ÜÙ[OÜ]›Ü›\Ë›X\
 
-  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
-    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
-      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.item_title}</div>
-      <div style={{ color: "#7c8aa0", fontSize: 11 }}>Order {draft.order_id || "unknown"} Â· qty {qty} Â· {draft.buyer_username || "Unknown buyer"}</div>
-    </div>
-    <Row cols={3}><Field label="Platform"><input value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} /></Field></Row>
-    <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Shipping</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalShip)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Fees</div><div style={{ color: "#f59e0b", fontWeight: 700 }}>{currency(totalFees)}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
-    </ResponsiveGrid>
-    {rawFeeTotal <= 0 && <div style={{ fontSize: 11, color: "#fbbf24", margin: "-2px 0 10px" }}>Fees are estimated from eBay AU Pro Basic Tier 4 at {(EBAY_AU_FEE_RATE * 100).toFixed(2)}% + {currency(EBAY_AU_FIXED_ORDER_FEE)}. Edit them before recording if eBay shows a different amount.</div>}
-    <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #232c3c" }}>
-      {items.map((item) => {
-        const r = rows.find((x) => x.id === item.id) || {};
-        const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-        const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
-        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
-            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div></div>
-            <div style={{ color: profit>=0?"#34d399":"#f87171", fontSize: 13, fontWeight: 800 }}>{currency(profit)}</div>
-          </div>
-          <div style={{ marginBottom: 7 }}><SaleItemIdentity item={item} /></div>
-          <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="1fr" gap={6}>
-            <Field label="Sale price"><input type="number" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
-            <Field label="Shipping"><input type="number" step="0.01" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
-            <Field label="Fees"><input type="number" step="0.01" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
-          </ResponsiveGrid>
-        </div>);
-      })}
-    </div>
-    <ModalActions><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onRecord(draft, { items, shared, rows }); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record Sale</button></ModalActions>
-  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
-}
+
+HOˆÜ[ÛˆÙ^O^ÜOÜOÛÜ[ÛŠ_OÜÙ[XİÑšY[šY[X™[H”Ø[H]H[œ]\OH™]Hˆ˜[YO^ÜÚ\™YœØ[Q]_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™YØ[Q]NˆK\™Ù]˜[YHJ_Hİ[O^Ú[œHÏÑšY[šY[X™[Hİ\İÛY\ˆ[œ]\İH˜İ\İ[X[X[\Ø[Hˆ˜[YO^ÜÚ\™Y˜İ\İÛY\ŸHÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™Yİ\İÛY\ˆK\™Ù]˜[YHJ_Hİ[O^Ú[œHXÙZÛ\H“Ü[Û˜[ˆÏ][\İYH˜İ\İ[X[X[\Ø[HØİ\İÛY\œË›X\
 
-export {
-  EditSaleModal,
-  SellModal,
-  BulkEditSaleModal,
-  BulkSellModal,
-  ManualSaleModal,
-  EbaySaleReviewModal
-};
+ÊHOˆÜ[ÛˆÙ^O^ØßH˜[YO^ØßHÏŠ_OÙ][\İÑšY[Ô›İÏ‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
+ËZ[›X^
+YœŠJHˆ[Øš[PÛÛ[[œÏHœ™\X]
+ËZ[›X^
+YœŠJHˆØ\^ÎHİ[O^ŞÈ˜XÚÙÜ›İ[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›İÛNˆL‹›ÛÚ^™NˆLˆ_O‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”Ù[XİYÙ]]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆŒ_OÜÙ[XİY][\Ë›[™İH][^ÜÙ[XİY][\Ë›[™İOOHHÈˆˆˆœÈŸOÙ]Ù]‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”™]™[YOÙ]]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆŒ_OØİ\œ™[˜ŞJİ[™]™[YJ_OÙ]Ù]‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”›Ùš]Ù]]ˆİ[O^ŞÈÛÛÜˆİ[›Ùš]LÈˆÌÍÎNHˆˆÙÌMÌH‹›ÛÙZYÚˆÌ_OØİ\œ™[˜ŞJİ[›Ùš]
+_OÙ]Ù]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆšY[X™[H”ÙX\˜Ú[™[ÜH[œ]˜[YO^Ü]Y\_HÛÚ[™ÙO^ÊJHOˆÙ]]Y\JK\™Ù]˜[YJ_Hİ[O^Ú[œHXÙZÛ\H”ÙX\˜Ú˜[YKœ˜[™Ø]YÛÜK‹‹ˆˆ]]Ñ›Øİ\Ï^ÈZ\Ó[Øš[_HÏÑšY[‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏH›Z[›X^
+ÍMYœŠHZ[›X^
+LKŒÙœŠHˆØ\^Ú\Ó[Øš[HÈLˆˆMHİ[O^ŞÈZ[’ZYÚˆ\Ó[Øš[HÈˆÍŒ_O‚ˆ]ˆİ[O^ŞÈ›Ü™\ˆŒ\ÛÛYÌŒÌ˜ÌØÈ‹›Ü™\”˜Y]\Îˆİ™\™›İÎˆ˜]]È‹X^ZYÚˆ\Ó[Øš[HÈŒˆÍŒ˜XÚÙÜ›İ[™ˆˆÌLLMÈˆ_O‚ˆÙš[\™Y›[™İOOH	‰ˆ]ˆİ[O^ŞÈY[™ÎˆN^[YÛˆ˜Ù[\ˆ‹ÛÛÜˆˆÎMØY‹›ÛÚ^™NˆLˆ_O“›È[™[ÜHX]Ú\ËÙ]ŸBˆÙš[\™Y›X\
+
+][K[™^
+HOˆÂˆÛÛœİÚXÚÙYHÙ[XİYYËš\Ê][KšY
+NÂˆ™]\›ˆ
+ˆ]ˆÙ^O^Ú][KšYHÛÛXÚÏ^Ê
+HOˆÙÙÛJ][J_Hİ[O^ŞÈ\Ü^Nˆ™ÜšY‹ÜšY[\]PÛÛ[[œÎˆŒœZ[›X^
+YœŠH]]È‹Ø\ˆL[YÛ’][\Îˆ˜Ù[\ˆ‹Y[™ÎˆŒLLœ‹İ\œÛÜˆœÚ[\ˆ‹›Ü™\›İÛNˆŒ\ÛÛYÌŒÌ˜ÌØÌŒˆ‹˜XÚÙÜ›İ[™ˆÚXÚÙYÈˆÌYLLØˆˆˆ
+[™^	HˆOOHÈˆÌLÌYˆˆˆˆÌLŒXL˜ˆŠH_O‚ˆ[œ]\OH˜ÚXÚØ›ŞˆÚXÚÙY^ØÚXÚÙYHÛÚ[™ÙO^Ê
+HOˆÙÙÛJ][J_HÛÛXÚÏ^ÊJHOˆKœİÜ›ÜYØ][ÛŠ
+_Hİ[O^ØØŸHÏ‚ˆ]ˆİ[O^ŞÈZ[•ÚYˆ_O‚ˆ]ˆİ[O^ŞÈÛÛÜˆˆÙMYMÙXˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆÌİ™\™›İÎˆšY[ˆ‹^İ™\™›İÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››İÜ˜\ˆ_OÚ][K›˜[Y_OÙ]‚ˆØ[R][RY[]H][O^Ú][_HÚİĞÛÜİ^Ù˜[Ù_HÛÛ\XİÏ‚ˆÙ]‚ˆ]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆÌ_OØİ\œ™[˜ŞJ][KœšXÙJ_OÙ]‚ˆÙ]‚ˆ
+NÂˆJ_BˆÙ]‚ˆ]ˆİ[O^ŞÈ›Ü™\ˆŒ\ÛÛYÌŒÌ˜ÌØÈ‹›Ü™\”˜Y]\Îˆİ™\™›İÎˆ˜]]È‹X^ZYÚˆ\Ó[Øš[HÈÌŒˆÍŒ˜XÚÙÜ›İ[™ˆˆÌLLMÈˆ_O‚ˆÜÙ[XİY][\Ë›[™İOOH	‰ˆ]ˆİ[O^ŞÈY[™ÎˆN^[YÛˆ˜Ù[\ˆ‹ÛÛÜˆˆÎMØY‹›ÛÚ^™NˆLˆ_O”Ù[Xİ[™[ÜHÈšXÙHHØ[KÙ]ŸBˆÜÙ[XİY][\Ë›X\
+
+][JHOˆÂˆÛÛœİˆH›İÜÖÚ][KšYHßNÂˆÛÛœİÜH\œÙQ›Ø]
+‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
+‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
+‹œ]›Ü›Q™Y\Ê_ÂˆÛÛœİ›Ùš]HÛÛ\]T›Ùš]
+ÈØ[TšXÙNˆÜÛÜİˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJNÂˆ™]\›ˆ
+ˆ]ˆÙ^O^Ú][KšYHİ[O^ŞÈY[™ÎˆŒLLœ‹›Ü™\›İÛNˆŒ\ÛÛYÌŒÌ˜ÌØÍ‹˜XÚÙÜ›İ[™ˆˆÌLLMÈˆ_O‚ˆ]ˆİ[O^ŞÈ\Ü^Nˆ™›^‹\İYPÛÛ[ˆœÜXÙKX™]ÙY[ˆ‹Ø\ˆX\™Ú[›İÛNˆË[YÛ’][\Îˆ™›^\İ\ˆ_O‚ˆ]ˆİ[O^ŞÈZ[•ÚYˆ_O]ˆİ[O^ŞÈÛÛÜˆˆÙMYMÙXˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆŒİ™\™›İÎˆšY[ˆ‹^İ™\™›İÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››İÜ˜\ˆ_OÚ][K›˜[Y_OÙ]Ø[R][RY[]H][O^Ú][_HÏÙ]‚ˆ]ÛˆÛÛXÚÏ^Ê
+HOˆÙÙÛJ][J_Hİ[O^ŞÈ‹‹™ÚÜİ‹Y[™ÎˆŒÜÜ‹›ÛÚ^™NˆLKÛÛÜˆˆÙÌMÌH‹›^Úš[šÎˆ_O”™[[İ™OØ]Û‚ˆÙ]‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
+ËZ[›X^
+LŒYœŠJHLœˆ[Øš[PÛÛ[[œÏHŒYœˆYœˆˆØ\^ÎHİ[O^ŞÈ[YÛ’][\Îˆ™[™ˆ_O‚ˆ]]ˆİ[O^ŞÈ›ÛÚ^™NˆLKÛÛÜˆˆÎXØLØYˆ‹X\™Ú[›İÛNˆ›ÛÙZYÚˆŒ_O”Ø[OÙ][œ]\OH›[X™\ˆˆİ\HŒŒHˆXÙZÛ\H”Ø[HšXÙHˆ˜[YO^Ü‹œØ[TšXÙHˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈØ[TšXÙNˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆ]]ˆİ[O^ŞÈ›ÛÚ^™NˆLKÛÛÜˆˆÎXØLØYˆ‹X\™Ú[›İÛNˆ›ÛÙZYÚˆŒ_O”Ú\[™ÏÙ][œ]\OH›[X™\ˆˆİ\HŒŒHˆXÙZÛ\H”Ú\[™Èˆ˜[YO^Ü‹œÚ\[™ÔšXÙHˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈÚ\[™ÔšXÙNˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆ]]ˆİ[O^ŞÈ›ÛÚ^™NˆLKÛÛÜˆˆÎXØLØYˆ‹X\™Ú[›İÛNˆ›ÛÙZYÚˆŒ_O‘™Y\ÏÙ][œ]\OH›[X™\ˆˆİ\HŒŒHˆXÙZÛ\H‘™Y\Èˆ˜[YO^Ü‹œ]›Ü›Q™Y\ÈˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈ]›Ü›Q™Y\ÎˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆÜ[ˆİ[O^ŞÈ›ÛÚ^™NˆL‹›ÛÙZYÚˆÌÛÛÜˆÜŒÊ›Ùš]LÈˆÌÍÎNHˆˆÙÌMÌHŠNˆˆÌÍÍMLH‹^[YÛˆœšYÚ‹Y[™Ğ›İÛNˆ_OÜÜŒØİ\œ™[˜ŞJ›Ùš]
+Nˆ¸ %ŸOÜÜ[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]‚ˆ
+NÂˆJ_BˆÙ]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆ[Ù[Xİ[ÛœÏ]ÛˆÛÛXÚÏ^ÙØßHİ[O^ÙÚÜİŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
+HOˆÈYˆ
+X[šXÙY
+H™]\›ÈÛ”Ù[
+Ù[XİY][\ËÚ\™Y™\\™Y›İÜÊNÈ_Hİ[O^ŞÈ‹‹œš[X\P‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”™XÛÜ™ÜÙ[XİY][\Ë›[™İˆŸHØ[^ÜÙ[XİY][\Ë›[™İOOHHÈˆˆˆœÈŸOØ]ÛÓ[Ù[Xİ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚİÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
+HOˆÙ]ÚİÕJ˜[ÙJ_HÏÏŠNÂŸB‚™[˜İ[ÛˆX˜^TØ[T™]šY]Ó[Ù[
+È˜Y][\ËÛ”™XÛÜ™ÛÛÜÙHJHÂˆÛÛœİ]HHX]›X^
+K[X™\Š˜Yœ]X[]HJJNÂˆÛÛœİØ[Uİ[H[X™\Š˜YœØ[WÜšXÙH
+NÂˆÛÛœİÚ\İ[H[X™\Š˜YœÚ\[™×ÜšXÙH
+NÂˆÛÛœİ˜]Ñ™YUİ[H[X™\Š˜Yœ]›Ü›WÙ™Y\È
+NÂˆÛÛœİ™YUİ[H˜]Ñ™YUİ[ˆÈ˜]Ñ™YUİ[ˆ\İ[X]QX˜^Q™YJØ[Uİ[
+NÂˆÛÛœİÜÚ\™YÙ]Ú\™YHH\ÙTİ]JÂˆ]›Ü›Nˆ™P˜^HUH‹ˆØ[Q]Nˆ˜YœØ[WÙ]HÙ^J
+Kˆİ\İÛY\ˆ˜Y˜^Y\—İ\Ù\›˜[YHˆ‹ˆJNÂˆÛÛœİÜ›İÜËÙ]›İÜ×HH\ÙTİ]J][\Ë›X\
+
+][JHOˆ
+ÂˆYˆ][KšYˆØ[TšXÙNˆ
+Ø[Uİ[È]JKÑš^Y
+ŠKˆÚ\[™ÔšXÙNˆ
+Ú\İ[È]JKÑš^Y
+ŠKˆ]›Ü›Q™Y\Îˆ
+™YUİ[È]JKÑš^Y
+ŠKˆJJJNÂˆÛÛœİÜÚİÕKÙ]ÚİÕWHH\ÙTİ]J˜[ÙJNÂˆÛÛœİ\]T›İÈH
+YJHOˆÙ]›İÜÊ›İÜË›X\
+
+ŠHOˆ‹šYOOHYÈÈ‹‹œ‹‹‹HHˆŠJNÂˆÛÛœİ™]šY]ÜÈH][\Ë›X\
+
+][JHOˆÂˆÛÛœİˆH›İÜË™š[™
+
+
+HOˆšYOOH][KšY
+HßNÂˆÛÛœİÜH\œÙQ›Ø]
+‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
+‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
+‹œ]›Ü›Q™Y\Ê_Âˆ™]\›ˆÈ‹‹š][KÜÚ\™Y\Ë›Ùš]ˆÛÛ\]T›Ùš]
+ÈØ[TšXÙNˆÜÛÜİˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJHNÂˆJNÂˆÛÛœİİ[™]™[YHH™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+ÈœÜ
+NÂˆÛÛœİİ[Ú\H™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+ÈœÚ\
+NÂˆÛÛœİİ[™Y\ÈH™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+È™™Y\Ë
+NÂˆÛÛœİİ[›Ùš]H™]šY]ÜËœ™YXÙJ
+K
+HOˆH
+Èœ›Ùš]
+NÂˆÛÛœİ[šXÙYH™]šY]ÜË™]™\J
+
+HOˆœÜˆ
+NÂ‚ˆ™]\›ˆ
+[Ù[Ü[^İY_HÛÛÜÙO^ÛÛÛÜÙ_HİX\™YÛÜÙO^Ê
+HOˆÙ]ÚİÕJYJ_H]OH”™]šY]ÈP˜^HØ[H‚ˆ]ˆİ[O^ŞÈ˜XÚÙÜ›İ[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›İÛNˆM_O‚ˆ]ˆİ[O^ŞÈÛÛÜˆˆÙMYMÙXˆ‹›ÛÚ^™NˆLË›ÛÙZYÚˆÌX\™Ú[›İÛNˆÈ_OÙ˜Yš][Wİ]_OÙ]‚ˆ]ˆİ[O^ŞÈÛÛÜˆˆÍØÎXL‹›ÛÚ^™NˆLH_O“Ü™\ˆÙ˜Y›Ü™\—ÚY[šÛ›İÛˆŸH0­È]HÜ]_H0­ÈÙ˜Y˜^Y\—İ\Ù\›˜[YH•[šÛ›İÛˆ^Y\ˆŸOÙ]‚ˆÙ]‚ˆ›İÈÛÛÏ^ÌßOšY[X™[H”]›Ü›H[œ]˜[YO^ÜÚ\™Yœ]›Ü›_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™Y]›Ü›NˆK\™Ù]˜[YHJ_Hİ[O^Ú[œHÏÑšY[šY[X™[H”Ø[H]H[œ]\OH™]Hˆ˜[YO^ÜÚ\™YœØ[Q]_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™YØ[Q]NˆK\™Ù]˜[YHJ_Hİ[O^Ú[œHÏÑšY[šY[X™[Hİ\İÛY\ˆ[œ]˜[YO^ÜÚ\™Y˜İ\İÛY\ŸHÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
+È‹‹œÚ\™Yİ\İÛY\ˆK\™Ù]˜[YHJ_Hİ[O^Ú[œHÏÑšY[Ô›İÏ‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
+Z[›X^
+YœŠJHˆ[Øš[PÛÛ[[œÏHœ™\X]
+‹Z[›X^
+YœŠJHˆØ\^ÎHİ[O^ŞÈ˜XÚÙÜ›İ[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›İÛNˆL‹›ÛÚ^™NˆLˆ_O‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”™]™[YOÙ]]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OØİ\œ™[˜ŞJİ[™]™[YJ_OÙ]Ù]‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”Ú\[™ÏÙ]]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OØİ\œ™[˜ŞJİ[Ú\
+_OÙ]Ù]‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O‘™Y\ÏÙ]]ˆİ[O^ŞÈÛÛÜˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OØİ\œ™[˜ŞJİ[™Y\Ê_OÙ]Ù]‚ˆ]]ˆİ[O^ŞÈÛÛÜˆˆÎMØY‹X\™Ú[›İÛNˆˆ_O”›Ùš]Ù]]ˆİ[O^ŞÈÛÛÜˆİ[›Ùš]LÈˆÌÍÎNHˆˆÙÌMÌH‹›ÛÙZYÚˆ_OØİ\œ™[˜ŞJİ[›Ùš]
+_OÙ]Ù]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÜ˜]Ñ™YUİ[H	‰ˆ]ˆİ[O^ŞÈ›ÛÚ^™NˆLKÛÛÜˆˆÙ˜˜™Œ‹X\™Ú[ˆ‹LœLˆ_O‘™Y\È\™H\İ[X]Yœ›ÛHP˜^HUH›È˜\ÚXÈY\ˆ]ÊPVWĞUWÑ‘QWÔUH
+ˆL
+KÑš^Y
+Š_IH
+ÈØİ\œ™[˜ŞJPVWĞUWÑ’VQÓÔ‘T—Ñ‘QJ_KˆY][H™Y›Ü™H™XÛÜ™[™ÈYˆP˜^HÚİÜÈHY™™\™[[[İ[Ù]ŸBˆ]ˆİ[O^ŞÈX^ZYÚˆÌİ™\™›İÖNˆ˜]]È‹›Ü™\”˜Y]\Îˆ›Ü™\ˆŒ\ÛÛYÌŒÌ˜ÌØÈˆ_O‚ˆÚ][\Ë›X\
+
+][JHOˆÂˆÛÛœİˆH›İÜË™š[™
+
+
+HOˆšYOOH][KšY
+HßNÂˆÛÛœİÜH\œÙQ›Ø]
+‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
+‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
+‹œ]›Ü›Q™Y\Ê_ÂˆÛÛœİ›Ùš]HÛÛ\]T›Ùš]
+ÈØ[TšXÙNˆÜÛÜİˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJNÂˆ™]\›ˆ
+]ˆÙ^O^Ú][KšYHİ[O^ŞÈY[™ÎˆŒLLœ‹›Ü™\›İÛNˆŒ\ÛÛYÌŒÌ˜ÌØÍ‹˜XÚÙÜ›İ[™ˆˆÌLLMÈˆ_O‚ˆ]ˆİ[O^ŞÈ\Ü^Nˆ™›^‹\İYPÛÛ[ˆœÜXÙKX™]ÙY[ˆ‹Ø\ˆX\™Ú[›İÛNˆÈ_O‚ˆ]ˆİ[O^ŞÈZ[•ÚYˆ_O]ˆİ[O^ŞÈÛÛÜˆˆÙMYMÙXˆ‹›ÛÚ^™NˆLË›ÛÙZYÚˆÌİ™\™›İÎˆšY[ˆ‹^İ™\™›İÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››İÜ˜\ˆ_OÚ][K›˜[Y_OÙ]Ù]‚ˆ]ˆİ[O^ŞÈÛÛÜˆ›Ùš]LÈˆÌÍÎNHˆˆÙÌMÌH‹›ÛÚ^™NˆLË›ÛÙZYÚˆ_OØİ\œ™[˜ŞJ›Ùš]
+_OÙ]‚ˆÙ]‚ˆ]ˆİ[O^ŞÈX\™Ú[›İÛNˆÈ_OØ[R][RY[]H][O^Ú][_HÏÙ]‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
+ËZ[›X^
+YœŠJHˆ[Øš[PÛÛ[[œÏHŒYœˆˆØ\^ÍŸO‚ˆšY[X™[H”Ø[HšXÙH[œ]\OH›[X™\ˆˆİ\HŒŒHˆ˜[YO^Ü‹œØ[TšXÙ_HÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈØ[TšXÙNˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆšY[X™[H”Ú\[™È[œ]\OH›[X™\ˆˆİ\HŒŒHˆ˜[YO^Ü‹œÚ\[™ÔšXÙ_HÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈÚ\[™ÔšXÙNˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆšY[X™[H‘™Y\È[œ]\OH›[X™\ˆˆİ\HŒŒHˆ˜[YO^Ü‹œ]›Ü›Q™Y\ßHÛÚ[™ÙO^ÊJHOˆ\]T›İÊ][KšYÈ]›Ü›Q™Y\ÎˆK\™Ù]˜[YHJ_Hİ[O^ŞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]ŠNÂˆJ_BˆÙ]‚ˆ[Ù[Xİ[ÛœÏ]ÛˆÛÛXÚÏ^Ê
+HOˆÙ]ÚİÕJYJ_Hİ[O^ÙÚÜİŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
+HOˆÈYˆ
+X[šXÙY
+H™]\›ÈÛ”™XÛÜ™
+˜YÈ][\ËÚ\™Y›İÜÈJNÈ_Hİ[O^ŞÈ‹‹œš[X\P‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”™XÛÜ™Ø[OØ]ÛÓ[Ù[Xİ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚİÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
+HOˆÙ]ÚİÕJ˜[ÙJ_HÏÏŠNÂŸB‚™^ÜÂˆY]Ø[S[Ù[ˆÙ[[Ù[ˆ[ÑY]Ø[S[Ù[ˆ[ÔÙ[[Ù[ˆX[X[Ø[S[Ù[ˆX˜^TØ[T™]šY]Ó[Ù[ŸNÂ

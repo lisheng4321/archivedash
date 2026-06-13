@@ -51,7 +51,7 @@ const card = { background: "#121a2b", borderRadius: 12, border: "1px solid #232c
 const labelStyle = { fontSize: 12, color: "#9ca3af", display: "block", marginBottom: 5, fontWeight: 500 };
 const primaryBtn = { padding: "9px 16px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
 const ghostBtn = { padding: "9px 16px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 8, fontSize: 13, cursor: "pointer", fontFamily: "inherit" };
-const miniIconBtn = (disabled) => ({ width: 22, height: 22, border: "none", borderRadius: 5, background: "#232c3c", color: disabled ? "#374151" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, lineHeight: "22px", padding: 0 });
+const miniIconBtn = (disabled) => ({ width: 22, height: 22, border: "none", borderRadius: 6, background: "#232c3c", color: disabled ? "#374151" : "#9ca3af", cursor: disabled ? "not-allowed" : "pointer", fontSize: 12, lineHeight: "22px", padding: 0 });
 
 function cleanPreset(preset) {
   return {
@@ -270,7 +270,7 @@ export default function Calculator({ isMobile = false }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Fee Calculator</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>
             Editable calculators for eBay categories and selling platforms
           </p>
         </div>
@@ -310,7 +310,7 @@ export default function Calculator({ isMobile = false }) {
             <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} style={sel}>
               {calculators.map((c) => <option key={c.id} value={c.id}>{c.name} - {pct(c.rate)}</option>)}
             </select>
-            {calculator && <div style={{ fontSize: 11, color: "#56627a", marginTop: 6 }}>{calculator.platform} - {calculator.category}{calculator.notes ? ` - ${calculator.notes}` : ""}</div>}
+            {calculator && <div style={{ fontSize: 11, color: "#8b97ad", marginTop: 6 }}>{calculator.platform} - {calculator.category}{calculator.notes ? ` - ${calculator.notes}` : ""}</div>}
           </div>
 
           {mode === "forward" ? (
@@ -324,7 +324,7 @@ export default function Calculator({ isMobile = false }) {
           ) : (
             <Field label="Target net payout (AU$)">
               <input type="number" step="0.01" value={targetNet} onChange={(e) => setTargetNet(e.target.value)} style={inp} placeholder="What you want to take home" autoFocus={!isMobile} />
-              <div style={{ fontSize: 11, color: "#56627a", marginTop: 6 }}>Calculates list price needed to net this after fees. Assumes shipping is included in price.</div>
+              <div style={{ fontSize: 11, color: "#8b97ad", marginTop: 6 }}>Calculates list price needed to net this after fees. Assumes shipping is included in price.</div>
             </Field>
           )}
 
@@ -346,7 +346,7 @@ export default function Calculator({ isMobile = false }) {
             </div>
           ) : (
             <>
-              <div style={{ background: "#0d1117", borderRadius: 10, padding: "16px 18px", marginBottom: 14 }}>
+              <div style={{ background: "#0d1117", borderRadius: 12, padding: "16px 18px", marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 4 }}>{mode === "forward" ? "Net payout" : "List price needed"}</div>
                 <div style={{ fontSize: isMobile ? 24 : 28, fontWeight: 700, color: "#34d399" }}>{currency(mode === "forward" ? result.netPayout : result.total)}</div>
                 {mode === "reverse" && <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 4 }}>To net <span style={{ color: "#9ca3af" }}>{currency(parseFloat(targetNet) || 0)}</span></div>}
@@ -366,7 +366,7 @@ export default function Calculator({ isMobile = false }) {
               </div>
 
               {mode === "forward" && costNum > 0 && (
-                <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, marginTop: 14 }}>
+                <div style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 14 }}>
                   <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Profit</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                     <Stat label="Net profit" value={currency(profit)} color={profit >= 0 ? "#34d399" : "#f87171"} />
@@ -412,7 +412,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(260px, 0.8fr) minmax(420px, 1.2fr)", gap: 14 }}>
-        <div style={{ border: "1px solid #232c3c", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ border: "1px solid #232c3c", borderRadius: 12, overflow: "hidden" }}>
           {calculators.map((calc, idx) => (
             <div key={calc.id} onClick={() => { setSelectedId(calc.id); setEditingId(calc.id); }} style={{ padding: "9px 11px", cursor: "pointer", background: calc.id === selectedId ? "#1e293b" : idx % 2 === 0 ? "#0d131f" : "#121a2b", borderBottom: "1px solid #232c3c22" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -431,7 +431,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
         </div>
 
         {editing ? (
-          <div style={{ border: "1px solid #232c3c", borderRadius: 10, padding: 14 }}>
+          <div style={{ border: "1px solid #232c3c", borderRadius: 12, padding: 14 }}>
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
               <Field label="Calculator name"><input value={editing.name} onChange={(e) => updateCalculator(editing.id, { name: e.target.value })} style={inp} /></Field>
               <Field label="Platform"><input value={editing.platform} onChange={(e) => updateCalculator(editing.id, { platform: e.target.value })} style={inp} /></Field>
@@ -453,7 +453,7 @@ function CalculatorManager({ calculators, selectedId, editing, setSelectedId, se
             </div>
           </div>
         ) : (
-          <div style={{ border: "1px solid #232c3c", borderRadius: 10, padding: 28, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a calculator to edit it.</div>
+          <div style={{ border: "1px solid #232c3c", borderRadius: 12, padding: 28, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a calculator to edit it.</div>
         )}
       </div>
     </div>
@@ -485,7 +485,7 @@ function Line({ label, value, bold, negative, subtle, large, border }) {
 function Stat({ label, value, color }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: "#56627a", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#8b97ad", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
     </div>
   );
@@ -494,7 +494,7 @@ function Stat({ label, value, color }) {
 function Ref({ label, value }) {
   return (
     <div style={{ background: "#0d1117", borderRadius: 8, padding: "10px 12px" }}>
-      <div style={{ fontSize: 11, color: "#56627a", marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 11, color: "#8b97ad", marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 700 }}>{value}</div>
     </div>
   );

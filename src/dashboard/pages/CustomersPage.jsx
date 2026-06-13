@@ -27,13 +27,15 @@ export default function CustomersPage({ ctx }) {
   const repeatCustomers = customerRows.filter((c) => c.orderCount > 1).length;
   const totalRevenue = customerRows.reduce((a, c) => a + c.revenue, 0);
   const totalProfit = customerRows.reduce((a, c) => a + c.profit, 0);
+  const filtersActive = customerSearch || customerPlatform !== "All" || customerSort !== "profit_desc";
+  const clearFilters = () => { setCustomerSearch(""); setCustomerPlatform("All"); setCustomerSort("profit_desc"); };
 
   return (
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Customers</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{customerRows.length} customers - {repeatCustomers} repeat - {currency(totalRevenue)} revenue</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{customerRows.length} customers - {repeatCustomers} repeat - {currency(totalRevenue)} revenue</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => setAddOpen(true)} style={ghostBtn}>+ Add Customer</button>
@@ -62,19 +64,19 @@ export default function CustomersPage({ ctx }) {
           <option value="last_desc">Last purchase</option>
           <option value="name_asc">Name A-Z</option>
         </select>
-        {(customerSearch || customerPlatform !== "All" || customerSort !== "profit_desc") && <button onClick={() => { setCustomerSearch(""); setCustomerPlatform("All"); setCustomerSort("profit_desc"); }} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#56627a" }}>{customerRows.length} shown</span>
+        {filtersActive && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Clear</button>}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{customerRows.length} shown</span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(520px, 1.1fr) minmax(360px, 0.9fr)", gap: 14 }}>
         <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, overflow: "hidden" }}>
           {!isMobile && (
-            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#56627a", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 700 }}>
-              <span>Customer</span><span>Platform</span><span>Orders</span><span>Revenue</span><span>Profit</span><span>Last</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 700 }}>
+              <span>Customer</span><span>Platform</span><span style={{ textAlign: "right" }}>Orders</span><span style={{ textAlign: "right" }}>Revenue</span><span style={{ textAlign: "right" }}>Profit</span><span>Last</span>
             </div>
           )}
           {customerRows.length === 0 ? (
-            <div style={{ padding: 36, textAlign: "center", color: "#374151", fontSize: 13 }}>No customers yet</div>
+            <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>{filtersActive ? "No customers match these filters." : "No customers yet"}{filtersActive && <button onClick={clearFilters} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button>}</div>
           ) : customerRows.map((customer, idx) => (
             <CustomerRow key={customer.key} customer={customer} active={active?.key === customer.key} index={idx} isMobile={isMobile} onClick={() => setActiveCustomerKey(customer.key)} />
           ))}
@@ -106,12 +108,12 @@ function CustomerRow({ customer, active, index, isMobile, onClick }) {
     <div onClick={onClick} style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 70px 95px 95px 95px", gap: 8, padding: "11px 16px", alignItems: "center", fontSize: 13, background: bg, borderBottom: "1px solid #232c3c11", cursor: "pointer" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.name}</div>
-        <div style={{ color: "#56627a", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.profile.email || customer.profile.phone || customer.profile.tags || "No contact saved"}</div>
+        <div style={{ color: "#8b97ad", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customer.profile.email || customer.profile.phone || customer.profile.tags || "No contact saved"}</div>
       </div>
       <span style={{ color: "#93c5fd", fontSize: 12 }}>{platforms}</span>
-      <span style={{ color: "#9ca3af", fontSize: 12 }}>{customer.orderCount}</span>
-      <span style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(customer.revenue)}</span>
-      <span style={{ color: customer.profit >= 0 ? "#34d399" : "#f87171", fontWeight: 700 }}>{currency(customer.profit)}</span>
+      <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "right" }}>{customer.orderCount}</span>
+      <span style={{ color: "#f3f6fb", fontWeight: 700, textAlign: "right" }}>{currency(customer.revenue)}</span>
+      <span style={{ color: customer.profit >= 0 ? "#34d399" : "#f87171", fontWeight: 700, textAlign: "right" }}>{currency(customer.profit)}</span>
       <span style={{ color: "#7c8aa0", fontSize: 12 }}>{customer.lastPurchase || "-"}</span>
     </div>
   );
@@ -189,11 +191,11 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCusto
           <div key={sale.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid #232c3c22" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sale.name}</div>
-              <div style={{ color: "#56627a", fontSize: 10 }}>{sale.platform} - {sale.saleDate}</div>
+              <div style={{ color: "#8b97ad", fontSize: 11 }}>{sale.platform} - {sale.saleDate}</div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(sale.salePrice)}</div>
-              <div style={{ color: sale.profit >= 0 ? "#34d399" : "#f87171", fontSize: 10 }}>{currency(sale.profit)}</div>
+              <div style={{ color: sale.profit >= 0 ? "#34d399" : "#f87171", fontSize: 11 }}>{currency(sale.profit)}</div>
             </div>
           </div>
         ))}
@@ -211,7 +213,7 @@ function Section({ title, children }) {
 }
 
 function Mini({ label, value, color }) {
-  return <div style={{ background: "#0d1117", borderRadius: 8, padding: "9px 10px", minWidth: 0 }}><div style={{ color: "#56627a", fontSize: 10, marginBottom: 2 }}>{label}</div><div style={{ color: color || "#f3f6fb", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div></div>;
+  return <div style={{ background: "#0d1117", borderRadius: 8, padding: "9px 10px", minWidth: 0 }}><div style={{ color: "#8b97ad", fontSize: 11, marginBottom: 2 }}>{label}</div><div style={{ color: color || "#f3f6fb", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div></div>;
 }
 
 function AddCustomerModal({ onClose, onSave }) {

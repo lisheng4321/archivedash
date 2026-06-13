@@ -1,7 +1,7 @@
 import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
 import "./appStyles.js";
 import { VERSION } from "./constants.js";
-import { cardSurface, destructiveBtn, ghostBtn, inp, primaryBtn, smallCaps } from "./styles.js";
+import { C, cardSurface, destructiveBtn, ghostBtn, inp, primaryBtn, smallCaps } from "./styles.js";
 
 function useIsMobile() {
   const [m, setM] = useState(typeof window !== "undefined" && window.innerWidth < 768);
@@ -101,11 +101,12 @@ const Row = ({ children, cols = 2 }) => {
 function ModalActions({ children, justify = "flex-end", mobileStack = true, marginTop = 14, style }) {
   const isMobile = useIsMobile();
   const stack = isMobile && mobileStack;
+  const bodyPadding = isMobile ? 14 : 20;
   const actionChildren = stack ? Children.map(children, (child) => (
     isValidElement(child) ? cloneElement(child, { style: { ...child.props.style, width: "100%" } }) : child
   )) : children;
   return (
-    <div style={{ display: "flex", justifyContent: stack ? "stretch" : justify, gap: 8, marginTop, flexDirection: stack ? "column-reverse" : "row", ...style }}>
+    <div style={{ position: "sticky", bottom: 0, zIndex: 2, display: "flex", justifyContent: stack ? "stretch" : justify, gap: 8, marginTop, marginLeft: -bodyPadding, marginRight: -bodyPadding, marginBottom: -bodyPadding, padding: `12px ${bodyPadding}px ${bodyPadding}px`, flexDirection: stack ? "column-reverse" : "row", background: C.panel, borderTop: `1px solid ${C.border}`, ...style }}>
       {actionChildren}
     </div>
   );
@@ -123,19 +124,20 @@ function KPI({ label, value, accent }) { return (<div style={{ ...cardSurface, p
 function TopBar({ saveStatus, isMobile }) {
   const [now, setNow] = useState(new Date());
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
+    const t = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(t);
   }, []);
   const fmt = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Sydney",
-    weekday: "short", day: "numeric", month: "short",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-    timeZoneName: "short",
+    ...(isMobile ? {} : { weekday: "short", timeZoneName: "short" }),
+    day: "numeric", month: "short",
+    hour: "2-digit", minute: "2-digit", hour12: false,
   });
   const parts = fmt.formatToParts(now);
   const get = (t) => parts.find((p) => p.type === t)?.value || "";
-  const dateStr = `${get("weekday")}, ${get("day")} ${get("month")}`;
-  const timeStr = `${get("hour")}:${get("minute")}:${get("second")}`;
+  const month = isMobile ? get("month").slice(0, 3) : get("month");
+  const dateStr = `${isMobile ? "" : `${get("weekday")}, `}${get("day")} ${month}`;
+  const timeStr = `${get("hour")}:${get("minute")}`;
   const tz = get("timeZoneName");
   const dot = saveStatus === "saving" ? "#f59e0b" : saveStatus === "saved" ? "#34d399" : saveStatus === "error" ? "#f87171" : "#374151";
   const dotLabel = saveStatus === "saving" ? "Saving\u2026" : saveStatus === "saved" ? "Saved" : "Idle";
@@ -144,13 +146,13 @@ function TopBar({ saveStatus, isMobile }) {
   return (
     <div style={{ position: "sticky", top: 0, zIndex: 90, background: "#0b0f19", borderBottom: "1px solid #232c3c", padding: isMobile ? "6px 12px" : "6px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: "#7c8aa0", height: 32, boxSizing: "border-box" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden", whiteSpace: "nowrap" }}>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#56627a", flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-        <span style={{ color: "#f3f6fb", fontWeight: 500 }}>{`${dateStr}, ${timeStr} ${tz}`}</span>
-        {!isMobile && <span style={{ color: "#56627a" }}>{"\u00b7 Sydney"}</span>}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: "#8b97ad", flexShrink: 0 }}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+        <span style={{ color: "#f3f6fb", fontWeight: 500 }}>{`${dateStr}, ${timeStr}${isMobile ? "" : ` ${tz}`}`}</span>
+        {!isMobile && <span style={{ color: "#8b97ad" }}>{"\u00b7 Sydney"}</span>}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 7, flexShrink: 0 }}>
         {isError ? (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#7f1d1d", border: "1px solid #f87171", color: "#fecaca", fontSize: 10, fontWeight: 800, letterSpacing: 0.2, whiteSpace: "nowrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: "#7f1d1d", border: "1px solid #f87171", color: "#fecaca", fontSize: 11, fontWeight: 800, letterSpacing: 0.2, whiteSpace: "nowrap" }}>
             <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#f87171" }} />
             Save failed
           </span>
@@ -160,7 +162,7 @@ function TopBar({ saveStatus, isMobile }) {
             {(!isMobile || saveStatus === "saving") && <span style={{ whiteSpace: "nowrap" }}>{statusLabel}</span>}
           </span>
         )}
-        <span title="Version" style={{ marginLeft: isMobile ? 0 : 6, padding: "2px 6px", borderRadius: 999, border: "1px solid #232c3c", background: "#121a2b", color: "#a7c8fb", fontSize: 10, fontWeight: 800, lineHeight: 1.2, letterSpacing: 0.2 }}>v{VERSION}</span>
+        <span title="Version" style={{ marginLeft: isMobile ? 0 : 6, padding: "2px 6px", borderRadius: 999, border: "1px solid #232c3c", background: "#121a2b", color: "#a7c8fb", fontSize: 11, fontWeight: 800, lineHeight: 1.2, letterSpacing: 0.2 }}>v{VERSION}</span>
       </div>
     </div>
   );

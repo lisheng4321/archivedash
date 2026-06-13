@@ -5,8 +5,8 @@ import { currency, computeProfit, EmptyState, estimateEbayFee, ghostBtn, KPI, pr
 
 const panel = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8 };
 const muted = { color: "#7c8aa0" };
-const smallCaps = { color: "#56627a", fontSize: 10, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
-const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 7, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
+const smallCaps = { color: "#8b97ad", fontSize: 11, textTransform: "uppercase", fontWeight: 800, letterSpacing: 0.5 };
+const inputStyle = { width: "100%", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, color: "#e5e7eb", padding: "8px 10px", fontSize: 12, boxSizing: "border-box" };
 const tweakStorageKey = "archivedash-pricing-tweaks-v1";
 const customCardsStorageKey = "archivedash-pricing-custom-cards-v1";
 const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
@@ -294,7 +294,7 @@ const sortedReviews = (reviews, sort) => {
 };
 
 const badge = (label, tone) => (
-  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 86, minHeight: 24, padding: "2px 7px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 800, lineHeight: 1.05, textAlign: "center", boxSizing: "border-box" }}>
+  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 86, minHeight: 24, padding: "2px 7px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 11, fontWeight: 800, lineHeight: 1.05, textAlign: "center", boxSizing: "border-box" }}>
     {label}
   </span>
 );
@@ -317,7 +317,7 @@ const evidencePill = (source) => {
   const tone = evidenceTone[source];
   if (!tone) return null;
   return (
-    <span title={evidenceHint[source]} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 10, fontWeight: 800, lineHeight: 1.05, whiteSpace: "nowrap" }}>
+    <span title={evidenceHint[source]} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "2px 8px", borderRadius: 999, background: tone.bg, color: tone.fg, fontSize: 11, fontWeight: 800, lineHeight: 1.05, whiteSpace: "nowrap" }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: tone.fg }} />
       {tone.label}
     </span>
@@ -390,7 +390,7 @@ function CompTable({ title, rows, empty, isMobile, onHide }) {
     <div style={{ ...panel, overflow: "hidden" }}>
       <div style={{ padding: "11px 14px", borderBottom: "1px solid #232c3c", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
         <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>{title}</div>
-        <span style={{ color: "#56627a", fontSize: 11 }}>{rows.length}</span>
+        <span style={{ color: "#8b97ad", fontSize: 11 }}>{rows.length}</span>
       </div>
       {rows.length === 0 ? (
         <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>{empty}</div>
@@ -399,673 +399,5 @@ function CompTable({ title, rows, empty, isMobile, onHide }) {
           {!isMobile && (
             <div style={{ display: "grid", gridTemplateColumns: onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: 10, padding: "8px 14px", borderBottom: "1px solid #232c3c11", ...smallCaps }}>
               <span>Comp</span>
-              <span>Total</span>
-              <span>Signal</span>
-              {onHide && <span />}
-            </div>
-          )}
-          {rows.map((comp) => (
-            <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onHide ? "1fr 86px 78px 58px" : "1fr 86px 78px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #232c3c11", alignItems: "center" }}>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "#e5e7eb", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
-                <div style={{ color: "#56627a", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
-              </div>
-              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 800 }}>
-                {currency(comp.total)}
-                {comp.couponPrice !== undefined && <div style={{ color: "#60a5fa", fontSize: 10, fontWeight: 700 }}>coupon</div>}
-              </div>
-              <div style={{ color: "#9ca3af", fontSize: 11 }}>{comp.scope.toUpperCase()}</div>
-              {onHide && <button onClick={() => onHide(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10 }}>Hide</button>}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ExcludedTable({ rows, isMobile, onInclude }) {
-  return (
-    <div style={{ ...panel, overflow: "hidden" }}>
-      <div style={{ padding: "11px 14px", borderBottom: "1px solid #232c3c", display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Excluded comps</div>
-        <span style={{ color: "#56627a", fontSize: 11 }}>{rows.length}</span>
-      </div>
-      {rows.length === 0 ? (
-        <div style={{ padding: 18, textAlign: "center", color: "#374151", fontSize: 12 }}>No rejected comps.</div>
-      ) : (
-        rows.map((comp) => (
-          <div key={comp.id} style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : onInclude ? "1fr 150px 86px 66px" : "1fr 150px 86px", gap: isMobile ? 5 : 10, padding: "10px 14px", borderBottom: "1px solid #232c3c11", alignItems: "center" }}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ color: "#9ca3af", fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>{comp.title}</div>
-              <div style={{ color: "#56627a", fontSize: 11, marginTop: 3 }}>{compSubtitle(comp)}</div>
-            </div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {comp.reasons.map((reason) => (
-                <span key={reason} style={{ padding: "2px 6px", borderRadius: 5, background: "#3b1f1f", color: "#fca5a5", fontSize: 10, fontWeight: 800 }}>{reason}</span>
-              ))}
-            </div>
-            <div style={{ color: "#7c8aa0", fontSize: 12, fontWeight: 700 }}>{currency(comp.total)}</div>
-            {onInclude && (comp.ownSellerExcluded || comp.isOwnListing
-              ? <span style={{ color: "#93c5fd", fontSize: 10, fontWeight: 800 }}>Mine</span>
-              : <button onClick={() => onInclude(comp)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 10, color: "#86efac" }}>Include</button>)}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-function ProfitPanel({ review, isMobile }) {
-  const unitCost = averageCost(review.relatedInventory);
-  const topSixPrice = review.topSixAverage
-    ? Math.max(Number(review.floor || 0), Math.round(review.topSixAverage) - 0.05)
-    : 0;
-  const points = uniquePricePoints([
-    { label: "Suggested", price: review.suggestedPrice },
-    { label: "Current", price: review.currentPrice },
-    { label: "AU floor", price: review.floor },
-    { label: "Top comps", price: topSixPrice },
-  ]).map((point) => ({ ...point, ...estimateProfit(point.price, unitCost) }));
-
-  if (!unitCost || !points.length) return null;
-
-  return (
-    <div style={{ ...panel, padding: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline", marginBottom: 10 }}>
-        <div>
-          <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Estimated profit</div>
-          <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Per unit, after item cost and estimated eBay fees. Shipping and ads not included.</div>
-        </div>
-        <div style={{ color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>Cost {currency(unitCost)}</div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 8 }}>
-        {points.map((point) => (
-          <div key={point.label} style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 7, padding: 10, minWidth: 0 }}>
-            <div style={{ color: "#7c8aa0", fontSize: 10, fontWeight: 800, textTransform: "uppercase" }}>{point.label}</div>
-            <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 900, marginTop: 4 }}>{currency(point.salePrice)}</div>
-            <div style={{ color: point.profit >= 0 ? "#34d399" : "#f87171", fontSize: 13, fontWeight: 900, marginTop: 6 }}>{currency(point.profit)}</div>
-            <div style={{ color: "#56627a", fontSize: 11, marginTop: 2 }}>{point.margin.toFixed(1)}% margin</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-export default function PricingPage({ ctx }) {
-  const { pagePad, inventory, isMobile, connectEbay } = ctx;
-  const [initialUiState] = useState(loadUiState);
-  const [selectedId, setSelectedId] = useState(initialUiState.selectedId || "");
-  const [tweaks, setTweaks] = useState(loadTweaks);
-  const [customCards, setCustomCards] = useState(loadCustomCards);
-  const [showTuning, setShowTuning] = useState(Boolean(initialUiState.showTuning));
-  const [showAddCard, setShowAddCard] = useState(false);
-  const [cardSource, setCardSource] = useState("manual");
-  const [cardDraft, setCardDraft] = useState({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
-  const [cardFilter, setCardFilter] = useState(initialUiState.cardFilter || "all");
-  const [cardSort, setCardSort] = useState(initialUiState.cardSort || "recommended");
-  const [cardSearch, setCardSearch] = useState(initialUiState.cardSearch || "");
-  const [liveActiveComps, setLiveActiveComps] = useState(loadLiveComps);
-  const [ebayListings, setEbayListings] = useState(loadActiveListings);
-  const [syncStatus, setSyncStatus] = useState("");
-  const [syncMeta, setSyncMeta] = useState(loadSyncMeta);
-  const [syncBusy, setSyncBusy] = useState(false);
-  useEffect(() => {
-    saveUiState({ selectedId, showTuning, cardFilter, cardSort, cardSearch });
-  }, [selectedId, showTuning, cardFilter, cardSort, cardSearch]);
-  const pricedInventory = useMemo(() => inventoryWithEbayListingPrices(inventory, ebayListings || []), [inventory, ebayListings]);
-  const baseProfiles = useMemo(() => [...buildPricingProfiles(pricedInventory), ...customCards.map(cardToProfile)].filter(Boolean), [pricedInventory, customCards]);
-  const matchListings = useMemo(() => uniqueListings([
-    ...(ebayListings || []),
-    ...(Array.isArray(liveActiveComps) ? liveActiveComps : [])
-      .filter((comp) => isOwnSeller(comp.seller) && comp.type === "active")
-      .map((comp) => ({
-        id: comp.id,
-        title: comp.title,
-        price: comp.price,
-        total: comp.total ?? (Number(comp.price || 0) + Number(comp.shipping || 0)),
-        seller: comp.seller,
-        itemWebUrl: comp.itemWebUrl,
-        isOwnListing: true,
-      })),
-  ]), [ebayListings, liveActiveComps]);
-  const profiles = useMemo(() => withTweaks(baseProfiles, tweaks, matchListings), [baseProfiles, tweaks, matchListings]);
-  const pricingComps = useMemo(() => {
-    if (!Array.isArray(liveActiveComps) || !liveActiveComps.length) return [];
-    const liveGroups = new Set(liveActiveComps.map((comp) => `${comp.profileId}:${comp.scope}:${comp.type}`));
-    const raw = liveActiveComps.filter((comp) => liveGroups.has(`${comp.profileId}:${comp.scope}:${comp.type}`));
-    return raw.map((comp) => {
-      const decision = tweaks[comp.profileId]?.comps?.[comp.id];
-      const ownListing = isOwnSeller(comp.seller);
-      if (!decision && !ownListing) return comp;
-      return {
-        ...comp,
-        isOwnListing: ownListing,
-        ownSellerExcluded: ownListing,
-        manualIncluded: decision === "include",
-        manualExcluded: decision === "hide" || ownListing,
-      };
-    });
-  }, [liveActiveComps, tweaks]);
-  const reviews = useMemo(() => sortedReviews(buildPricingReviews({ inventory: pricedInventory, comps: pricingComps, profiles, currentDate: today() }), "recommended"), [pricedInventory, pricingComps, profiles]);
-  const visibleReviews = useMemo(() => {
-    const q = cardSearch.trim().toLowerCase();
-    return sortedReviews(reviews, cardSort).filter((review) => (
-      filterMatches(review, cardFilter)
-      && (!q || [review.profile.name, review.profile.query, review.profile.market].some((value) => String(value || "").toLowerCase().includes(q)))
-    ));
-  }, [reviews, cardFilter, cardSearch, cardSort]);
-  const selected = reviews.find((review) => review.profile.id === selectedId) || reviews[0];
-  const reviewCount = reviews.length;
-  const reviewNeeded = reviews.filter((review) => review.action !== "hold").length;
-  const includedCount = reviews.reduce((sum, review) => sum + review.included.length, 0);
-  const excludedCount = reviews.reduce((sum, review) => sum + review.excluded.length, 0);
-  const hiddenCount = baseProfiles.filter((profile) => tweaks[profile.id]?.hidden).length;
-  const lastSyncAt = syncMeta.lastSyncAt || "";
-  const reviewDate = today();
-
-  const markSyncComplete = (message) => {
-    const nextMeta = { lastSyncAt: new Date().toISOString() };
-    setSyncMeta(nextMeta);
-    saveSyncMeta(nextMeta);
-    setSyncStatus(message);
-  };
-
-  const updateTweak = (profileId, patch) => {
-    setTweaks((prev) => {
-      const next = {
-        ...prev,
-        [profileId]: {
-          ...(prev[profileId] || {}),
-          ...patch,
-        },
-      };
-      saveTweaks(next);
-      return next;
-    });
-  };
-
-  const updateCompTweak = (comp, decision) => {
-    setTweaks((prev) => {
-      const profileTweak = prev[comp.profileId] || {};
-      const compTweaks = { ...(profileTweak.comps || {}) };
-      if (decision) compTweaks[comp.id] = decision;
-      else delete compTweaks[comp.id];
-      const next = {
-        ...prev,
-        [comp.profileId]: {
-          ...profileTweak,
-          comps: compTweaks,
-        },
-      };
-      saveTweaks(next);
-      return next;
-    });
-  };
-
-  const resetSelectedTweaks = () => {
-    if (!selected) return;
-    setTweaks((prev) => {
-      const next = { ...prev };
-      delete next[selected.profile.id];
-      saveTweaks(next);
-      return next;
-    });
-  };
-
-  const restoreHiddenProducts = () => {
-    setTweaks((prev) => {
-      const next = Object.fromEntries(Object.entries(prev).map(([id, tweak]) => [id, { ...tweak, hidden: false }]));
-      saveTweaks(next);
-      return next;
-    });
-  };
-
-  const applyInventoryCard = (id) => {
-    const item = inventory.find((row) => row.id === id);
-    setCardDraft({
-      name: item?.name || "",
-      query: item?.name || "",
-      currentPrice: item?.ebayListedPrice || "",
-      required: wordsFor(item?.name).join(", "),
-      exclude: defaultExclude,
-      inventoryId: id,
-    });
-  };
-
-  const addCustomCard = () => {
-    const name = cardDraft.name.trim();
-    if (!name) return;
-    const item = inventory.find((row) => row.id === cardDraft.inventoryId);
-    const inventoryProfileId = item?.name ? pricingProfileIdForName(item.name) : "";
-    if (cardSource === "inventory" && inventoryProfileId) {
-      if (tweaks[inventoryProfileId]?.hidden) {
-        setTweaks((prev) => {
-          const next = {
-            ...prev,
-            [inventoryProfileId]: {
-              ...(prev[inventoryProfileId] || {}),
-              hidden: false,
-            },
-          };
-          saveTweaks(next);
-          return next;
-        });
-      }
-      setSelectedId(inventoryProfileId);
-      setShowAddCard(false);
-      setCardDraft({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
-      return;
-    }
-    const nextCard = {
-      id: `custom-${Date.now()}-${slugish(name)}`,
-      name,
-      query: cardDraft.query.trim() || name,
-      currentPrice: cardDraft.currentPrice,
-      required: cardDraft.required,
-      exclude: cardDraft.exclude || defaultExclude,
-      market: item?.category || "Custom",
-      inventoryId: item?.id || "",
-      inventoryName: item?.name || "",
-    };
-    setCustomCards((prev) => {
-      const next = [nextCard, ...prev];
-      saveCustomCards(next);
-      return next;
-    });
-    setSelectedId(nextCard.id);
-    setShowAddCard(false);
-    setCardDraft({ name: "", query: "", currentPrice: "", required: "", exclude: defaultExclude, inventoryId: "" });
-  };
-
-  const removeCustomCard = (id) => {
-    setCustomCards((prev) => {
-      const next = prev.filter((card) => card.id !== id);
-      saveCustomCards(next);
-      return next;
-    });
-    setSelectedId(reviews.find((review) => review.profile.id !== id)?.profile.id || "");
-  };
-
-  const syncLiveComps = async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setSyncStatus("Supabase is not configured, so live comps cannot be fetched.");
-      return;
-    }
-    setSyncBusy(true);
-    setSyncStatus("Fetching live AU active comps...");
-    const latestTweaks = loadTweaks();
-    setTweaks(latestTweaks);
-    const syncProfiles = buildSyncProfiles(baseProfiles, latestTweaks, matchListings);
-    const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
-      body: { profiles: syncProfiles, postcode: "2073", limit: 30 },
-    });
-    setSyncBusy(false);
-    if (error || !Array.isArray(data?.comps)) {
-      setSyncStatus(error?.message || data?.error || "Could not fetch live eBay comps. Sample comps are still shown.");
-      return;
-    }
-    setLiveActiveComps(data.comps);
-    saveLiveComps(data.comps);
-    const total = data.comps.length;
-    const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
-    const searchTotal = Array.isArray(data.searches) ? data.searches.reduce((sum, search) => sum + (Number(search.total) || 0), 0) : total;
-    const skipped = Math.max(0, withTweaks(baseProfiles, latestTweaks, matchListings).length - syncProfiles.length);
-    markSyncComplete(`Loaded ${total - soldTotal} active AU comp${total - soldTotal === 1 ? "" : "s"} for ${syncProfiles.length} product${syncProfiles.length === 1 ? "" : "s"} from ${searchTotal} eBay result${searchTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
-  };
-
-  const syncEbayListingsAndComps = async () => {
-    if (!isSupabaseConfigured || !supabase) {
-      setSyncStatus("Supabase is not configured, so live comps cannot be fetched.");
-      return;
-    }
-    setSyncBusy(true);
-    setSyncStatus("Fetching your active eBay listings...");
-    let listingData = null;
-    let listingError = null;
-    try {
-      const result = await supabase.functions.invoke("ebay-sync-listings", { body: {} });
-      listingData = result.data;
-      listingError = result.error;
-      if (listingError?.context?.json) {
-        listingData = await listingError.context.json().catch(() => listingData);
-      }
-    } catch (error) {
-      listingError = error;
-    }
-    if (listingError || !Array.isArray(listingData?.listings)) {
-      setSyncBusy(false);
-      const detailText = listingData?.details
-        ? ` ${typeof listingData.details === "string" ? listingData.details : JSON.stringify(listingData.details).slice(0, 700)}`
-        : "";
-      const msg = listingData?.reconnectRequired
-        ? "Reconnect eBay from Settings so ArchiveDash can read active listing prices."
-        : `${listingData?.error || listingError?.message || "Could not fetch your active eBay listings."}${detailText}`;
-      console.error("eBay listing sync failed", { listingData, listingError });
-      setSyncStatus(msg);
-      return;
-    }
-    setEbayListings(listingData.listings);
-    saveActiveListings(listingData.listings);
-
-    const inventoryWithPrices = inventoryWithEbayListingPrices(inventory, listingData.listings);
-    const latestTweaks = loadTweaks();
-    const latestCustomCards = loadCustomCards();
-    setTweaks(latestTweaks);
-    setCustomCards(latestCustomCards);
-    const nextBaseProfiles = [...buildPricingProfiles(inventoryWithPrices), ...latestCustomCards.map(cardToProfile)];
-    const nextProfiles = withTweaks(nextBaseProfiles, latestTweaks, listingData.listings);
-    const syncProfiles = buildSyncProfiles(nextBaseProfiles, latestTweaks, listingData.listings);
-    setSyncStatus(`Matched ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}. Fetching market comps...`);
-    const { data, error } = await supabase.functions.invoke("ebay-sync-pricing-comps", {
-      body: { profiles: syncProfiles, postcode: "2073", limit: 30 },
-    });
-    setSyncBusy(false);
-    if (error || !Array.isArray(data?.comps)) {
-      setSyncStatus(error?.message || data?.error || "Fetched your listings, but could not fetch market comps.");
-      return;
-    }
-    setLiveActiveComps(data.comps);
-    saveLiveComps(data.comps);
-    const matchedPrices = inventoryWithPrices.filter((item) => item.ebayListedPrice).length;
-    const soldTotal = data.comps.filter((comp) => comp.type === "sold").length;
-    const activeTotal = data.comps.length - soldTotal;
-    const skipped = Math.max(0, nextProfiles.length - syncProfiles.length);
-    markSyncComplete(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
-  };
-
-  const addCardSection = showAddCard ? (
-    <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-        <div>
-          <div style={{ color: "#f3f6fb", fontSize: 14, fontWeight: 800 }}>Add market card</div>
-          <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Create a manual card, or restore/select an inventory-backed card.</div>
-        </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={() => setCardSource("manual")} style={{ ...ghostBtn, background: cardSource === "manual" ? "#1e293b" : undefined, color: cardSource === "manual" ? "#93c5fd" : undefined }}>Manual</button>
-          <button onClick={() => setCardSource("inventory")} style={{ ...ghostBtn, background: cardSource === "inventory" ? "#1e293b" : undefined, color: cardSource === "inventory" ? "#93c5fd" : undefined }}>From inventory</button>
-        </div>
-      </div>
-      {cardSource === "inventory" && (
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Inventory item
-          <select value={cardDraft.inventoryId} onChange={(e) => applyInventoryCard(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
-            <option value="">Select item</option>
-            {inventory.map((item) => {
-              const profileId = pricingProfileIdForName(item.name);
-              return <option key={item.id} value={item.id}>{item.name}{tweaks[profileId]?.hidden ? " (hidden)" : ""}</option>;
-            })}
-          </select>
-        </label>
-      )}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.2fr 0.7fr", gap: 10, marginTop: cardSource === "inventory" ? 10 : 0 }}>
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Card name
-          <input value={cardDraft.name} onChange={(e) => setCardDraft((prev) => ({ ...prev, name: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Product name" />
-        </label>
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Search query
-          <input value={cardDraft.query} onChange={(e) => setCardDraft((prev) => ({ ...prev, query: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="eBay search terms" />
-        </label>
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Current price
-          <input type="number" step="0.01" value={cardDraft.currentPrice} onChange={(e) => setCardDraft((prev) => ({ ...prev, currentPrice: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="Optional" />
-        </label>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Must include
-          <input value={cardDraft.required} onChange={(e) => setCardDraft((prev) => ({ ...prev, required: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} placeholder="comma, separated, terms" />
-        </label>
-        <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-          Exclude
-          <input value={cardDraft.exclude} onChange={(e) => setCardDraft((prev) => ({ ...prev, exclude: e.target.value }))} style={{ ...inputStyle, marginTop: 5 }} />
-        </label>
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-        <button onClick={() => setShowAddCard(false)} style={ghostBtn}>Cancel</button>
-        <button onClick={addCustomCard} style={primaryBtn}>{cardSource === "inventory" ? "Open card" : "Add card"}</button>
-      </div>
-    </div>
-  ) : null;
-
-  if (!selected) {
-    return (
-      <div style={{ padding: pagePad }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Market Review</h2>
-            <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>Inventory-driven AU active comp matching</p>
-          </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
-            <button onClick={() => { setCardSource("manual"); setShowAddCard((value) => !value); }} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
-          </div>
-        </div>
-        {syncStatus && (
-          <div style={{ margin: "-6px 0 14px" }}>
-            <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>
-          </div>
-        )}
-        {addCardSection}
-        <EmptyState
-          title="No products to price yet"
-          hint="Add inventory or a manual market card, then sync eBay comps to see live AU pricing."
-          actions={[
-            { label: "+ Add a manual card", primary: true, onClick: () => { setCardSource("manual"); setShowAddCard(true); } },
-            { label: syncBusy ? "Syncingâ€¦" : "Sync comps", disabled: syncBusy, onClick: syncEbayListingsAndComps },
-          ]}
-        />
-      </div>
-    );
-  }
-
-  const tone = statusStyle(selected.status);
-  const selectedEvidence = reviewEvidenceSource(selected, { lastSyncAt, currentDate: reviewDate });
-  const selectedLive = selectedEvidence === "live";
-  const selectedTweak = tweaks[selected.profile.id] || {};
-  const priceLabel = selected.currentPriceSource === "manualListing" ? "Manual match" : selected.currentPriceSource === "ebayListedPrice" ? "eBay listed" : selected.currentPriceSource === "manualOverride" ? "Override" : "Listing";
-  const selectedPrice = selected.currentPriceSource === "notListed" ? "Not listed" : selected.currentPrice ? currency(selected.currentPrice) : "Missing";
-  const selectedManualListingKey = selectedTweak.manualListingKey || "";
-
-  return (
-    <div style={{ padding: pagePad }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Market Review</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>Inventory-driven AU active comp matching</p>
-        </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
-          <button onClick={() => setShowAddCard((value) => !value)} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
-          <button onClick={() => setShowTuning((value) => !value)} style={{ ...ghostBtn, color: showTuning ? "#93c5fd" : "#9ca3af" }}>{showTuning ? "Close tuning" : "Tune"}</button>
-          {hiddenCount > 0 && <button onClick={restoreHiddenProducts} style={{ ...ghostBtn, color: "#86efac" }}>Restore hidden</button>}
-        </div>
-      </div>
-      {(syncStatus || lastSyncAt) && (
-        <div style={{ margin: "-6px 0 14px", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {syncStatus && <span style={{ color: syncStatus.includes("Could not") || syncStatus.includes("Reconnect") ? "#fca5a5" : "#93c5fd", fontSize: 12 }}>{syncStatus}</span>}
-          {lastSyncAt && (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 8px", borderRadius: 999, background: "#0d1117", border: "1px solid #232c3c", color: "#9ca3af", fontSize: 11, fontWeight: 800 }}>
-              Last synced {formatDateTime(lastSyncAt)}
-            </span>
-          )}
-          {syncStatus.includes("Reconnect") && connectEbay && (
-            <button onClick={connectEbay} style={{ ...ghostBtn, padding: "5px 9px", fontSize: 11, color: "#93c5fd" }}>Reconnect eBay</button>
-          )}
-        </div>
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-        <KPI label="Products" value={reviewCount} />
-        <KPI label="Need review" value={reviewNeeded} accent={reviewNeeded ? "#fbbf24" : "#34d399"} />
-        <KPI label="Included comps" value={includedCount} />
-        <KPI label="Rejected comps" value={excludedCount} accent={excludedCount ? "#f87171" : undefined} />
-      </div>
-
-      {addCardSection}
-
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "320px minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, position: isMobile ? "static" : "sticky", top: 12, maxHeight: isMobile ? "none" : "calc(100vh - 190px)", minHeight: 0 }}>
-          <div style={{ ...panel, padding: 10, display: "grid", gridTemplateColumns: "1fr", gap: 8, flexShrink: 0 }}>
-            <input value={cardSearch} onChange={(e) => setCardSearch(e.target.value)} placeholder="Search products" style={inputStyle} />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              <select value={cardFilter} onChange={(e) => setCardFilter(e.target.value)} style={inputStyle}>
-                <option value="all">All statuses</option>
-                <option value="missing_price">Needs eBay price</option>
-                <option value="price">Review price</option>
-                <option value="list">Ready to list</option>
-                <option value="manual">Needs comps</option>
-                <option value="hold">Competitive</option>
-              </select>
-              <select value={cardSort} onChange={(e) => setCardSort(e.target.value)} style={inputStyle}>
-                <option value="recommended">Recommended</option>
-                <option value="name">Name A-Z</option>
-                <option value="comps">Most comps</option>
-                <option value="suggestion">Biggest change</option>
-              </select>
-            </div>
-            <div style={{ color: "#56627a", fontSize: 11, fontWeight: 700 }}>{visibleReviews.length} shown</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: isMobile ? "visible" : "auto", paddingRight: isMobile ? 0 : 3, minHeight: 0 }}>
-          {visibleReviews.map((review) => {
-            const reviewTone = statusStyle(review.status);
-            const reviewEvidence = reviewEvidenceSource(review, { lastSyncAt, currentDate: reviewDate });
-            const reviewLive = reviewEvidence === "live";
-            const isSelected = selected.profile.id === review.profile.id;
-            return (
-              <button key={review.profile.id} onClick={() => setSelectedId(review.profile.id)} style={{ ...panel, padding: 14, minHeight: 98, textAlign: "left", cursor: "pointer", background: isSelected ? "#121a2a" : "#121a2b", borderColor: isSelected ? "#2563eb66" : "#232c3c", fontFamily: "inherit" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 90px", gap: 8, alignItems: "start", marginBottom: 8 }}>
-                  <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, minHeight: 34, lineHeight: 1.25, overflow: "hidden", overflowWrap: "anywhere", wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{review.profile.name}</div>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                    {badge(review.status, reviewTone)}
-                    {evidencePill(reviewEvidence)}
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 50px minmax(0, 1fr)", gap: 8, fontSize: 11, alignItems: "start" }}>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>{review.currentPriceSource === "manualListing" ? "Manual match" : review.currentPriceSource === "ebayListedPrice" ? "eBay price" : review.currentPriceSource === "manualOverride" ? "Override" : "Listing"}</div><div style={{ color: "#e5e7eb", fontWeight: 800, overflowWrap: "anywhere" }}>{listingText(review)}</div></div>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Rank</div><div style={{ color: review.rank ? "#e5e7eb" : "#7c8aa0", fontWeight: 800, overflowWrap: "anywhere" }}>{rankText(review)}</div></div>
-                  <div style={{ minWidth: 0 }}><div style={smallCaps}>Suggest</div><div style={{ color: review.action === "hold" ? "#34d399" : "#fbbf24", fontWeight: 800, overflowWrap: "anywhere", opacity: reviewLive ? 1 : 0.55 }}>{suggestionText(review)}</div></div>
-                </div>
-              </button>
-            );
-          })}
-          {visibleReviews.length === 0 && <div style={{ ...panel, padding: 16, color: "#56627a", fontSize: 12, textAlign: "center" }}>No products match these filters.</div>}
-          </div>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-          <div style={{ ...panel, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 5 }}>
-                  <h3 style={{ margin: 0, color: "#f3f6fb", fontSize: 16, fontWeight: 800 }}>{selected.profile.name}</h3>
-                  {badge(selected.status, tone)}
-                  {badge(`${selected.confidence} confidence`, selected.confidence === "High" ? { bg: "#123326", fg: "#86efac" } : selected.confidence === "Medium" ? { bg: "#3b2f1f", fg: "#fbbf24" } : { bg: "#3b1f2b", fg: "#f9a8d4" })}
-                  {evidencePill(selectedEvidence)}
-                </div>
-                <div style={{ color: "#7c8aa0", fontSize: 12 }}>{selected.profile.strategy}</div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10, marginBottom: 14 }}>
-              <div><div style={smallCaps}>{priceLabel}</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selectedPrice}</div></div>
-              <div><div style={smallCaps}>AU active floor</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{selected.floor ? currency(selected.floor) : "n/a"}</div></div>
-              <div><div style={smallCaps}>Rank</div><div style={{ color: "#f3f6fb", fontSize: 18, fontWeight: 800 }}>{rankText(selected)}</div></div>
-              <div><div style={smallCaps}>Suggested</div><div style={{ color: selected.action === "hold" ? "#34d399" : "#fbbf24", fontSize: 18, fontWeight: 800, opacity: selectedLive ? 1 : 0.55 }}>{suggestionText(selected)}</div></div>
-            </div>
-
-            <div style={{ color: "#9ca3af", fontSize: 13, lineHeight: 1.5 }}>{selected.reason}</div>
-            {!selectedLive && (
-              <div style={{ marginTop: 8, color: "#7c8aa0", fontSize: 12, lineHeight: 1.45 }}>{evidenceQualifier(selectedEvidence)}</div>
-            )}
-            {selected.matchedEbayListing && (
-              <div style={{ marginTop: 8, color: "#93c5fd", fontSize: 12, lineHeight: 1.45 }}>
-                Matched eBay listing: {selected.matchedEbayListing.ebayListingTitle || selected.matchedEbayListing.name || "Untitled listing"}
-                {selected.matchedEbayListing.ebayListingMatchScore ? ` (${selected.matchedEbayListing.ebayListingMatchScore}% title match)` : ""}
-                {selected.currentPriceSource === "manualListing" ? " - manual match" : ""}
-              </div>
-            )}
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
-              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#93c5fd", fontSize: 11, fontWeight: 800 }}>{selected.activeCount} AU active comps</span>
-              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#d1d5db", fontSize: 11, fontWeight: 800 }}>{selected.relatedInventory.length} inventory matches</span>
-              <span style={{ padding: "4px 8px", borderRadius: 6, background: "#0d1117", color: "#fca5a5", fontSize: 11, fontWeight: 800 }}>{selected.excludedCount} rejected</span>
-            </div>
-          </div>
-
-          <ProfitPanel review={selected} isMobile={isMobile} />
-
-          {showTuning && (
-            <div style={{ ...panel, padding: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginBottom: 12 }}>
-                <div>
-                  <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Review tuning</div>
-                  <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Local-only controls for this product.</div>
-                </div>
-                <button onClick={resetSelectedTweaks} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11 }}>Reset</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 1fr 1fr", gap: 10 }}>
-                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-                  Search query
-                  <input value={selectedTweak.query ?? selected.profile.query} onChange={(e) => updateTweak(selected.profile.id, { query: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} />
-                </label>
-                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-                  Price override
-                  <input type="number" step="0.01" value={selectedTweak.priceOverride ?? ""} onChange={(e) => updateTweak(selected.profile.id, { priceOverride: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="AU$" />
-                </label>
-                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-                  Pricing mode
-                  <select value={selectedTweak.targetMode || "floor"} onChange={(e) => updateTweak(selected.profile.id, { targetMode: e.target.value })} style={{ ...inputStyle, marginTop: 5 }}>
-                    <option value="floor">Lowest active comp</option>
-                    <option value="top6">Top 6 active comps</option>
-                  </select>
-                </label>
-              </div>
-              <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700, display: "block", marginTop: 10 }}>
-                Matched eBay listing
-                <select
-                  value={selectedManualListingKey}
-                  onChange={(e) => updateTweak(selected.profile.id, { manualListingKey: e.target.value })}
-                  style={{ ...inputStyle, marginTop: 5 }}
-                >
-                  <option value="">Auto match / not listed</option>
-                  {matchListings.map((listing) => {
-                    const key = listingKey(listing);
-                    if (!key) return null;
-                    return <option key={key} value={key}>{listingLabel(listing)}</option>;
-                  })}
-                </select>
-              </label>
-              {matchListings.length === 0 && (
-                <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 6 }}>Sync eBay comps first to load active listings for manual matching. Listings from {ownEbaySeller} are also treated as yours.</div>
-              )}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginTop: 10 }}>
-                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-                  Must include
-                  <input value={selectedTweak.required ?? joinTerms(selected.profile.required)} onChange={(e) => updateTweak(selected.profile.id, { required: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="nike, mind, slides" />
-                </label>
-                <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
-                  Exclude
-                  <input value={selectedTweak.exclude ?? joinTerms(selected.profile.excludeTerms)} onChange={(e) => updateTweak(selected.profile.id, { exclude: e.target.value })} style={{ ...inputStyle, marginTop: 5 }} placeholder="used, damaged, bundle" />
-                </label>
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-                <button onClick={() => updateTweak(selected.profile.id, { hidden: true })} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>{selected.profile.source === "custom" ? "Hide custom card" : "Hide inventory card"}</button>
-                {selected.profile.source === "custom" && <button onClick={() => removeCustomCard(selected.profile.id)} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#fca5a5" }}>Remove custom card</button>}
-                <span style={{ color: "#56627a", fontSize: 11, alignSelf: "center" }}>Run sync again after changing the query.</span>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: selected.groups.auSold.length && !isMobile ? "1fr 1fr" : "1fr", gap: 14 }}>
-            <CompTable title="AU active comps" rows={selected.groups.auActive} empty="No active AU comps included." isMobile={isMobile} onHide={(comp) => updateCompTweak(comp, "hide")} />
-            {selected.groups.auSold.length > 0 && <CompTable title="AU sold comps" rows={selected.groups.auSold} empty="No sold AU comps included." isMobile={isMobile} />}
-          </div>
-          {selected.groups.globalSold.length > 0 && <CompTable title="Global sold comps" rows={selected.groups.globalSold} empty="No global sold comps included." isMobile={isMobile} />}
-          <ExcludedTable rows={selected.excluded} isMobile={isMobile} onInclude={(comp) => updateCompTweak(comp, comp.manualExcluded ? null : "include")} />
-        </div>
-      </div>
-    </div>
-  );
-}
+              <span style={{ textAlign: "right" }}>Total</span>
+      ó®µ¶‰žËkºwµçmÍå¹MÑ…ÑÕÍôð½ÍÁ…¸ùô(€€€€€€€€€í±…ÍÑMå¹Ð€˜˜€ (€€€€€€€€€€€€ñÍÁ…¸ÍÑå±”õíì‘¥ÍÁ±…äè€‰¥¹±¥¹”µ™±•àˆ°…±¥¹%Ñ•µÌè€‰•¹Ñ•Èˆ°…Àè€Ø°Á…‘‘¥¹œè€ˆÑÁà€áÁàˆ°‰½É‘•ÉI…‘¥ÕÌè€äää°‰…­É½Õ¹è€ˆŒÁÄÄÄÜˆ°‰½É‘•Èè€ˆÅÁàÍ½±¥€ŒÈÌÉŒÍŒˆ°½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€àÀÀõôø(€€€€€€€€€€€€€1…ÍÐÍå¹•í™½Éµ…Ñ…Ñ•Q¥µ”¡±…ÍÑMå¹Ð¥ô(€€€€€€€€€€€€ð½ÍÁ…¸ø(€€€€€€€€€€¥ô(€€€€€€€€€íÍå¹MÑ…ÑÕÌ¹¥¹±Õ‘•Ì ‰I•½¹¹•Ðˆ¤€˜˜½¹¹•Ñ‰…ä€˜˜€ (€€€€€€€€€€€€ñ‰ÕÑÑ½¸½¹±¥¬õí½¹¹•Ñ‰…åôÍÑå±”õíì€¸¸¹¡½ÍÑ	Ñ¸°Á…‘‘¥¹œè€ˆÕÁà€åÁàˆ°™½¹ÑM¥é”è€ÄÄ°½±½Èè€ˆŒäÍŒÕ™ˆõôùI•½¹¹•Ð•	…äð½‰ÕÑÑ½¸ø(€€€€€€€€€€¥ô(€€€€€€€€ð½‘¥Øø(€€€€€€¥ô((€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè¥Í5½‰¥±”€ü€‰É•Á•…Ð È°€Å™È¤ˆ€è€‰É•Á•…Ð Ð°€Å™È¤ˆ°…Àè€ÄÀ°µ…É¥¹	½ÑÑ½´è€ÄÐõôø(€€€€€€€€ñ-A$±…‰•°ô‰AÉ½‘ÕÑÌˆÙ…±Õ”õíÉ•Ù¥•Ý½Õ¹Ñô€¼ø(€€€€€€€€ñ-A$±…‰•°ô‰9••É•Ù¥•ÜˆÙ…±Õ”õíÉ•Ù¥•Ý9••‘•‘ô…•¹ÐõíÉ•Ù¥•Ý9••‘•€ü€ˆ™‰‰˜ÈÐˆ€è€ˆŒÌÑÌää‰ô€¼ø(€€€€€€€€ñ-A$±…‰•°ô‰%¹±Õ‘•½µÁÌˆÙ…±Õ”õí¥¹±Õ‘•‘½Õ¹Ñô€¼ø(€€€€€€€€ñ-A$±…‰•°ô‰I•©•Ñ•½µÁÌˆÙ…±Õ”õí•á±Õ‘•‘½Õ¹Ñô…•¹Ðõí•á±Õ‘•‘½Õ¹Ð€ü€ˆ˜àÜÄÜÄˆ€èÕ¹‘•™¥¹•‘ô€¼ø(€€€€€€ð½‘¥Øø((€€€€€í…‘‘…É‘M•Ñ¥½¹ô((€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè¥Í5½‰¥±”€ü€ˆÅ™Èˆ€è€ˆÌÈÁÁàµ¥¹µ…à À°€Å™È¤ˆ°…Àè€ÄÐ°…±¥¹%Ñ•µÌè€‰ÍÑ…ÉÐˆõôø(€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°™±•á¥É•Ñ¥½¸è€‰½±Õµ¸ˆ°…Àè€ÄÀ°Á½Í¥Ñ¥½¸è¥Í5½‰¥±”€ü€‰ÍÑ…Ñ¥Œˆ€è€‰ÍÑ¥­äˆ°Ñ½Àè€ÄÈ°µ…á!•¥¡Ðè¥Í5½‰¥±”€ü€‰¹½¹”ˆ€è€‰…±Œ ÄÀÁÙ €´€ÄäÁÁà¤ˆ°µ¥¹!•¥¡Ðè€Àõôø(€€€€€€€€€€ñ‘¥ØÍÑå±”õíì€¸¸¹Á…¹•°°Á…‘‘¥¹œè€ÄÀ°‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè€ˆÅ™Èˆ°…Àè€à°™±•áM¡É¥¹¬è€Àõôø(€€€€€€€€€€€€ñ¥¹ÁÕÐÙ…±Õ”õí…É‘M•…É¡ô½¹¡…¹”õì¡”¤€ôøÍ•Ñ…É‘M•…É ¡”¹Ñ…É•Ð¹Ù…±Õ”¥ôÁ±…•¡½±‘•Èô‰M•…É ÁÉ½‘ÕÑÌˆÍÑå±”õí¥¹ÁÕÑMÑå±•ô€¼ø(€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè€ˆÅ™È€Å™Èˆ°…Àè€àõôø(€€€€€€€€€€€€€€ñÍ•±•ÐÙ…±Õ”õí…É‘¥±Ñ•Éô½¹¡…¹”õì¡”¤€ôøÍ•Ñ…É‘¥±Ñ•È¡”¹Ñ…É•Ð¹Ù…±Õ”¥ôÍÑå±”õí¥¹ÁÕÑMÑå±•ôø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰…±°ˆù±°ÍÑ…ÑÕÍ•Ìð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰µ¥ÍÍ¥¹}ÁÉ¥”ˆù9••‘Ì•	…äÁÉ¥”ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰ÁÉ¥”ˆùI•Ù¥•ÜÁÉ¥”ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰±¥ÍÐˆùI•…‘äÑ¼±¥ÍÐð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰µ…¹Õ…°ˆù9••‘Ì½µÁÌð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰¡½±ˆù½µÁ•Ñ¥Ñ¥Ù”ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€ñÍ•±•ÐÙ…±Õ”õí…É‘M½ÉÑô½¹¡…¹”õì¡”¤€ôøÍ•Ñ…É‘M½ÉÐ¡”¹Ñ…É•Ð¹Ù…±Õ”¥ôÍÑå±”õí¥¹ÁÕÑMÑå±•ôø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰É•½µµ•¹‘•ˆùI•½µµ•¹‘•ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰¹…µ”ˆù9…µ”µhð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰½µÁÌˆù5½ÍÐ½µÁÌð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰ÍÕ•ÍÑ¥½¸ˆù	¥•ÍÐ¡…¹”ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆŒáˆäÝ…ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôùíÙ¥Í¥‰±•I•Ù¥•ÝÌ¹±•¹Ñ¡ôÍ¡½Ý¸ð½‘¥Øø(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°™±•á¥É•Ñ¥½¸è€‰½±Õµ¸ˆ°…Àè€ÄÀ°½Ù•É™±½Ýdè¥Í5½‰¥±”€ü€‰Ù¥Í¥‰±”ˆ€è€‰…ÕÑ¼ˆ°Á…‘‘¥¹I¥¡Ðè¥Í5½‰¥±”€ü€À€è€Ì°µ¥¹!•¥¡Ðè€Àõôø(€€€€€€€€€íÙ¥Í¥‰±•I•Ù¥•ÝÌ¹µ…À ¡É•Ù¥•Ü¤€ôøì(€€€€€€€€€€€½¹ÍÐÉ•Ù¥•ÝQ½¹”€ôÍÑ…ÑÕÍMÑå±”¡É•Ù¥•Ü¹ÍÑ…ÑÕÌ¤ì(€€€€€€€€€€€½¹ÍÐÉ•Ù¥•ÝÙ¥‘•¹”€ôÉ•Ù¥•ÝÙ¥‘•¹•M½ÕÉ”¡É•Ù¥•Ü°ì±…ÍÑMå¹Ð°ÕÉÉ•¹Ñ…Ñ”èÉ•Ù¥•Ý…Ñ”ô¤ì(€€€€€€€€€€€½¹ÍÐÉ•Ù¥•Ý1¥Ù”€ôÉ•Ù¥•ÝÙ¥‘•¹”€ôôô€‰±¥Ù”ˆì(€€€€€€€€€€€½¹ÍÐ¥ÍM•±•Ñ•€ôÍ•±•Ñ•¹ÁÉ½™¥±”¹¥€ôôôÉ•Ù¥•Ü¹ÁÉ½™¥±”¹¥ì(€€€€€€€€€€€É•ÑÕÉ¸€ (€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸­•äõíÉ•Ù¥•Ü¹ÁÉ½™¥±”¹¥‘ô½¹±¥¬õì ¤€ôøÍ•ÑM•±•Ñ•‘%¡É•Ù¥•Ü¹ÁÉ½™¥±”¹¥¥ôÍÑå±”õíì€¸¸¹Á…¹•°°Á…‘‘¥¹œè€ÄÐ°µ¥¹!•¥¡Ðè€äà°Ñ•áÑ±¥¸è€‰±•™Ðˆ°ÕÉÍ½Èè€‰Á½¥¹Ñ•Èˆ°‰…­É½Õ¹è¥ÍM•±•Ñ•€ü€ˆŒÄÈÅ„É„ˆ€è€ˆŒÄÈÅ„Éˆˆ°‰½É‘•É½±½Èè¥ÍM•±•Ñ•€ü€ˆŒÈÔØÍ•ˆØØˆ€è€ˆŒÈÌÉŒÍŒˆ°™½¹Ñ…µ¥±äè€‰¥¹¡•É¥Ðˆõôø(€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè€‰µ¥¹µ…à À°€Å™È¤€äÁÁàˆ°…Àè€à°…±¥¹%Ñ•µÌè€‰ÍÑ…ÉÐˆ°µ…É¥¹	½ÑÑ½´è€àõôø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€ÄÌ°™½¹Ñ]•¥¡Ðè€àÀÀ°µ¥¹!•¥¡Ðè€ÌÐ°±¥¹•!•¥¡Ðè€Ä¸ÈÔ°½Ù•É™±½Üè€‰¡¥‘‘•¸ˆ°½Ù•É™±½Ý]É…Àè€‰…¹åÝ¡•É”ˆ°Ý½É‘	É•…¬è€‰‰É•…¬µÝ½Éˆ°‘¥ÍÁ±…äè€ˆµÝ•‰­¥Ðµ‰½àˆ°]•‰­¥Ñ1¥¹•±…µÀè€È°]•‰­¥Ñ	½á=É¥•¹Ðè€‰Ù•ÉÑ¥…°ˆõôùíÉ•Ù¥•Ü¹ÁÉ½™¥±”¹¹…µ•ôð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°™±•á¥É•Ñ¥½¸è€‰½±Õµ¸ˆ°…±¥¹%Ñ•µÌè€‰™±•àµ•¹ˆ°…Àè€Ðõôø(€€€€€€€€€€€€€€€€€€€í‰…‘”¡É•Ù¥•Ü¹ÍÑ…ÑÕÌ°É•Ù¥•ÝQ½¹”¥ô(€€€€€€€€€€€€€€€€€€€í•Ù¥‘•¹•A¥±°¡É•Ù¥•ÝÙ¥‘•¹”¥ô(€€€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè€‰µ¥¹µ…à À°€Å™È¤€ÔÁÁàµ¥¹µ…à À°€Å™È¤ˆ°…Àè€à°™½¹ÑM¥é”è€ÄÄ°…±¥¹%Ñ•µÌè€‰ÍÑ…ÉÐˆõôø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíìµ¥¹]¥‘Ñ è€Àõôøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùíÉ•Ù¥•Ü¹ÕÉÉ•¹ÑAÉ¥•M½ÕÉ”€ôôô€‰µ…¹Õ…±1¥ÍÑ¥¹œˆ€ü€‰5…¹Õ…°µ…Ñ ˆ€èÉ•Ù¥•Ü¹ÕÉÉ•¹ÑAÉ¥•M½ÕÉ”€ôôô€‰•‰…å1¥ÍÑ•‘AÉ¥”ˆ€ü€‰•	…äÁÉ¥”ˆ€èÉ•Ù¥•Ü¹ÕÉÉ•¹ÑAÉ¥•M½ÕÉ”€ôôô€‰µ…¹Õ…±=Ù•ÉÉ¥‘”ˆ€ü€‰=Ù•ÉÉ¥‘”ˆ€è€‰1¥ÍÑ¥¹œ‰ôð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½Èè€ˆ”Õ”Ý•ˆˆ°™½¹Ñ]•¥¡Ðè€àÀÀ°½Ù•É™±½Ý]É…Àè€‰…¹åÝ¡•É”ˆõôùí±¥ÍÑ¥¹Q•áÐ¡É•Ù¥•Ü¥ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíìµ¥¹]¥‘Ñ è€Àõôøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùI…¹¬ð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½ÈèÉ•Ù¥•Ü¹É…¹¬€ü€ˆ”Õ”Ý•ˆˆ€è€ˆŒÝŒá…„Àˆ°™½¹Ñ]•¥¡Ðè€àÀÀ°½Ù•É™±½Ý]É…Àè€‰…¹åÝ¡•É”ˆõôùíÉ…¹­Q•áÐ¡É•Ù¥•Ü¥ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíìµ¥¹]¥‘Ñ è€Àõôøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùMÕ•ÍÐð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½ÈèÉ•Ù¥•Ü¹…Ñ¥½¸€ôôô€‰¡½±ˆ€ü€ˆŒÌÑÌääˆ€è€ˆ™‰‰˜ÈÐˆ°™½¹Ñ]•¥¡Ðè€àÀÀ°½Ù•É™±½Ý]É…Àè€‰…¹åÝ¡•É”ˆ°½Á…¥ÑäèÉ•Ù¥•Ý1¥Ù”€ü€Ä€è€À¸ÔÔõôùíÍÕ•ÍÑ¥½¹Q•áÐ¡É•Ù¥•Ü¥ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€¤ì(€€€€€€€€€ô¥ô(€€€€€€€€€íÙ¥Í¥‰±•I•Ù¥•ÝÌ¹±•¹Ñ €ôôô€À€˜˜€ñ‘¥ØÍÑå±”õíì€¸¸¹Á…¹•°°Á…‘‘¥¹œè€ÄØ°½±½Èè€ˆŒáˆäÝ…ˆ°™½¹ÑM¥é”è€ÄÈ°Ñ•áÑ±¥¸è€‰•¹Ñ•Èˆõôù9¼ÁÉ½‘ÕÑÌµ…Ñ Ñ¡•Í”™¥±Ñ•ÉÌ¸ñ‰ÕÑÑ½¸½¹±¥¬õì ¤€ôøìÍ•Ñ…É‘M•…É  ˆˆ¤ìÍ•Ñ…É‘¥±Ñ•È ‰…±°ˆ¤ìÍ•Ñ…É‘M½ÉÐ ‰É•½µµ•¹‘•ˆ¤ìõôÍÑå±”õíì€¸¸¹¡½ÍÑ	Ñ¸°‘¥ÍÁ±…äè€‰‰±½¬ˆ°µ…É¥¸è€ˆÄÁÁà…ÕÑ¼€Àˆ°Á…‘‘¥¹œè€ˆÕÁà€ÄÉÁàˆ°™½¹ÑM¥é”è€ÄÄõôù±•…È™¥±Ñ•ÉÌð½‰ÕÑÑ½¸øð½‘¥Øùô(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€ð½‘¥Øø((€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°™±•á¥É•Ñ¥½¸è€‰½±Õµ¸ˆ°…Àè€ÄÐ°µ¥¹]¥‘Ñ è€Àõôø(€€€€€€€€€€ñ‘¥ØÍÑå±”õíì€¸¸¹Á…¹•°°Á…‘‘¥¹œè€ÄØõôø(€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°©ÕÍÑ¥™å½¹Ñ•¹Ðè€‰ÍÁ…”µ‰•ÑÝ••¸ˆ°…Àè€ÄÀ°™±•á]É…Àè€‰ÝÉ…Àˆ°µ…É¥¹	½ÑÑ½´è€ÄÐõôø(€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°…±¥¹%Ñ•µÌè€‰•¹Ñ•Èˆ°…Àè€à°™±•á]É…Àè€‰ÝÉ…Àˆ°µ…É¥¹	½ÑÑ½´è€Ôõôø(€€€€€€€€€€€€€€€€€€ñ ÌÍÑå±”õíìµ…É¥¸è€À°½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€ÄØ°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•¹ÁÉ½™¥±”¹¹…µ•ôð½ Ìø(€€€€€€€€€€€€€€€€€í‰…‘”¡Í•±•Ñ•¹ÍÑ…ÑÕÌ°Ñ½¹”¥ô(€€€€€€€€€€€€€€€€€í‰…‘”¡€‘íÍ•±•Ñ•¹½¹™¥‘•¹•ô½¹™¥‘•¹•€°Í•±•Ñ•¹½¹™¥‘•¹”€ôôô€‰!¥ ˆ€üì‰œè€ˆŒÄÈÌÌÈØˆ°™œè€ˆŒàÙ•™…Œˆô€èÍ•±•Ñ•¹½¹™¥‘•¹”€ôôô€‰5•‘¥Õ´ˆ€üì‰œè€ˆŒÍˆÉ˜Å˜ˆ°™œè€ˆ™‰‰˜ÈÐˆô€èì‰œè€ˆŒÍˆÅ˜Éˆˆ°™œè€ˆ˜å„áÐˆô¥ô(€€€€€€€€€€€€€€€€€í•Ù¥‘•¹•A¥±°¡Í•±•Ñ•‘Ù¥‘•¹”¥ô(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆŒÝŒá…„Àˆ°™½¹ÑM¥é”è€ÄÈõôùíÍ•±•Ñ•¹ÁÉ½™¥±”¹ÍÑÉ…Ñ•åôð½‘¥Øø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè¥Í5½‰¥±”€ü€‰É•Á•…Ð È°€Å™È¤ˆ€è€‰É•Á•…Ð Ð°€Å™È¤ˆ°…Àè€ÄÀ°µ…É¥¹	½ÑÑ½´è€ÄÐõôø(€€€€€€€€€€€€€€ñ‘¥Øøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùíÁÉ¥•1…‰•±ôð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€Äà°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•‘AÉ¥•ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Øøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùT…Ñ¥Ù”™±½½Èð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€Äà°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•¹™±½½È€üÕÉÉ•¹ä¡Í•±•Ñ•¹™±½½È¤€è€‰¸½„‰ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Øøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùI…¹¬ð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€Äà°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÉ…¹­Q•áÐ¡Í•±•Ñ•¥ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥Øøñ‘¥ØÍÑå±”õíÍµ…±±…ÁÍôùMÕ•ÍÑ•ð½‘¥Øøñ‘¥ØÍÑå±”õíì½±½ÈèÍ•±•Ñ•¹…Ñ¥½¸€ôôô€‰¡½±ˆ€ü€ˆŒÌÑÌääˆ€è€ˆ™‰‰˜ÈÐˆ°™½¹ÑM¥é”è€Äà°™½¹Ñ]•¥¡Ðè€àÀÀ°½Á…¥ÑäèÍ•±•Ñ•‘1¥Ù”€ü€Ä€è€À¸ÔÔõôùíÍÕ•ÍÑ¥½¹Q•áÐ¡Í•±•Ñ•¥ôð½‘¥Øøð½‘¥Øø(€€€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÌ°±¥¹•!•¥¡Ðè€Ä¸ÔõôùíÍ•±•Ñ•¹É•…Í½¹ôð½‘¥Øø(€€€€€€€€€€€ì…Í•±•Ñ•‘1¥Ù”€˜˜€ (€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíìµ…É¥¹Q½Àè€à°½±½Èè€ˆŒÝŒá…„Àˆ°™½¹ÑM¥é”è€ÄÈ°±¥¹•!•¥¡Ðè€Ä¸ÐÔõôùí•Ù¥‘•¹•EÕ…±¥™¥•È¡Í•±•Ñ•‘Ù¥‘•¹”¥ôð½‘¥Øø(€€€€€€€€€€€€¥ô(€€€€€€€€€€€íÍ•±•Ñ•¹µ…Ñ¡•‘‰…å1¥ÍÑ¥¹œ€˜˜€ (€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíìµ…É¥¹Q½Àè€à°½±½Èè€ˆŒäÍŒÕ™ˆ°™½¹ÑM¥é”è€ÄÈ°±¥¹•!•¥¡Ðè€Ä¸ÐÔõôø(€€€€€€€€€€€€€€€5…Ñ¡••	…ä±¥ÍÑ¥¹œèíÍ•±•Ñ•¹µ…Ñ¡•‘‰…å1¥ÍÑ¥¹œ¹•‰…å1¥ÍÑ¥¹Q¥Ñ±”ñðÍ•±•Ñ•¹µ…Ñ¡•‘‰…å1¥ÍÑ¥¹œ¹¹…µ”ñð€‰U¹Ñ¥Ñ±•±¥ÍÑ¥¹œ‰ô(€€€€€€€€€€€€€€€íÍ•±•Ñ•¹µ…Ñ¡•‘‰…å1¥ÍÑ¥¹œ¹•‰…å1¥ÍÑ¥¹5…Ñ¡M½É”€ü€€ ‘íÍ•±•Ñ•¹µ…Ñ¡•‘‰…å1¥ÍÑ¥¹œ¹•‰…å1¥ÍÑ¥¹5…Ñ¡M½É•ô”Ñ¥Ñ±”µ…Ñ ¥€€è€ˆ‰ô(€€€€€€€€€€€€€€€íÍ•±•Ñ•¹ÕÉÉ•¹ÑAÉ¥•M½ÕÉ”€ôôô€‰µ…¹Õ…±1¥ÍÑ¥¹œˆ€ü€ˆ€´µ…¹Õ…°µ…Ñ ˆ€è€ˆ‰ô(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€¥ô(€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°…Àè€Ø°™±•á]É…Àè€‰ÝÉ…Àˆ°µ…É¥¹Q½Àè€ÄÈõôø(€€€€€€€€€€€€€€ñÍÁ…¸ÍÑå±”õíìÁ…‘‘¥¹œè€ˆÑÁà€áÁàˆ°‰½É‘•ÉI…‘¥ÕÌè€Ø°‰…­É½Õ¹è€ˆŒÁÄÄÄÜˆ°½±½Èè€ˆŒäÍŒÕ™ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•¹…Ñ¥Ù•½Õ¹ÑôT…Ñ¥Ù”½µÁÌð½ÍÁ…¸ø(€€€€€€€€€€€€€€ñÍÁ…¸ÍÑå±”õíìÁ…‘‘¥¹œè€ˆÑÁà€áÁàˆ°‰½É‘•ÉI…‘¥ÕÌè€Ø°‰…­É½Õ¹è€ˆŒÁÄÄÄÜˆ°½±½Èè€ˆÅÕ‘ˆˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•¹É•±…Ñ•‘%¹Ù•¹Ñ½Éä¹±•¹Ñ¡ô¥¹Ù•¹Ñ½Éäµ…Ñ¡•Ìð½ÍÁ…¸ø(€€€€€€€€€€€€€€ñÍÁ…¸ÍÑå±”õíìÁ…‘‘¥¹œè€ˆÑÁà€áÁàˆ°‰½É‘•ÉI…‘¥ÕÌè€Ø°‰…­É½Õ¹è€ˆŒÁÄÄÄÜˆ°½±½Èè€ˆ™„Õ„Ôˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€àÀÀõôùíÍ•±•Ñ•¹•á±Õ‘•‘½Õ¹ÑôÉ•©•Ñ•ð½ÍÁ…¸ø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€ð½‘¥Øø((€€€€€€€€€€ñAÉ½™¥ÑA…¹•°É•Ù¥•ÜõíÍ•±•Ñ•‘ô¥Í5½‰¥±”õí¥Í5½‰¥±•ô€¼ø((€€€€€€€€€íÍ¡½ÝQÕ¹¥¹œ€˜˜€ (€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì€¸¸¹Á…¹•°°Á…‘‘¥¹œè€ÄÐõôø(€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°©ÕÍÑ¥™å½¹Ñ•¹Ðè€‰ÍÁ…”µ‰•ÑÝ••¸ˆ°…Àè€ÄÀ°…±¥¹%Ñ•µÌè€‰•¹Ñ•Èˆ°µ…É¥¹	½ÑÑ½´è€ÄÈõôø(€€€€€€€€€€€€€€€€ñ‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆ˜Í˜Ù™ˆˆ°™½¹ÑM¥é”è€ÄÌ°™½¹Ñ]•¥¡Ðè€àÀÀõôùI•Ù¥•ÜÑÕ¹¥¹œð½‘¥Øø(€€€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆŒÝŒá…„Àˆ°™½¹ÑM¥é”è€ÄÄ°µ…É¥¹Q½Àè€Èõôù1½…°µ½¹±ä½¹ÑÉ½±Ì™½ÈÑ¡¥ÌÁÉ½‘ÕÐ¸ð½‘¥Øø(€€€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸½¹±¥¬õíÉ•Í•ÑM•±•Ñ•‘QÝ•…­ÍôÍÑå±”õíì€¸¸¹¡½ÍÑ	Ñ¸°Á…‘‘¥¹œè€ˆÙÁà€åÁàˆ°™½¹ÑM¥é”è€ÄÄõôùI•Í•Ðð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè¥Í5½‰¥±”€ü€ˆÅ™Èˆ€è€ˆÄ¸Ñ™È€Å™È€Å™Èˆ°…Àè€ÄÀõôø(€€€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôø(€€€€€€€€€€€€€€€€€M•…É ÅÕ•Éä(€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÙ…±Õ”õíÍ•±•Ñ•‘QÝ•…¬¹ÅÕ•Éä€üüÍ•±•Ñ•¹ÁÉ½™¥±”¹ÅÕ•Éåô½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ìÅÕ•Éäè”¹Ñ…É•Ð¹Ù…±Õ”ô¥ôÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€Ôõô€¼ø(€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôø(€€€€€€€€€€€€€€€€€AÉ¥”½Ù•ÉÉ¥‘”(€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÑåÁ”ô‰¹Õµ‰•ÈˆÍÑ•ÀôˆÀ¸ÀÄˆÙ…±Õ”õíÍ•±•Ñ•‘QÝ•…¬¹ÁÉ¥•=Ù•ÉÉ¥‘”€üü€ˆ‰ô½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ìÁÉ¥•=Ù•ÉÉ¥‘”è”¹Ñ…É•Ð¹Ù…±Õ”ô¥ôÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€ÔõôÁ±…•¡½±‘•Èô‰Tˆ€¼ø(€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôø(€€€€€€€€€€€€€€€€€AÉ¥¥¹œµ½‘”(€€€€€€€€€€€€€€€€€€ñÍ•±•ÐÙ…±Õ”õíÍ•±•Ñ•‘QÝ•…¬¹Ñ…É•Ñ5½‘”ñð€‰™±½½È‰ô½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ìÑ…É•Ñ5½‘”è”¹Ñ…É•Ð¹Ù…±Õ”ô¥ôÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€Ôõôø(€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰™±½½Èˆù1½Ý•ÍÐ…Ñ¥Ù”½µÀð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ô‰Ñ½ÀØˆùQ½À€Ø…Ñ¥Ù”½µÁÌð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀ°‘¥ÍÁ±…äè€‰‰±½¬ˆ°µ…É¥¹Q½Àè€ÄÀõôø(€€€€€€€€€€€€€€€5…Ñ¡••	…ä±¥ÍÑ¥¹œ(€€€€€€€€€€€€€€€€ñÍ•±•Ð(€€€€€€€€€€€€€€€€€Ù…±Õ”õíÍ•±•Ñ•‘5…¹Õ…±1¥ÍÑ¥¹-•åô(€€€€€€€€€€€€€€€€€½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ìµ…¹Õ…±1¥ÍÑ¥¹-•äè”¹Ñ…É•Ð¹Ù…±Õ”ô¥ô(€€€€€€€€€€€€€€€€€ÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€Ôõô(€€€€€€€€€€€€€€€€ø(€€€€€€€€€€€€€€€€€€ñ½ÁÑ¥½¸Ù…±Õ”ôˆˆùÕÑ¼µ…Ñ €¼¹½Ð±¥ÍÑ•ð½½ÁÑ¥½¸ø(€€€€€€€€€€€€€€€€€íµ…Ñ¡1¥ÍÑ¥¹Ì¹µ…À ¡±¥ÍÑ¥¹œ¤€ôøì(€€€€€€€€€€€€€€€€€€€½¹ÍÐ­•ä€ô±¥ÍÑ¥¹-•ä¡±¥ÍÑ¥¹œ¤ì(€€€€€€€€€€€€€€€€€€€¥˜€ …­•ä¤É•ÑÕÉ¸¹Õ±°ì(€€€€€€€€€€€€€€€€€€€É•ÑÕÉ¸€ñ½ÁÑ¥½¸­•äõí­•åôÙ…±Õ”õí­•åôùí±¥ÍÑ¥¹1…‰•°¡±¥ÍÑ¥¹œ¥ôð½½ÁÑ¥½¸øì(€€€€€€€€€€€€€€€€€ô¥ô(€€€€€€€€€€€€€€€€ð½Í•±•Ðø(€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€íµ…Ñ¡1¥ÍÑ¥¹Ì¹±•¹Ñ €ôôô€À€˜˜€ (€€€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì½±½Èè€ˆŒÝŒá…„Àˆ°™½¹ÑM¥é”è€ÄÄ°µ…É¥¹Q½Àè€ØõôùMå¹Œ•	…ä½µÁÌ™¥ÉÍÐÑ¼±½……Ñ¥Ù”±¥ÍÑ¥¹Ì™½Èµ…¹Õ…°µ…Ñ¡¥¹œ¸1¥ÍÑ¥¹Ì™É½´í½Ý¹‰…åM•±±•Éô…É”…±Í¼ÑÉ•…Ñ•…Ìå½ÕÉÌ¸ð½‘¥Øø(€€€€€€€€€€€€€€¥ô(€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹Ìè¥Í5½‰¥±”€ü€ˆÅ™Èˆ€è€ˆÅ™È€Å™Èˆ°…Àè€ÄÀ°µ…É¥¹Q½Àè€ÄÀõôø(€€€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôø(€€€€€€€€€€€€€€€€€5ÕÍÐ¥¹±Õ‘”(€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÙ…±Õ”õíÍ•±•Ñ•‘QÝ•…¬¹É•ÅÕ¥É•€üü©½¥¹Q•ÉµÌ¡Í•±•Ñ•¹ÁÉ½™¥±”¹É•ÅÕ¥É•¥ô½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ìÉ•ÅÕ¥É•è”¹Ñ…É•Ð¹Ù…±Õ”ô¥ôÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€ÔõôÁ±…•¡½±‘•Èô‰¹¥­”°µ¥¹°Í±¥‘•Ìˆ€¼ø(€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€€€ñ±…‰•°ÍÑå±”õíì½±½Èè€ˆŒå„Í…˜ˆ°™½¹ÑM¥é”è€ÄÄ°™½¹Ñ]•¥¡Ðè€ÜÀÀõôø(€€€€€€€€€€€€€€€€€á±Õ‘”(€€€€€€€€€€€€€€€€€€ñ¥¹ÁÕÐÙ…±Õ”õíÍ•±•Ñ•‘QÝ•…¬¹•á±Õ‘”€üü©½¥¹Q•ÉµÌ¡Í•±•Ñ•¹ÁÉ½™¥±”¹•á±Õ‘•Q•ÉµÌ¥ô½¹¡…¹”õì¡”¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ì•á±Õ‘”è”¹Ñ…É•Ð¹Ù…±Õ”ô¥ôÍÑå±”õíì€¸¸¹¥¹ÁÕÑMÑå±”°µ…É¥¹Q½Àè€ÔõôÁ±…•¡½±‘•Èô‰ÕÍ•°‘…µ…•°‰Õ¹‘±”ˆ€¼ø(€€€€€€€€€€€€€€€€ð½±…‰•°ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰™±•àˆ°…Àè€à°™±•á]É…Àè€‰ÝÉ…Àˆ°µ…É¥¹Q½Àè€ÄÈõôø(€€€€€€€€€€€€€€€€ñ‰ÕÑÑ½¸½¹±¥¬õì ¤€ôøÕÁ‘…Ñ•QÝ•…¬¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥°ì¡¥‘‘•¸èÑÉÕ”ô¥ôÍÑå±”õíì€¸¸¹¡½ÍÑ	Ñ¸°Á…‘‘¥¹œè€ˆÙÁà€åÁàˆ°™½¹ÑM¥é”è€ÄÄ°½±½Èè€ˆ™„Õ„ÔˆõôùíÍ•±•Ñ•¹ÁÉ½™¥±”¹Í½ÕÉ”€ôôô€‰ÕÍÑ½´ˆ€ü€‰!¥‘”ÕÍÑ½´…Éˆ€è€‰!¥‘”¥¹Ù•¹Ñ½Éä…É‰ôð½‰ÕÑÑ½¸ø(€€€€€€€€€€€€€€€íÍ•±•Ñ•¹ÁÉ½™¥±”¹Í½ÕÉ”€ôôô€‰ÕÍÑ½´ˆ€˜˜€ñ‰ÕÑÑ½¸½¹±¥¬õì ¤€ôøÉ•µ½Ù•ÕÍÑ½µ…É¡Í•±•Ñ•¹ÁÉ½™¥±”¹¥¥ôÍÑå±”õíì€¸¸¹¡½ÍÑ	Ñ¸°Á…‘‘¥¹œè€ˆÙÁà€åÁàˆ°™½¹ÑM¥é”è€ÄÄ°½±½Èè€ˆ™„Õ„ÔˆõôùI•µ½Ù”ÕÍÑ½´…Éð½‰ÕÑÑ½¸ùô(€€€€€€€€€€€€€€€€ñÍÁ…¸ÍÑå±”õíì½±½Èè€ˆŒáˆäÝ…ˆ°™½¹ÑM¥é”è€ÄÄ°…±¥¹M•±˜è€‰•¹Ñ•ÈˆõôùIÕ¸Íå¹Œ……¥¸…™Ñ•È¡…¹¥¹œÑ¡”ÅÕ•Éä¸ð½ÍÁ…¸ø(€€€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€€¥ô((€€€€€€€€€€ñ‘¥ØÍÑå±”õíì‘¥ÍÁ±…äè€‰É¥ˆ°É¥‘Q•µÁ±…Ñ•½±Õµ¹ÌèÍ•±•Ñ•¹É½ÕÁÌ¹…ÕM½±¹±•¹Ñ €˜˜€…¥Í5½‰¥±”€ü€ˆÅ™È€Å™Èˆ€è€ˆÅ™Èˆ°…Àè€ÄÐõôø(€€€€€€€€€€€€ñ½µÁQ…‰±”Ñ¥Ñ±”ô‰T…Ñ¥Ù”½µÁÌˆÉ½ÝÌõíÍ•±•Ñ•¹É½ÕÁÌ¹…ÕÑ¥Ù•ô•µÁÑäô‰9¼…Ñ¥Ù”T½µÁÌ¥¹±Õ‘•¸ˆ¥Í5½‰¥±”õí¥Í5½‰¥±•ô½¹!¥‘”õì¡½µÀ¤€ôøÕÁ‘…Ñ•½µÁQÝ•…¬¡½µÀ°€‰¡¥‘”ˆ¥ô€¼ø(€€€€€€€€€€€íÍ•±•Ñ•¹É½ÕÁÌ¹…ÕM½±¹±•¹Ñ €ø€À€˜˜€ñ½µÁQ…‰±”Ñ¥Ñ±”ô‰TÍ½±½µÁÌˆÉ½ÝÌõíÍ•±•Ñ•¹É½ÕÁÌ¹…ÕM½±‘ô•µÁÑäô‰9¼Í½±T½µÁÌ¥¹±Õ‘•¸ˆ¥Í5½‰¥±”õí¥Í5½‰¥±•ô€¼ùô(€€€€€€€€€€ð½‘¥Øø(€€€€€€€€€íÍ•±•Ñ•¹É½ÕÁÌ¹±½‰…±M½±¹±•¹Ñ €ø€À€˜˜€ñ½µÁQ…‰±”Ñ¥Ñ±”ô‰±½‰…°Í½±½µÁÌˆÉ½ÝÌõíÍ•±•Ñ•¹É½ÕÁÌ¹±½‰…±M½±‘ô•µÁÑäô‰9¼±½‰…°Í½±½µÁÌ¥¹±Õ‘•¸ˆ¥Í5½‰¥±”õí¥Í5½‰¥±•ô€¼ùô(€€€€€€€€€€ñá±Õ‘•‘Q…‰±”É½ÝÌõíÍ•±•Ñ•¹•á±Õ‘•‘ô¥Í5½‰¥±”õí¥Í5½‰¥±•ô½¹%¹±Õ‘”õì¡½µÀ¤€ôøÕÁ‘…Ñ•½µÁQÝ•…¬¡½µÀ°½µÀ¹µ…¹Õ…±á±Õ‘•€ü¹Õ±°€è€‰¥¹±Õ‘”ˆ¥ô€¼ø(€€€€€€€€ð½‘¥Øø(€€€€€€ð½‘¥Øø(€€€€ð½‘¥Øø(€€¤ì)ô

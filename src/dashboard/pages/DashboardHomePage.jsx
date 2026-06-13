@@ -62,7 +62,7 @@ export default function DashboardHomePage({ ctx }) {
   return (
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-        <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{inventoryProductCount} products / {inventory.length} units - {currency(stats.invValue)} stock - {velocityStats.sold30.length} sold 30d</p></div>
+        <div><h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Dashboard</h2><p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{inventoryProductCount} products / {inventory.length} units - {currency(stats.invValue)} stock - {velocityStats.sold30.length} sold 30d</p></div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <button onClick={() => setDashboardCustomizeOpen((v) => !v)} style={{ ...ghostBtn, padding: "7px 12px", fontSize: 12 }}>Cards</button>
           <div style={{ display: "flex", gap: 3, background: "#121a2b", borderRadius: 8, padding: 3, border: "1px solid #232c3c", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rangeButtonStyle(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
@@ -100,11 +100,11 @@ export default function DashboardHomePage({ ctx }) {
             { label: "Preorders", value: upcomingPreorderGroups.length, detail: upcomingPreorders.length === upcomingPreorderGroups.length ? "release window" : `${upcomingPreorders.length} units due`, tone: upcomingPreorders.length ? "#60a5fa" : "#7c8aa0", onClick: () => { setPage("inventory"); setInvStatus("Preorders"); setInvSort("preorder_asc"); } },
             { label: "Aged stock", value: agingStats.aged90.length, detail: "90+ days held", tone: agingStats.aged90.length ? "#f59e0b" : "#7c8aa0", onClick: () => setPage("inventory") },
           ].map((a) => (
-            <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#121a2b", border: "1px solid #232c3c", borderRadius: 10, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
+            <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 4 }}>{a.label}</div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
                 <span style={{ fontSize: 20, fontWeight: 800, color: a.tone }}>{a.value}</span>
-                <span style={{ fontSize: 11, color: "#56627a" }}>{a.detail}</span>
+                <span style={{ fontSize: 11, color: "#8b97ad" }}>{a.detail}</span>
               </div>
             </button>
           ))}
@@ -112,12 +112,12 @@ export default function DashboardHomePage({ ctx }) {
       )}
 
       {dashboardCards.preorderAlerts && upcomingPreorderGroups.length > 0 && (
-        <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #121a2b 100%)", border: "1px solid #2563eb55", borderRadius: 10, padding: "12px 14px", marginBottom: 12 }}>
+        <div style={{ background: "linear-gradient(180deg, #0f1a2e 0%, #121a2b 100%)", border: "1px solid #2563eb55", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
               <span style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>Preorders releasing soon</span>
-              <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 10, background: "#2563eb", color: "#fff", fontWeight: 600 }}>{upcomingPreorderGroups.length}</span>
+              <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 999, background: "#2563eb", color: "#fff", fontWeight: 600 }}>{upcomingPreorderGroups.length}</span>
             </div>
             <button onClick={() => setPage("inventory")} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "none", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>View all</button>
           </div>
@@ -127,23 +127,23 @@ export default function DashboardHomePage({ ctx }) {
               return (
                 <div key={`${i.id}-${i.preorderDate}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #232c3c66" }}>
                   <span style={{ fontSize: 13, color: "#e5e7eb", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
-                  {i._count > 1 && <span style={{ fontSize: 10, color: "#93c5fd", background: "#1e3a5f", borderRadius: 999, padding: "2px 7px", fontWeight: 700, flexShrink: 0 }}>{i._count} units</span>}
+                  {i._count > 1 && <span style={{ fontSize: 11, color: "#93c5fd", background: "#1e3a5f", borderRadius: 999, padding: "2px 7px", fontWeight: 700, flexShrink: 0 }}>{i._count} units</span>}
                   {!isMobile && <span style={{ fontSize: 11, color: "#7c8aa0", flexShrink: 0 }}>{i.preorderDate}</span>}
-                  <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: b.bg, color: b.fg, fontWeight: 600, flexShrink: 0 }}>{b.text}</span>
+                  <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, background: b.bg, color: b.fg, fontWeight: 600, flexShrink: 0 }}>{b.text}</span>
                 </div>
               );
             })}
             {upcomingPreorderGroups.length > (isMobile ? 4 : 6) && (
-              <div style={{ fontSize: 11, color: "#56627a", textAlign: "center", paddingTop: 4 }}>+ {upcomingPreorderGroups.length - (isMobile ? 4 : 6)} more groups</div>
+              <div style={{ fontSize: 11, color: "#8b97ad", textAlign: "center", paddingTop: 4 }}>+ {upcomingPreorderGroups.length - (isMobile ? 4 : 6)} more groups</div>
             )}
           </div>
         </div>
       )}
 
       {subStats.overdue.length > 0 && (
-        <div style={{ background: "#121a2b", border: "1px solid #ef444455", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ background: "#121a2b", border: "1px solid #ef444455", borderRadius: 12, padding: "10px 14px", marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#fca5a5", fontWeight: 600 }}>{subStats.overdue.length} subscription{subStats.overdue.length === 1 ? "" : "s"} overdue · {currency(subStats.overdue.reduce((a, s) => a + subAmountAud(s, fxRates), 0))}</span>
-          <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 5, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
+          <button onClick={logAllOverdue} style={{ padding: "4px 12px", background: "#dc2626", color: "#fff", border: "none", borderRadius: 6, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Log all due</button>
         </div>
       )}
 
@@ -167,7 +167,7 @@ export default function DashboardHomePage({ ctx }) {
         {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
         {dashboardCards.netProfit && <KPI label="Net profit" value={currency(stats.netProfit)} accent={stats.netProfit>=0?"#34d399":"#f87171"} />}
         {dashboardCards.grossProfit && <KPI label="Gross profit" value={currency(stats.grossProfit)} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />}
-        {dashboardCards.inventorySpend && <KPI label="Inventory spend" value={currency(stats.inventorySpend)} accent="#f59e0b" />}
+        {dashboardCards.inventorySpend && <KPI label="Inventory spend" value={currency(stats.inventorySpend)} />}
         {dashboardCards.inventoryValue && <KPI label="Inventory value" value={currency(stats.invValue)} />}
         {dashboardCards.salesCount && <KPI label="Sales count" value={stats.cnt} />}
       </div>
@@ -176,9 +176,9 @@ export default function DashboardHomePage({ ctx }) {
         {dashboardCards.avgOrderValue && <KPI label="Avg. order value" value={currency(stats.aov)} />}
         {dashboardCards.netMargin && <KPI label="Net margin" value={(stats.netMargin * 100).toFixed(1) + "%"} accent={stats.netMargin>=0?"#34d399":"#f87171"} />}
         {dashboardCards.grossMargin && <KPI label="Gross margin" value={(stats.grossMargin * 100).toFixed(1) + "%"} accent={stats.grossMargin>=0?"#34d399":"#f87171"} />}
-        {dashboardCards.totalExpenses && <KPI label="Total expenses" value={currency(stats.totalExpenses)} accent="#f59e0b" />}
-        {dashboardCards.platformFees && <KPI label="Platform fees" value={currency(stats.totalFees)} accent="#f59e0b" />}
-        {dashboardCards.monthlySubs && <KPI label="Monthly subs" value={currency(subStats.monthlyBurn)} accent="#f59e0b" />}
+        {dashboardCards.totalExpenses && <KPI label="Total expenses" value={currency(stats.totalExpenses)} />}
+        {dashboardCards.platformFees && <KPI label="Platform fees" value={currency(stats.totalFees)} />}
+        {dashboardCards.monthlySubs && <KPI label="Monthly subs" value={currency(subStats.monthlyBurn)} />}
       </div>
 
       {(dashboardCards.aging || dashboardCards.velocity) && (
@@ -195,7 +195,7 @@ export default function DashboardHomePage({ ctx }) {
                 <div key={i.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid #232c3c22" }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</div>
-                    <div style={{ fontSize: 11, color: "#56627a" }}>{i.category} - bought {i.purchaseDate || "unknown"}</div>
+                    <div style={{ fontSize: 11, color: "#8b97ad" }}>{i.category} - bought {i.purchaseDate || "unknown"}</div>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
                     <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 700 }}>{i._daysHeld}d</div>
@@ -228,11 +228,11 @@ export default function DashboardHomePage({ ctx }) {
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
         {dashboardCards.recentSales && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Sales</div>
-          {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#56627a" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
+          {stats.rs.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No sales</div>:stats.rs.map((s) => (<div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.platform} · {s.size||"OS"} · {s.saleDate}{s.customer?` · ${s.customer}`:""}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{currency(s.salePrice)}</div><div style={{ fontSize: 11, color: s.profit>=0?"#34d399":"#f87171" }}>{currency(s.profit)}</div></div></div>))}
         </div>}
         {dashboardCards.recentInventory && <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: "#9ca3af", marginBottom: 10 }}>Recent Inventory</div>
-          {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#56627a" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
+          {stats.ri.length===0?<div style={{ color: "#374151", fontSize: 13, padding: 16, textAlign: "center" }}>No items</div>:stats.ri.map((i) => (<div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #232c3c22", gap: 8 }}><div style={{ minWidth: 0, flex: 1 }}><div style={{ fontSize: 13, color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}{renderPreBadge(i)}</div><div style={{ fontSize: 11, color: "#8b97ad" }}>{i.category} · {i.size||"OS"}{i.brand?` · ${i.brand}`:""}</div></div><div style={{ fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{currency(i.price)}</div></div>))}
         </div>}
       </div>
     </div>

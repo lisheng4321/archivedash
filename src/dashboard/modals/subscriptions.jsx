@@ -60,9 +60,9 @@ function SubModal({ sub, onSave, onClose }) {
     {sf.frequency === "custom" ? <Row><Field label="Next due" req><input type="date" value={sf.nextDue} onChange={(e) => up({ nextDue: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={sf.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row> : <Field label="Tags"><input value={sf.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field>}
     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", marginBottom: 10 }}><input type="checkbox" checked={sf.active} onChange={(e) => up({ active: e.target.checked })} style={cb} /> Active (auto-log when due)</label>
     {parseFloat(sf.amount) > 0 && (
-      <div style={{ background: "#0d1117", borderRadius: 10, padding: 14, fontSize: 12, color: "#9ca3af" }}>
-        <div>Charge: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{formatMoney(sf.amount, currencyCode)}</span>{isForeign && <span style={{ color: "#56627a" }}> = {currency(audAmount)}</span>}</div>
-        <div style={{ marginTop: 4 }}>Monthly equivalent: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(me)}</span><span style={{ color: "#56627a" }}> · {currency(me * 12)}/yr · {frequencyLabel(sf.frequency, sf.customDays)}</span></div>
+      <div style={{ background: "#0d1117", borderRadius: 12, padding: 14, fontSize: 12, color: "#9ca3af" }}>
+        <div>Charge: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{formatMoney(sf.amount, currencyCode)}</span>{isForeign && <span style={{ color: "#8b97ad" }}> = {currency(audAmount)}</span>}</div>
+        <div style={{ marginTop: 4 }}>Monthly equivalent: <span style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(me)}</span><span style={{ color: "#8b97ad" }}> · {currency(me * 12)}/yr · {frequencyLabel(sf.frequency, sf.customDays)}</span></div>
       </div>
     )}
     <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={save} style={primaryBtn}>{sub ? "Save" : "Add subscription"}</button></ModalActions>

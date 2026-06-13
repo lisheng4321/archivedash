@@ -132,22 +132,22 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     <ModalActions marginTop={10}><button onClick={requestClose} style={ghostBtn}>Cancel</button>
     <button onClick={apply} style={primaryBtn}>Apply to {items.length} items</button></ModalActions>
       </div>
-      <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #232c3c", borderRadius: 10, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
+      <aside style={{ flex: "0 1 240px", position: "sticky", top: 0, background: "#0d1117", border: "1px solid #232c3c", borderRadius: 12, padding: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.25)" }}>
         <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800, marginBottom: 10 }}>Selection summary</div>
         <div style={{ display: "grid", gap: 8 }}>
           {summaryRows.map(([label, value]) => (
             <ResponsiveGrid key={label} columns="76px 1fr" mobileColumns="1fr" gap={8} style={{ alignItems: "baseline" }}>
-              <span style={{ color: "#56627a", fontSize: 11 }}>{label}</span>
+              <span style={{ color: "#8b97ad", fontSize: 11 }}>{label}</span>
               <span style={{ color: "#d1d5db", fontSize: 12, fontWeight: 650, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{value}</span>
             </ResponsiveGrid>
           ))}
         </div>
         {previewNames.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #232c3c" }}>
-            <div style={{ color: "#56627a", fontSize: 11, marginBottom: 6 }}>Titles</div>
+            <div style={{ color: "#8b97ad", fontSize: 11, marginBottom: 6 }}>Titles</div>
             <div style={{ display: "grid", gap: 5 }}>
               {previewNames.map((name) => <div key={name} title={name} style={{ color: "#9ca3af", fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>)}
-              {productCount > previewNames.length && <div style={{ color: "#56627a", fontSize: 11 }}>+{productCount - previewNames.length} more</div>}
+              {productCount > previewNames.length && <div style={{ color: "#8b97ad", fontSize: 11 }}>+{productCount - previewNames.length} more</div>}
             </div>
           </div>
         )}
@@ -186,9 +186,9 @@ function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
     <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={form.quantity} onChange={(e) => up({ quantity: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={form.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={form.preorderDate} onChange={(e) => up({ preorderDate: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Brand / vendor"><input value={form.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={form.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
     <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12 }}>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Source</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Quantity</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{form.quantity || 1}</div></div>
-      <div><div style={{ color: "#56627a", marginBottom: 2 }}>Total cost</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(total)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Source</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Quantity</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{form.quantity || 1}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Total cost</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(total)}</div></div>
     </ResponsiveGrid>
     <ModalActions marginTop={0}><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!form.name || !form.price) return; onAdd(draft, form); }} style={primaryBtn}>Add Inventory</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);

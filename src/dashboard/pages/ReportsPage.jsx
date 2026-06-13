@@ -47,13 +47,13 @@ export default function ReportsPage({ ctx }) {
         <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: 18 }}>{empty}</div>
       ) : (
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px", gap: 8, padding: "0 0 8px", color: "#56627a", fontSize: 11, textTransform: "uppercase", fontWeight: 700 }}>
-            <span>Name</span><span>Count</span><span style={{ textAlign: "right" }}>{amountLabel}</span>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px", gap: 8, padding: "0 0 8px", color: "#8b97ad", fontSize: 11, textTransform: "uppercase", fontWeight: 700 }}>
+            <span>Name</span><span style={{ textAlign: "right" }}>Count</span><span style={{ textAlign: "right" }}>{amountLabel}</span>
           </div>
           {rows.map((r) => (
             <div key={r.name} style={{ display: "grid", gridTemplateColumns: "1fr 60px 100px", gap: 8, padding: "8px 0", borderTop: "1px solid #232c3c22", fontSize: 12, alignItems: "center" }}>
               <span style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-              <span style={{ color: "#9ca3af" }}>{r.count}</span>
+              <span style={{ color: "#9ca3af", textAlign: "right" }}>{r.count}</span>
               <span style={{ color: r.amount >= 0 ? "#f3f6fb" : "#f87171", fontWeight: 700, textAlign: "right" }}>{currency(r.amount)}</span>
             </div>
           ))}
@@ -67,7 +67,7 @@ export default function ReportsPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Reports</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#56627a" }}>{reportStats.sales.length} sales - {reportStats.expenses.length} expenses - {reportStats.cutFrom} to {range === "Custom" ? reportStats.cutTo : "today"}</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{reportStats.sales.length} sales - {reportStats.expenses.length} expenses - {reportStats.cutFrom} to {range === "Custom" ? reportStats.cutTo : "today"}</p>
         </div>
         <button onClick={exportReportCSV} style={primaryBtn}>Export report CSV</button>
       </div>

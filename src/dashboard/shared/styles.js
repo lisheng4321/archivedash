@@ -1,15 +1,28 @@
 // ArchiveDash shared inline-style constants.
 // Presentation only. No data / auth / Supabase logic lives here.
 const C = {
+  app: "#0b0f19",
   panel: "#121a2b",
   inset: "#0d1117",
+  selected: "#1e293b",
   border: "#232c3c",
+  raised: "#1a2333",
   ghost: "#1f2937",
   accent: "#2563eb",
+  fgPrimary: "#f3f6fb",
+  fgBody: "#d6dbe4",
+  fgSecondary: "#9aa6bb",
+  fgMuted: "#8b97ad",
+  fgDisabled: "#56627a",
+  success: "#34d399",
+  danger: "#f87171",
+  dangerAction: "#dc2626",
+  warning: "#f59e0b",
+  info: "#60a5fa",
   fg1: "#f3f6fb",
-  fg3: "#d1d5db",
+  fg3: "#d6dbe4",
   fg4: "#9aa6bb",
-  fg5: "#7c8aa0",
+  fg5: "#8b97ad",
   destructive: "#dc2626",
 };
 
@@ -56,7 +69,7 @@ const destructiveBtn = { ...primaryBtn, background: C.destructive };
 const cb = { width: 16, height: 16, accentColor: C.accent, cursor: "pointer" };
 
 const badge = (bg, fg) => ({
-  fontSize: 10,
+  fontSize: 11,
   background: bg,
   color: fg,
   padding: "2px 6px",
@@ -74,9 +87,9 @@ const cardSurface = {
 };
 const panel = { ...cardSurface, padding: 16 };
 const smallCaps = {
-  fontSize: 10,
+  fontSize: 11,
   fontWeight: 800,
-  color: "#56627a",
+  color: C.fgMuted,
   textTransform: "uppercase",
   letterSpacing: 0.5,
 };
@@ -92,6 +105,7 @@ const chip = {
 };
 
 export {
+  C,
   inp,
   sel,
   primaryBtn,
