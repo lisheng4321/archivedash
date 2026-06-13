@@ -82,6 +82,7 @@ const compareInventorySize = (a = {}, b = {}) => (
 
 export {
   compareInventorySize,
+  compareSizeValues,
   customerKey,
   listedPlatformsFor,
   orderKeyForSale,
