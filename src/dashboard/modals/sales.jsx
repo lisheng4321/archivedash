@@ -135,184 +135,174 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers }) {
           <ResponsiveGrid columns="1fr 1fr 1fr 80px" mobileColumns="1fr 1fr" gap={6} style={{ alignItems: "center" }}>
             <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
             <input type="number" step="0.01" placeholder="Ship $" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-            <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees} onChang×‹h‘éì¶»§q«^uY\ÎˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏ‚ˆÜ[ˆÝ[O^ÞÈ›ÛÚ^™NˆL‹›ÛÙZYÚˆŒÛÛÜŽˆÜŒÊ›Ùš]LÈˆÌÍÎNHŽˆˆÙŽÌMÌHŠNˆˆÌÍÍMLH‹^[YÛŽˆœšYÚˆ_OžÜÜŒØÝ\œ™[˜ÞJ›Ùš]
-Nˆ¸ %ŸOÜÜ[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]ŠNÂˆJ_BˆÙ]‚ˆ[Ù[XÝ[ÛœÏ]ÛˆÛÛXÚÏ^ÙØßHÝ[O^ÙÚÜÝŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
-HOˆÈYˆ
-X[šXÙY
-H™]\›ŽÈÛ”Ù[
-Ú\™Y›ÝÜÊNÈ_HÝ[O^ÞÈ‹‹œš[X\žP‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”Ù[Ú][\Ë›[™ÝH][\ÏØ]ÛÓ[Ù[XÝ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚÝÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
-HOˆÙ]ÚÝÕJ˜[ÙJ_HÏÏŠNÂŸB‚‹ËÈ8¥ 8¥ 8¥ X[X[Ø[H[Ù[8¥ 8¥ 8¥ ‚™[˜Ý[ÛˆX[X[Ø[S[Ù[
-È[™[ÜžKÛ”Ù[ÛÛÜÙK]›Ü›\ËÝ\ÝÛY\œÈJHÂˆÛÛœÝ\Ó[Øš[HH\ÙR\Ó[Øš[J
-NÂˆÛÛœÝÜ]Y\žKÙ]]Y\žWHH\ÙTÝ]JˆŠNÂˆÛÛœÝÜÙ[XÝYYËÙ]Ù[XÝYY×HH\ÙTÝ]J™]ÈÙ]
+            <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right" }}>{sp>0?currency(profit):"â€”"}</span>
+          </ResponsiveGrid>
+        </div>);
+      })}
+    </div>
+    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(shared, rows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Sell {items.length} items</button></ModalActions>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
 
-JNÂˆÛÛœÝÜÚ\™YÙ]Ú\™YHH\ÙTÝ]JÈ]›Ü›Nˆ]›Ü›\ÖÌ_“Ý\ˆ‹Ø[Q]NˆÙ^J
-KÝ\ÝÛY\ŽˆˆˆJNÂˆÛÛœÝÜ›ÝÜËÙ]›ÝÜ×HH\ÙTÝ]JßJNÂˆÛÛœÝÜÚÝÕKÙ]ÚÝÕWHH\ÙTÝ]J˜[ÙJNÂˆÛÛœÝØÈH
+// â”€â”€â”€ Manual Sale Modal â”€â”€â”€
 
-HOˆÙ]ÚÝÕJYJNÂˆÛÛœÝHH]Y\žKš[J
-KÓÝÙ\Ø\ÙJ
-NÂˆÛÛœÝš[\™YH[™[ÜžBˆ™š[\Š
-][JHOˆ\HÚ][K›˜[YK][K˜œ˜[™][K˜Ø]YÛÜžK][KYÜË][K˜Ý\ÝÛY\—KœÛÛYJ
-ŠHOˆÝš[™ÊˆˆŠKÓÝÙ\Ø\ÙJ
-Kš[˜ÛY\ÊJJJBˆœÛXÙJ
-NÂˆÛÛœÝÙ[XÝY][\ÈH[™[ÜžK™š[\Š
-][JHOˆÙ[XÝYYËš\Ê][KšY
-JNÂˆÛÛœÝÙÙÛHH
-][JHOˆÂˆÙ]Ù[XÝYYÊ
-™]ŠHOˆÂˆÛÛœÝ™^H™]ÈÙ]
-™]ŠNÂˆYˆ
-™^š\Ê][KšY
-JH™^™[]J][KšY
-NÂˆ[ÙH™^˜Y
-][KšY
-NÂˆ™]\›ˆ™^ÂˆJNÂˆÙ]›ÝÜÊ
-™]ŠHOˆ™]–Ú][KšYHÈ™]ˆˆÈ‹‹œ™]‹Ú][KšYNˆÈØ[TšXÙNˆˆ‹Ú\[™ÔšXÙNˆˆ‹]›Ü›Q™Y\ÎˆˆˆHJNÂˆNÂˆÛÛœÝ\]T›ÝÈH
-YJHOˆÙ]›ÝÜÊ
-™]ŠHOˆ
-È‹‹œ™]‹ÚYNˆÈ‹‹Š™]–ÚYHßJK‹‹HHJJNÂˆÛÛœÝ™\\™Y›ÝÜÈHÙ[XÝY][\Ë›X\
+function ManualSaleModal({ inventory, onSell, onClose, platforms, customers }) {
+  const isMobile = useIsMobile();
+  const [query, setQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [shared, setShared] = useState({ platform: platforms[0]||"Other", saleDate: today(), customer: "" });
+  const [rows, setRows] = useState({});
+  const [showU, setShowU] = useState(false);
+  const gc = () => setShowU(true);
+  const q = query.trim().toLowerCase();
+  const filtered = inventory
+    .filter((item) => !q || [item.name, item.brand, item.category, item.tags, item.customer].some((v) => String(v || "").toLowerCase().includes(q)))
+    .slice(0, 80);
+  const selectedItems = inventory.filter((item) => selectedIds.has(item.id));
+  const toggle = (item) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.add(item.id);
+      return next;
+    });
+    setRows((prev) => prev[item.id] ? prev : { ...prev, [item.id]: { salePrice: "", shippingPrice: "", platformFees: "" } });
+  };
+  const updateRow = (id, u) => setRows((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...u } }));
+  const preparedRows = selectedItems.map((item) => ({ id: item.id, ...(rows[item.id] || {}) }));
+  const previews = selectedItems.map((item) => {
+    const r = rows[item.id] || {};
+    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
+  });
+  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
+  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
+  const allPriced = selectedItems.length > 0 && previews.every((p) => p.sp > 0);
 
-][JHOˆ
-ÈYˆ][KšY‹‹Š›ÝÜÖÚ][KšYHßJHJJNÂˆÛÛœÝ™]šY]ÜÈHÙ[XÝY][\Ë›X\
+  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
+    <Row cols={3}><Field label="Platform" req><select value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
+    <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
+    </ResponsiveGrid>
+    <Field label="Search inventory"><input value={query} onChange={(e) => setQuery(e.target.value)} style={inp} placeholder="Search name, brand, category..." autoFocus={!isMobile} /></Field>
+    <ResponsiveGrid columns="minmax(340px, 0.95fr) minmax(500px, 1.3fr)" gap={isMobile ? 12 : 14} style={{ minHeight: isMobile ? 0 : 360 }}>
+      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 260 : 360, background: "#0d1117" }}>
+        {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#8b97ad", fontSize: 12 }}>No inventory matches.</div>}
+        {filtered.map((item, index) => {
+          const checked = selectedIds.has(item.id);
+          return (
+            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #232c3c22", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#121a2b") }}>
+              <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                <SaleItemIdentity item={item} showCost={false} compact />
+              </div>
+              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 320 : 360, background: "#0d1117" }}>
+        {selectedItems.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#8b97ad", fontSize: 12 }}>Select inventory to price the sale.</div>}
+        {selectedItems.map((item) => {
+          const r = rows[item.id] || {};
+          const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+          const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
+          return (
+            <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7, alignItems: "flex-start" }}>
+                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><SaleItemIdentity item={item} /></div>
+                <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>Remove</button>
+              </div>
+              <ResponsiveGrid columns="repeat(3, minmax(120px, 1fr)) 92px" mobileColumns="1fr 1fr" gap={8} style={{ alignItems: "end" }}>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" step="0.01" placeholder="Sale price" value={r.salePrice || ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Shipping</div><input type="number" step="0.01" placeholder="Shipping" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Fees</div><input type="number" step="0.01" placeholder="Fees" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{sp>0?currency(profit):"â€”"}</span>
+              </ResponsiveGrid>
+            </div>
+          );
+        })}
+      </div>
+    </ResponsiveGrid>
+    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(selectedItems, shared, preparedRows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record {selectedItems.length || ""} Sale{selectedItems.length === 1 ? "" : "s"}</button></ModalActions>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
 
-][JHOˆÂˆÛÛœÝˆH›ÝÜÖÚ][KšYHßNÂˆÛÛœÝÜH\œÙQ›Ø]
-‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
-‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
-‹œ]›Ü›Q™Y\Ê_Âˆ™]\›ˆÈ‹‹š][KÜÚ\™Y\Ë›Ùš]ˆÛÛ\]T›Ùš]
-ÈØ[TšXÙNˆÜÛÜÝˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJHNÂˆJNÂˆÛÛœÝÝ[›Ùš]H™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-Èœ›Ùš]
-NÂˆÛÛœÝÝ[™]™[YHH™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-ÈœÜ
-NÂˆÛÛœÝ[šXÙYHÙ[XÝY][\Ë›[™Ýˆ	‰ˆ™]šY]ÜË™]™\žJ
-
-HOˆœÜˆ
-NÂ‚ˆ™]\›ˆ
-[Ù[Ü[^ÝY_HÛÛÜÙO^ÛÛÛÜÙ_HÝX\™YÛÜÙO^ÙØßH]OHYØ[HˆX^ÚY^ÎNO‚ˆ›ÝÈÛÛÏ^ÌßOšY[X™[H”]›Ü›Hˆ™\OÙ[XÝ˜[YO^ÜÚ\™Yœ]›Ü›_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™Y]›Ü›NˆK\™Ù]˜[YHJ_HÝ[O^ÜÙ[OžÜ]›Ü›\Ë›X\
+function EbaySaleReviewModal({ draft, items, onRecord, onClose }) {
+  const qty = Math.max(1, Number(draft.quantity || 1));
+  const saleTotal = Number(draft.sale_price || 0);
+  const shipTotal = Number(draft.shipping_price || 0);
+  const rawFeeTotal = Number(draft.platform_fees || 0);
+  const feeTotal = rawFeeTotal > 0 ? rawFeeTotal : estimateEbayFee(saleTotal);
+  const [shared, setShared] = useState({
+    platform: "eBay AU",
+    saleDate: draft.sale_date || today(),
+    customer: draft.buyer_username || "",
+  });
+  const [rows, setRows] = useState(items.map((item) => ({
+    id: item.id,
+    salePrice: (saleTotal / qty).toFixed(2),
+    shippingPrice: (shipTotal / qty).toFixed(2),
+    platformFees: (feeTotal / qty).toFixed(2),
+  })));
+  const [showU, setShowU] = useState(false);
+  const updateRow = (id, u) => setRows(rows.map((r) => r.id === id ? { ...r, ...u } : r));
+  const previews = items.map((item) => {
+    const r = rows.find((x) => x.id === item.id) || {};
+    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
+  });
+  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
+  const totalShip = previews.reduce((a, p) => a + p.ship, 0);
+  const totalFees = previews.reduce((a, p) => a + p.fees, 0);
+  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
+  const allPriced = previews.every((p) => p.sp > 0);
 
-
-HOˆÜ[ÛˆÙ^O^ÜOžÜOÛÜ[ÛŠ_OÜÙ[XÝÑšY[šY[X™[H”Ø[H]H[œ]\OH™]Hˆ˜[YO^ÜÚ\™YœØ[Q]_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™YØ[Q]NˆK\™Ù]˜[YHJ_HÝ[O^Ú[œHÏÑšY[šY[X™[HÝ\ÝÛY\ˆ[œ]\ÝH˜Ý\Ý[X[X[\Ø[Hˆ˜[YO^ÜÚ\™Y˜Ý\ÝÛY\ŸHÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™YÝ\ÝÛY\ŽˆK\™Ù]˜[YHJ_HÝ[O^Ú[œHXÙZÛ\H“Ü[Û˜[ˆÏ][\ÝYH˜Ý\Ý[X[X[\Ø[HžØÝ\ÝÛY\œË›X\
+  return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
+    <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
+      <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, marginBottom: 3 }}>{draft.item_title}</div>
+      <div style={{ color: "#7c8aa0", fontSize: 11 }}>Order {draft.order_id || "unknown"} Â· qty {qty} Â· {draft.buyer_username || "Unknown buyer"}</div>
+    </div>
+    <Row cols={3}><Field label="Platform"><input value={shared.platform} onChange={(e) => setShared({ ...shared, platform: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} /></Field></Row>
+    <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalRevenue)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Shipping</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalShip)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Fees</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalFees)}</div></div>
+      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
+    </ResponsiveGrid>
+    {rawFeeTotal <= 0 && <div style={{ fontSize: 11, color: "#fbbf24", margin: "-2px 0 10px" }}>Fees are estimated from eBay AU Pro Basic Tier 4 at {(EBAY_AU_FEE_RATE * 100).toFixed(2)}% + {currency(EBAY_AU_FIXED_ORDER_FEE)}. Edit them before recording if eBay shows a different amount.</div>}
+    <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #232c3c" }}>
+      {items.map((item) => {
+        const r = rows.find((x) => x.id === item.id) || {};
+        const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+        const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
+        return (<div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7 }}>
+            <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div></div>
+            <div style={{ color: profit>=0?"#34d399":"#f87171", fontSize: 13, fontWeight: 800 }}>{currency(profit)}</div>
+          </div>
+          <div style={{ marginBottom: 7 }}><SaleItemIdentity item={item} /></div>
+          <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="1fr" gap={6}>
+            <Field label="Sale price"><input type="number" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+            <Field label="Shipping"><input type="number" step="0.01" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+            <Field label="Fees"><input type="number" step="0.01" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+          </ResponsiveGrid>
+        </div>);
+      })}
+    </div>
+    <ModalActions><button onClick={() => setShowU(true)} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onRecord(draft, { items, shared, rows }); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record Sale</button></ModalActions>
+  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
+}
 
-ÊHOˆÜ[ÛˆÙ^O^ØßH˜[YO^ØßHÏŠ_OÙ][\ÝÑšY[Ô›ÝÏ‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
-ËZ[›X^
-YœŠJHˆ[Øš[PÛÛ[[œÏHœ™\X]
-ËZ[›X^
-YœŠJHˆØ\^ÎHÝ[O^ÞÈ˜XÚÙÜ›Ý[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›ÝÛNˆL‹›ÛÚ^™NˆLˆ_O‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”Ù[XÝYÙ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆŒ_OžÜÙ[XÝY][\Ë›[™ÝH][^ÜÙ[XÝY][\Ë›[™ÝOOHHÈˆˆˆœÈŸOÙ]Ù]‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”™]™[YOÙ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆŒ_OžØÝ\œ™[˜ÞJÝ[™]™[YJ_OÙ]Ù]‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”›Ùš]Ù]]ˆÝ[O^ÞÈÛÛÜŽˆÝ[›Ùš]LÈˆÌÍÎNHŽˆˆÙŽÌMÌH‹›ÛÙZYÚˆÌ_OžØÝ\œ™[˜ÞJÝ[›Ùš]
-_OÙ]Ù]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆšY[X™[H”ÙX\˜Ú[™[ÜžH[œ]˜[YO^Ü]Y\ž_HÛÚ[™ÙO^ÊJHOˆÙ]]Y\žJK\™Ù]˜[YJ_HÝ[O^Ú[œHXÙZÛ\H”ÙX\˜Ú˜[YKœ˜[™Ø]YÛÜžK‹‹ˆˆ]]Ñ›ØÝ\Ï^ÈZ\Ó[Øš[_HÏÑšY[‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏH›Z[›X^
-ÍŽMYœŠHZ[›X^
-LKŒÙœŠHˆØ\^Ú\Ó[Øš[HÈLˆˆMHÝ[O^ÞÈZ[’ZYÚˆ\Ó[Øš[HÈˆÍŒ_O‚ˆ]ˆÝ[O^ÞÈ›Ü™\ŽˆŒ\ÛÛYÌŒÌ˜ÌØÈ‹›Ü™\”˜Y]\ÎˆÝ™\™›ÝÎˆ˜]]È‹X^ZYÚˆ\Ó[Øš[HÈŒˆÍŒ˜XÚÙÜ›Ý[™ˆˆÌLLMÈˆ_O‚ˆÙš[\™Y›[™ÝOOH	‰ˆ]ˆÝ[O^ÞÈY[™ÎˆN^[YÛŽˆ˜Ù[\ˆ‹ÛÛÜŽˆˆÎŽMØY‹›ÛÚ^™NˆLˆ_O“›È[™[ÜžHX]Ú\ËÙ]ŸBˆÙš[\™Y›X\
-
-][K[™^
-HOˆÂˆÛÛœÝÚXÚÙYHÙ[XÝYYËš\Ê][KšY
-NÂˆ™]\›ˆ
-ˆ]ˆÙ^O^Ú][KšYHÛÛXÚÏ^Ê
-HOˆÙÙÛJ][J_HÝ[O^ÞÈ\Ü^Nˆ™ÜšY‹ÜšY[\]PÛÛ[[œÎˆŒœZ[›X^
-YœŠH]]È‹Ø\ˆL[YÛ’][\Îˆ˜Ù[\ˆ‹Y[™ÎˆŒLLœ‹Ý\œÛÜŽˆœÚ[\ˆ‹›Ü™\›ÝÛNˆŒ\ÛÛYÌŒÌ˜ÌØÌŒˆ‹˜XÚÙÜ›Ý[™ˆÚXÚÙYÈˆÌYLŽLØˆˆˆ
-[™^	HˆOOHÈˆÌLÌYˆˆˆˆÌLŒXL˜ˆŠH_O‚ˆ[œ]\OH˜ÚXÚØ›ÞˆÚXÚÙY^ØÚXÚÙYHÛÚ[™ÙO^Ê
-HOˆÙÙÛJ][J_HÛÛXÚÏ^ÊJHOˆKœÝÜ›ÜYØ][ÛŠ
-_HÝ[O^ØØŸHÏ‚ˆ]ˆÝ[O^ÞÈZ[•ÚYˆ_O‚ˆ]ˆÝ[O^ÞÈÛÛÜŽˆˆÙMYMÙXˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆÌÝ™\™›ÝÎˆšY[ˆ‹^Ý™\™›ÝÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››ÝÜ˜\ˆ_OžÚ][K›˜[Y_OÙ]‚ˆØ[R][RY[]H][O^Ú][_HÚÝÐÛÜÝ^Ù˜[Ù_HÛÛ\XÝÏ‚ˆÙ]‚ˆ]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆÌ_OžØÝ\œ™[˜ÞJ][KœšXÙJ_OÙ]‚ˆÙ]‚ˆ
-NÂˆJ_BˆÙ]‚ˆ]ˆÝ[O^ÞÈ›Ü™\ŽˆŒ\ÛÛYÌŒÌ˜ÌØÈ‹›Ü™\”˜Y]\ÎˆÝ™\™›ÝÎˆ˜]]È‹X^ZYÚˆ\Ó[Øš[HÈÌŒˆÍŒ˜XÚÙÜ›Ý[™ˆˆÌLLMÈˆ_O‚ˆÜÙ[XÝY][\Ë›[™ÝOOH	‰ˆ]ˆÝ[O^ÞÈY[™ÎˆN^[YÛŽˆ˜Ù[\ˆ‹ÛÛÜŽˆˆÎŽMØY‹›ÛÚ^™NˆLˆ_O”Ù[XÝ[™[ÜžHÈšXÙHHØ[KÙ]ŸBˆÜÙ[XÝY][\Ë›X\
-
-][JHOˆÂˆÛÛœÝˆH›ÝÜÖÚ][KšYHßNÂˆÛÛœÝÜH\œÙQ›Ø]
-‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
-‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
-‹œ]›Ü›Q™Y\Ê_ÂˆÛÛœÝ›Ùš]HÛÛ\]T›Ùš]
-ÈØ[TšXÙNˆÜÛÜÝˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJNÂˆ™]\›ˆ
-ˆ]ˆÙ^O^Ú][KšYHÝ[O^ÞÈY[™ÎˆŒLLœ‹›Ü™\›ÝÛNˆŒ\ÛÛYÌŒÌ˜ÌØÍ‹˜XÚÙÜ›Ý[™ˆˆÌLLMÈˆ_O‚ˆ]ˆÝ[O^ÞÈ\Ü^Nˆ™›^‹\ÝYžPÛÛ[ˆœÜXÙKX™]ÙY[ˆ‹Ø\ˆX\™Ú[›ÝÛNˆË[YÛ’][\Îˆ™›^\Ý\ˆ_O‚ˆ]ˆÝ[O^ÞÈZ[•ÚYˆ_O]ˆÝ[O^ÞÈÛÛÜŽˆˆÙMYMÙXˆ‹›ÛÚ^™NˆL‹›ÛÙZYÚˆŒÝ™\™›ÝÎˆšY[ˆ‹^Ý™\™›ÝÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››ÝÜ˜\ˆ_OžÚ][K›˜[Y_OÙ]Ø[R][RY[]H][O^Ú][_HÏÙ]‚ˆ]ÛˆÛÛXÚÏ^Ê
-HOˆÙÙÛJ][J_HÝ[O^ÞÈ‹‹™ÚÜÝ‹Y[™ÎˆŒÜÜ‹›ÛÚ^™NˆLKÛÛÜŽˆˆÙŽÌMÌH‹›^Úš[šÎˆ_O”™[[Ý™OØ]Û‚ˆÙ]‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
-ËZ[›X^
-LŒYœŠJHLœˆ[Øš[PÛÛ[[œÏHŒYœˆYœˆˆØ\^ÎHÝ[O^ÞÈ[YÛ’][\Îˆ™[™ˆ_O‚ˆ]]ˆÝ[O^ÞÈ›ÛÚ^™NˆLKÛÛÜŽˆˆÎXØLØYˆ‹X\™Ú[›ÝÛNˆ›ÛÙZYÚˆŒ_O”Ø[OÙ][œ]\OH›[X™\ˆˆÝ\HŒŒHˆXÙZÛ\H”Ø[HšXÙHˆ˜[YO^Ü‹œØ[TšXÙHˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈØ[TšXÙNˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆ]]ˆÝ[O^ÞÈ›ÛÚ^™NˆLKÛÛÜŽˆˆÎXØLØYˆ‹X\™Ú[›ÝÛNˆ›ÛÙZYÚˆŒ_O”Ú\[™ÏÙ][œ]\OH›[X™\ˆˆÝ\HŒŒHˆXÙZÛ\H”Ú\[™Èˆ˜[YO^Ü‹œÚ\[™ÔšXÙHˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈÚ\[™ÔšXÙNˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆ]]ˆÝ[O^ÞÈ›ÛÚ^™NˆLKÛÛÜŽˆˆÎXØLØYˆ‹X\™Ú[›ÝÛNˆ›ÛÙZYÚˆŒ_O‘™Y\ÏÙ][œ]\OH›[X™\ˆˆÝ\HŒŒHˆXÙZÛ\H‘™Y\Èˆ˜[YO^Ü‹œ]›Ü›Q™Y\ÈˆŸHÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈ]›Ü›Q™Y\ÎˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™ÎˆÜ\ˆ_HÏÙ]‚ˆÜ[ˆÝ[O^ÞÈ›ÛÚ^™NˆL‹›ÛÙZYÚˆÌÛÛÜŽˆÜŒÊ›Ùš]LÈˆÌÍÎNHŽˆˆÙŽÌMÌHŠNˆˆÌÍÍMLH‹^[YÛŽˆœšYÚ‹Y[™Ð›ÝÛNˆ_OžÜÜŒØÝ\œ™[˜ÞJ›Ùš]
-Nˆ¸ %ŸOÜÜ[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]‚ˆ
-NÂˆJ_BˆÙ]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆ[Ù[XÝ[ÛœÏ]ÛˆÛÛXÚÏ^ÙØßHÝ[O^ÙÚÜÝŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
-HOˆÈYˆ
-X[šXÙY
-H™]\›ŽÈÛ”Ù[
-Ù[XÝY][\ËÚ\™Y™\\™Y›ÝÜÊNÈ_HÝ[O^ÞÈ‹‹œš[X\žP‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”™XÛÜ™ÜÙ[XÝY][\Ë›[™ÝˆŸHØ[^ÜÙ[XÝY][\Ë›[™ÝOOHHÈˆˆˆœÈŸOØ]ÛÓ[Ù[XÝ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚÝÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
-HOˆÙ]ÚÝÕJ˜[ÙJ_HÏÏŠNÂŸB‚™[˜Ý[ÛˆX˜^TØ[T™]šY]Ó[Ù[
-È˜Y][\ËÛ”™XÛÜ™ÛÛÜÙHJHÂˆÛÛœÝ]HHX]›X^
-K[X™\Š˜Yœ]X[]HJJNÂˆÛÛœÝØ[UÝ[H[X™\Š˜YœØ[WÜšXÙH
-NÂˆÛÛœÝÚ\Ý[H[X™\Š˜YœÚ\[™×ÜšXÙH
-NÂˆÛÛœÝ˜]Ñ™YUÝ[H[X™\Š˜Yœ]›Ü›WÙ™Y\È
-NÂˆÛÛœÝ™YUÝ[H˜]Ñ™YUÝ[ˆÈ˜]Ñ™YUÝ[ˆ\Ý[X]QX˜^Q™YJØ[UÝ[
-NÂˆÛÛœÝÜÚ\™YÙ]Ú\™YHH\ÙTÝ]JÂˆ]›Ü›Nˆ™P˜^HUH‹ˆØ[Q]Nˆ˜YœØ[WÙ]HÙ^J
-KˆÝ\ÝÛY\Žˆ˜Y˜^Y\—Ý\Ù\›˜[YHˆ‹ˆJNÂˆÛÛœÝÜ›ÝÜËÙ]›ÝÜ×HH\ÙTÝ]J][\Ë›X\
-
-][JHOˆ
-ÂˆYˆ][KšYˆØ[TšXÙNˆ
-Ø[UÝ[È]JKÑš^Y
-ŠKˆÚ\[™ÔšXÙNˆ
-Ú\Ý[È]JKÑš^Y
-ŠKˆ]›Ü›Q™Y\Îˆ
-™YUÝ[È]JKÑš^Y
-ŠKˆJJJNÂˆÛÛœÝÜÚÝÕKÙ]ÚÝÕWHH\ÙTÝ]J˜[ÙJNÂˆÛÛœÝ\]T›ÝÈH
-YJHOˆÙ]›ÝÜÊ›ÝÜË›X\
-
-ŠHOˆ‹šYOOHYÈÈ‹‹œ‹‹‹HHˆŠJNÂˆÛÛœÝ™]šY]ÜÈH][\Ë›X\
-
-][JHOˆÂˆÛÛœÝˆH›ÝÜË™š[™
-
-
-HOˆšYOOH][KšY
-HßNÂˆÛÛœÝÜH\œÙQ›Ø]
-‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
-‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
-‹œ]›Ü›Q™Y\Ê_Âˆ™]\›ˆÈ‹‹š][KÜÚ\™Y\Ë›Ùš]ˆÛÛ\]T›Ùš]
-ÈØ[TšXÙNˆÜÛÜÝˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJHNÂˆJNÂˆÛÛœÝÝ[™]™[YHH™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-ÈœÜ
-NÂˆÛÛœÝÝ[Ú\H™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-ÈœÚ\
-NÂˆÛÛœÝÝ[™Y\ÈH™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-È™™Y\Ë
-NÂˆÛÛœÝÝ[›Ùš]H™]šY]ÜËœ™YXÙJ
-K
-HOˆH
-Èœ›Ùš]
-NÂˆÛÛœÝ[šXÙYH™]šY]ÜË™]™\žJ
-
-HOˆœÜˆ
-NÂ‚ˆ™]\›ˆ
-[Ù[Ü[^ÝY_HÛÛÜÙO^ÛÛÛÜÙ_HÝX\™YÛÜÙO^Ê
-HOˆÙ]ÚÝÕJYJ_H]OH”™]šY]ÈP˜^HØ[H‚ˆ]ˆÝ[O^ÞÈ˜XÚÙÜ›Ý[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›ÝÛNˆM_O‚ˆ]ˆÝ[O^ÞÈÛÛÜŽˆˆÙMYMÙXˆ‹›ÛÚ^™NˆLË›ÛÙZYÚˆÌX\™Ú[›ÝÛNˆÈ_OžÙ˜Yš][WÝ]_OÙ]‚ˆ]ˆÝ[O^ÞÈÛÛÜŽˆˆÍØÎXL‹›ÛÚ^™NˆLH_O“Ü™\ˆÙ˜Y›Ü™\—ÚY[šÛ›ÝÛˆŸH0­È]HÜ]_H0­ÈÙ˜Y˜^Y\—Ý\Ù\›˜[YH•[šÛ›ÝÛˆ^Y\ˆŸOÙ]‚ˆÙ]‚ˆ›ÝÈÛÛÏ^ÌßOšY[X™[H”]›Ü›H[œ]˜[YO^ÜÚ\™Yœ]›Ü›_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™Y]›Ü›NˆK\™Ù]˜[YHJ_HÝ[O^Ú[œHÏÑšY[šY[X™[H”Ø[H]H[œ]\OH™]Hˆ˜[YO^ÜÚ\™YœØ[Q]_HÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™YØ[Q]NˆK\™Ù]˜[YHJ_HÝ[O^Ú[œHÏÑšY[šY[X™[HÝ\ÝÛY\ˆ[œ]˜[YO^ÜÚ\™Y˜Ý\ÝÛY\ŸHÛÚ[™ÙO^ÊJHOˆÙ]Ú\™Y
-È‹‹œÚ\™YÝ\ÝÛY\ŽˆK\™Ù]˜[YHJ_HÝ[O^Ú[œHÏÑšY[Ô›ÝÏ‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
-Z[›X^
-YœŠJHˆ[Øš[PÛÛ[[œÏHœ™\X]
-‹Z[›X^
-YœŠJHˆØ\^ÎHÝ[O^ÞÈ˜XÚÙÜ›Ý[™ˆˆÌLLMÈ‹›Ü™\”˜Y]\ÎˆY[™ÎˆL‹X\™Ú[›ÝÛNˆL‹›ÛÚ^™NˆLˆ_O‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”™]™[YOÙ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OžØÝ\œ™[˜ÞJÝ[™]™[YJ_OÙ]Ù]‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”Ú\[™ÏÙ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OžØÝ\œ™[˜ÞJÝ[Ú\
-_OÙ]Ù]‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O‘™Y\ÏÙ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÙŒÙ™˜ˆ‹›ÛÙZYÚˆÌ_OžØÝ\œ™[˜ÞJÝ[™Y\Ê_OÙ]Ù]‚ˆ]]ˆÝ[O^ÞÈÛÛÜŽˆˆÎŽMØY‹X\™Ú[›ÝÛNˆˆ_O”›Ùš]Ù]]ˆÝ[O^ÞÈÛÛÜŽˆÝ[›Ùš]LÈˆÌÍÎNHŽˆˆÙŽÌMÌH‹›ÛÙZYÚˆ_OžØÝ\œ™[˜ÞJÝ[›Ùš]
-_OÙ]Ù]‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÜ˜]Ñ™YUÝ[H	‰ˆ]ˆÝ[O^ÞÈ›ÛÚ^™NˆLKÛÛÜŽˆˆÙ˜˜™Œ‹X\™Ú[Žˆ‹LœLˆ_O‘™Y\È\™H\Ý[X]Yœ›ÛHP˜^HUH›È˜\ÚXÈY\ˆ]ÊPVWÐUWÑ‘QWÔUH
-ˆL
-KÑš^Y
-Š_IH
-ÈØÝ\œ™[˜ÞJPVWÐUWÑ’VQÓÔ‘T—Ñ‘QJ_KˆY][H™Y›Ü™H™XÛÜ™[™ÈYˆP˜^HÚÝÜÈHY™™\™[[[Ý[Ù]ŸBˆ]ˆÝ[O^ÞÈX^ZYÚˆÌÝ™\™›ÝÖNˆ˜]]È‹›Ü™\”˜Y]\Îˆ›Ü™\ŽˆŒ\ÛÛYÌŒÌ˜ÌØÈˆ_O‚ˆÚ][\Ë›X\
-
-][JHOˆÂˆÛÛœÝˆH›ÝÜË™š[™
-
-
-HOˆšYOOH][KšY
-HßNÂˆÛÛœÝÜH\œÙQ›Ø]
-‹œØ[TšXÙJ_Ú\H\œÙQ›Ø]
-‹œÚ\[™ÔšXÙJ_™Y\ÈH\œÙQ›Ø]
-‹œ]›Ü›Q™Y\Ê_ÂˆÛÛœÝ›Ùš]HÛÛ\]T›Ùš]
-ÈØ[TšXÙNˆÜÛÜÝˆ][KœšXÙKÚ\[™ÎˆÚ\™Y\ÈJNÂˆ™]\›ˆ
-]ˆÙ^O^Ú][KšYHÝ[O^ÞÈY[™ÎˆŒLLœ‹›Ü™\›ÝÛNˆŒ\ÛÛYÌŒÌ˜ÌØÍ‹˜XÚÙÜ›Ý[™ˆˆÌLLMÈˆ_O‚ˆ]ˆÝ[O^ÞÈ\Ü^Nˆ™›^‹\ÝYžPÛÛ[ˆœÜXÙKX™]ÙY[ˆ‹Ø\ˆX\™Ú[›ÝÛNˆÈ_O‚ˆ]ˆÝ[O^ÞÈZ[•ÚYˆ_O]ˆÝ[O^ÞÈÛÛÜŽˆˆÙMYMÙXˆ‹›ÛÚ^™NˆLË›ÛÙZYÚˆÌÝ™\™›ÝÎˆšY[ˆ‹^Ý™\™›ÝÎˆ™[\Ú\È‹Ú]TÜXÙNˆ››ÝÜ˜\ˆ_OžÚ][K›˜[Y_OÙ]Ù]‚ˆ]ˆÝ[O^ÞÈÛÛÜŽˆ›Ùš]LÈˆÌÍÎNHŽˆˆÙŽÌMÌH‹›ÛÚ^™NˆLË›ÛÙZYÚˆ_OžØÝ\œ™[˜ÞJ›Ùš]
-_OÙ]‚ˆÙ]‚ˆ]ˆÝ[O^ÞÈX\™Ú[›ÝÛNˆÈ_OØ[R][RY[]H][O^Ú][_HÏÙ]‚ˆ™\ÜÛœÚ]™QÜšYÛÛ[[œÏHœ™\X]
-ËZ[›X^
-YœŠJHˆ[Øš[PÛÛ[[œÏHŒYœˆˆØ\^ÍŸO‚ˆšY[X™[H”Ø[HšXÙH[œ]\OH›[X™\ˆˆÝ\HŒŒHˆ˜[YO^Ü‹œØ[TšXÙ_HÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈØ[TšXÙNˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆšY[X™[H”Ú\[™È[œ]\OH›[X™\ˆˆÝ\HŒŒHˆ˜[YO^Ü‹œÚ\[™ÔšXÙ_HÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈÚ\[™ÔšXÙNˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆšY[X™[H‘™Y\È[œ]\OH›[X™\ˆˆÝ\HŒŒHˆ˜[YO^Ü‹œ]›Ü›Q™Y\ßHÛÚ[™ÙO^ÊJHOˆ\]T›ÝÊ][KšYÈ]›Ü›Q™Y\ÎˆK\™Ù]˜[YHJ_HÝ[O^ÞÈ‹‹š[œ›ÛÚ^™NˆL‹Y[™Îˆœˆ_HÏÑšY[‚ˆÔ™\ÜÛœÚ]™QÜšY‚ˆÙ]ŠNÂˆJ_BˆÙ]‚ˆ[Ù[XÝ[ÛœÏ]ÛˆÛÛXÚÏ^Ê
-HOˆÙ]ÚÝÕJYJ_HÝ[O^ÙÚÜÝŸOØ[˜Ù[Ø]Û]ÛˆÛÛXÚÏ^Ê
-HOˆÈYˆ
-X[šXÙY
-H™]\›ŽÈÛ”™XÛÜ™
-˜YÈ][\ËÚ\™Y›ÝÜÈJNÈ_HÝ[O^ÞÈ‹‹œš[X\žP‹ÜXÚ]Nˆ[šXÙYÌNŒH_O”™XÛÜ™Ø[OØ]ÛÓ[Ù[XÝ[ÛœÏ‚ˆÓ[Ù[[œØ]™YX[ÙÈÜ[^ÜÚÝÕ_HÛ‘\ØØ\™^ÛÛÛÜÙ_HÛØ[˜Ù[^Ê
-HOˆÙ]ÚÝÕJ˜[ÙJ_HÏÏŠNÂŸB‚™^ÜÂˆY]Ø[S[Ù[ˆÙ[[Ù[ˆ[ÑY]Ø[S[Ù[ˆ[ÔÙ[[Ù[ˆX[X[Ø[S[Ù[ˆX˜^TØ[T™]šY]Ó[Ù[ŸNÂ
+export {
+  EditSaleModal,
+  SellModal,
+  BulkEditSaleModal,
+  BulkSellModal,
+  ManualSaleModal,
+  EbaySaleReviewModal
+};
