@@ -149,7 +149,7 @@ export default function App({ onLogout, userEmail }) {
   };
   useEffect(() => {
     const closeRowMenu = (event) => {
-      if (!event.target.closest(".ad-row-action-wrap")) setRowMenuOpen(null);
+      if (!event.target.closest(".archive-row-action-wrap")) setRowMenuOpen(null);
     };
     const closeRowMenuOnEscape = (event) => {
       if (event.key === "Escape") setRowMenuOpen(null);
@@ -1854,8 +1854,9 @@ export default function App({ onLogout, userEmail }) {
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
-  const inventoryGridColumns = "48px minmax(300px, 1.8fr) 104px minmax(120px, 0.65fr) 72px 104px 104px 48px 132px";
-  const salesGridColumns = "48px minmax(360px, 1.6fr) 120px 64px 104px 96px 96px 96px 88px";
+  const inventoryGridColumns = "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px";
+  const salesGridColumns = "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px";
+  const expenseGridColumns = "48px minmax(220px, 1.5fr) minmax(150px, 0.9fr) 110px 120px 104px";
   const rowBg = (_index, selected = false) => selected ? "#1e293b" : "#121a2b";
   const groupAccent = { boxShadow: "inset 3px 0 0 #2563eb66" };
   const childAccent = { boxShadow: "inset 3px 0 0 #232c3c" };
@@ -1924,22 +1925,22 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={item.id} className="ad-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
+      <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
         <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}</div>{item.brand && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-start" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "left" }}>{item.size||"OS"}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item.price)}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "left", paddingLeft: 12 }}>{item.purchaseDate}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
           <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, background: "transparent", color: "#60a5fa", fontWeight: 700 }}>Sell</button>
-          <div className="ad-row-actions">
+          <div className="archive-row-actions">
             <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
-            <div className="ad-row-action-wrap">
+            <div className="archive-row-action-wrap">
               <button aria-label={`More actions for ${item.name}`} aria-expanded={rowMenuOpen === `inv:${item.id}`} onClick={() => setRowMenuOpen((open) => open === `inv:${item.id}` ? null : `inv:${item.id}`)} style={moreActionButton}>...</button>
-              {rowMenuOpen === `inv:${item.id}` && <div className="ad-row-menu">
+              {rowMenuOpen === `inv:${item.id}` && <div className="archive-row-menu">
                 <button onClick={() => { duplicateItem(item); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#c4b5fd" }}>Duplicate</button>
                 <button onClick={() => { setConfirmDel({ type: "inv", id: item.id, name: item.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
               </div>}
@@ -1971,7 +1972,7 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div className="ad-row" data-selected={groupChecked} onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", cursor: "pointer", background: rowBg(index, groupChecked), ...selectedAccent(groupChecked, groupAccent) }}>
+      <div className="archive-data-row" data-selected={groupChecked} onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", cursor: "pointer", background: rowBg(index, groupChecked), ...selectedAccent(groupChecked, groupAccent) }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <input ref={(node) => { if (node) node.indeterminate = groupIndeterminate; }} type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#7c8aa0", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
@@ -1981,7 +1982,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "left", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "left", paddingLeft: 12 }}>{groupDateLabel(item._items || [])}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{groupDateLabel(item._items || [])}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>{item._count}</span>
         <span aria-hidden="true" />
       </div>
@@ -2014,20 +2015,20 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={s.id} className="ad-row" data-selected={selectedSales.has(s.id)} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", ...selectedAccent(selectedSales.has(s.id)), zIndex: rowMenuOpen === `sale:${s.id}` ? 4 : undefined }}>
+      <div key={s.id} className="archive-data-row" data-selected={selectedSales.has(s.id)} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", ...selectedAccent(selectedSales.has(s.id)), zIndex: rowMenuOpen === `sale:${s.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
         <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left" }}><PlatformBadge platform={s.platform} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "left" }}>{s.size||"OS"}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "left" }}>{s.saleDate}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
         <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "right" }}>{currency(s.costPrice)}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, fontSize: 12, textAlign: "right" }}>{currency(s.salePrice)}</span>
         <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, textAlign: "right" }}>{currency(s.profit)}</span>
-        <div className="ad-row-actions">
+        <div className="archive-row-actions">
           <button onClick={() => setEditSaleOpen(s)} style={rowActionButton}>Edit</button>
-          <div className="ad-row-action-wrap">
+          <div className="archive-row-action-wrap">
             <button aria-label={`More actions for ${s.name}`} aria-expanded={rowMenuOpen === `sale:${s.id}`} onClick={() => setRowMenuOpen((open) => open === `sale:${s.id}` ? null : `sale:${s.id}`)} style={moreActionButton}>...</button>
-            {rowMenuOpen === `sale:${s.id}` && <div className="ad-row-menu">
+            {rowMenuOpen === `sale:${s.id}` && <div className="archive-row-menu">
               <button onClick={() => { setConfirmDel({ type: "sale", id: s.id, name: s.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
             </div>}
           </div>
@@ -2059,17 +2060,17 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={e.id} className="ad-row" data-selected={selectedExp.has(e.id)} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer", ...selectedAccent(selectedExp.has(e.id)), zIndex: rowMenuOpen === `exp:${e.id}` ? 4 : undefined }}>
+      <div key={e.id} className="archive-data-row" data-selected={selectedExp.has(e.id)} onClick={(ev) => rowClick(ev, toggleSelExp, e.id)} style={{ display: "grid", gridTemplateColumns: expenseGridColumns, gap: 8, padding: "11px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedExp.has(e.id)), cursor: "pointer", ...selectedAccent(selectedExp.has(e.id)), zIndex: rowMenuOpen === `exp:${e.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
         <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</div>{e.tags&&<div style={{ fontSize: 11, color: "#8b97ad", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.tags}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(e.amount)}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "left" }}>{e.purchaseDate}</span>
-        <div className="ad-row-actions">
+        <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "center" }}>{e.purchaseDate}</span>
+        <div className="archive-row-actions">
           <button onClick={() => setEditExpOpen(e)} style={rowActionButton}>Edit</button>
-          <div className="ad-row-action-wrap">
+          <div className="archive-row-action-wrap">
             <button aria-label={`More actions for ${e.name}`} aria-expanded={rowMenuOpen === `exp:${e.id}`} onClick={() => setRowMenuOpen((open) => open === `exp:${e.id}` ? null : `exp:${e.id}`)} style={moreActionButton}>...</button>
-            {rowMenuOpen === `exp:${e.id}` && <div className="ad-row-menu">
+            {rowMenuOpen === `exp:${e.id}` && <div className="archive-row-menu">
               <button onClick={() => { setConfirmDel({ type: "exp", id: e.id, name: e.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
             </div>}
           </div>
@@ -2293,9 +2294,9 @@ export default function App({ onLogout, userEmail }) {
           </div>
           <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
             {!isMobile && (
-              <div style={{ display: "grid", gridTemplateColumns: "48px 2fr 1.2fr 90px 100px 80px", gap: 6, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
+              <div style={{ display: "grid", gridTemplateColumns: expenseGridColumns, gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
                 <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
-                <span>Name</span><span>Category</span><span style={{ textAlign: "right" }}>Price</span><span>Date</span><span>Actions</span>
+                <span>Name</span><span>Category</span><span style={{ textAlign: "right" }}>Price</span><span style={{ textAlign: "center" }}>Date</span><span style={{ textAlign: "center" }}>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}

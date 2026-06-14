@@ -107,9 +107,9 @@ export default function InventoryPage({ ctx }) {
       ) : (
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "48px minmax(300px, 1.8fr) 104px minmax(120px, 0.65fr) 72px 104px 104px 48px 132px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
             <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={cb} />
-            <span style={tableHead()}>Name</span><span style={tableHead()}>Listed</span><span style={tableHead()}>Category</span><span style={tableHead()}>Size</span><span style={tableHead("right")}>Price</span><span style={{ ...tableHead(), paddingLeft: 12 }}>Date</span><span style={tableHead("right")}>Qty</span><span style={tableHead("center")}>Actions</span>
+            <span style={tableHead()}>Name</span><span style={tableHead()}>Listed</span><span style={tableHead()}>Category</span><span style={tableHead()}>Size</span><span style={tableHead("right")}>Price</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}
