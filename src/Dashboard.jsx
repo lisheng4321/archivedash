@@ -18,7 +18,7 @@ import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFo
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, accentTextBtn, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState, SortHeader } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -1951,7 +1951,7 @@ export default function App({ onLogout, userEmail }) {
                 )}
               </div>
               <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                <button onClick={() => setSellOpen(item)} style={{ ...accentTextBtn, minHeight: 38, padding: "9px 14px", borderRadius: 6, fontSize: 12 }}>Sell</button>
+                <button onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 38, padding: "9px 14px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
                 <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
                 <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
               </div>
@@ -1971,7 +1971,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
-          <button onClick={() => setSellOpen(item)} style={{ ...accentTextBtn, ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
+          <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
           <div className="archive-row-actions">
             <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
             <div className="archive-row-action-wrap">
@@ -2334,7 +2334,7 @@ export default function App({ onLogout, userEmail }) {
             {!isMobile && (
               <div style={{ display: "grid", gridTemplateColumns: expenseGridColumns, gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
                 <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
-                <SortHeader field="name" label="Name" sort={expSort} setSort={setExpSort} /><span>Category</span><span>Payment</span><SortHeader field="amount" label="Price" sort={expSort} setSort={setExpSort} align="right" /><SortHeader field="date" label="Date" sort={expSort} setSort={setExpSort} align="center" /><span style={{ textAlign: "center" }}>Actions</span>
+                <span>Name</span><span>Category</span><span>Payment</span><span style={{ textAlign: "right" }}>Price</span><span style={{ textAlign: "center" }}>Date</span><span style={{ textAlign: "center" }}>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}

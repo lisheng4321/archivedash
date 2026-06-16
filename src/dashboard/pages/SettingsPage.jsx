@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { accentTextBtn, ghostBtn, inp, primaryBtn } from "../shared.jsx";
+import { ghostBtn, inp, primaryBtn } from "../shared.jsx";
 import { INTEGRATION_TONES, IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
 
 const removeButton = {
@@ -158,7 +158,7 @@ export default function SettingsPage({ ctx }) {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={connectEbay} disabled={ebayBusy} style={{ ...(ebayConnected ? ghostBtn : primaryBtn), fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
             <button onClick={syncEbayOrders} disabled={!configured || ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
-            <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
+            <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...ghostBtn, color: "#93c5fd", fontWeight: 600, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
           </div>
         </div>
         {ebayStatus && <div style={{ fontSize: 12, color: ebayTone.color }}>{ebayStatus}</div>}
@@ -176,7 +176,7 @@ export default function SettingsPage({ ctx }) {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={connectGmail} disabled={gmailBusy} style={{ ...(gmailConnected ? ghostBtn : primaryBtn), fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
             <button onClick={syncGmailInventory} disabled={!configured || gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
-            <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
+            <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...ghostBtn, color: "#93c5fd", fontWeight: 600, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
           </div>
         </div>
         {gmailStatus && <div style={{ fontSize: 12, color: gmailTone.color }}>{gmailStatus}</div>}
