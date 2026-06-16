@@ -1,4 +1,4 @@
-import { DEF_CATEGORIES, DEF_PLATFORMS } from "./shared.jsx";
+import { DEF_CATEGORIES, DEF_PAYMENT_METHODS, DEF_PLATFORMS } from "./shared.jsx";
 
 const DEFAULT_NAV_UTILITY_IDS = ["settings"];
 const DEFAULT_BACKUP_SETTINGS = { autoWeekly: false, destination: "supabase", retention: 12, lastRunAt: "" };
@@ -18,6 +18,7 @@ const saveLabelFor = (key) => SAVE_LABELS[key] || key;
 const defaultSettings = () => ({
   categories: DEF_CATEGORIES,
   platforms: DEF_PLATFORMS,
+  paymentMethods: DEF_PAYMENT_METHODS,
   customers: [],
   customerProfiles: {},
   hiddenCustomerKeys: [],
@@ -30,6 +31,7 @@ const defaultSettings = () => ({
 const normalizeSettings = (settings = {}) => ({
   categories: settings.categories || DEF_CATEGORIES,
   platforms: settings.platforms || DEF_PLATFORMS,
+  paymentMethods: settings.paymentMethods || DEF_PAYMENT_METHODS,
   customers: settings.customers || [],
   customerProfiles: settings.customerProfiles || {},
   hiddenCustomerKeys: Array.isArray(settings.hiddenCustomerKeys) ? settings.hiddenCustomerKeys : [],

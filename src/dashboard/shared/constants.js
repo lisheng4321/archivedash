@@ -1,5 +1,6 @@
 const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
-const DEF_PLATFORMS = ["eBay AU", "StockX", "Facebook Marketplace", "Instagram", "Depop", "Discord", "GOAT", "CSFloat", "Bonusbank", "Other"];
+const DEF_PLATFORMS = ["eBay AU", "Pushas", "StockX", "Facebook Marketplace", "Instagram", "Depop", "Discord", "GOAT", "CSFloat", "Bonusbank", "Other"];
+const DEF_PAYMENT_METHODS = ["Cash", "PayID", "Bank Transfer", "PayPal", "Card", "eBay Payout", "Pushas Payout", "Other"];
 const TIME_RANGES = ["1D", "1W", "1M", "MTD", "3M", "YTD", "1Y", "ALL", "Custom"];
 const DEF_SIZE_MAP = {
   Sneakers: ["US 3","US 3.5","US 4","US 4.5","US 5","US 5.5","US 6","US 6.5","US 7","US 7.5","US 8","US 8.5","US 9","US 9.5","US 10","US 10.5","US 11","US 11.5","US 12","US 12.5","US 13","US 14","US 15"],
@@ -45,6 +46,7 @@ const TEMPLATES = [
 export {
   DEF_CATEGORIES,
   DEF_PLATFORMS,
+  DEF_PAYMENT_METHODS,
   TIME_RANGES,
   DEF_SIZE_MAP,
   getDefaultSize,

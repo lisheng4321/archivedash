@@ -14,8 +14,14 @@ export default function ReportsPage({ ctx }) {
     setDashCat,
     dashPlat,
     setDashPlat,
+    reportPaymentMode,
+    setReportPaymentMode,
+    reportPaymentMethods,
+    setReportPaymentMethods,
+    toggleReportPaymentMethod,
     CATS,
     PLATS,
+    PAYMETHODS,
     reportStats,
     velocityStats,
     agingStats,
@@ -76,13 +82,31 @@ export default function ReportsPage({ ctx }) {
         <div style={{ display: "flex", gap: 3, background: "#121a2b", borderRadius: 8, padding: 3, border: "1px solid #232c3c", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
         <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: 160 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
+        <select value={reportPaymentMode} onChange={(e) => setReportPaymentMode(e.target.value)} style={{ ...sel, maxWidth: 180 }}>
+          <option value="all">All Payments</option>
+          <option value="include">Only selected</option>
+          <option value="exclude">Exclude selected</option>
+        </select>
         {range === "Custom" && (
           <>
             <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 150 }} />
             <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 150 }} />
           </>
         )}
-        {(dashCat !== "All" || dashPlat !== "All") && <button onClick={() => { setDashCat("All"); setDashPlat("All"); }} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Clear</button>}
+        {(dashCat !== "All" || dashPlat !== "All" || reportPaymentMode !== "all" || reportPaymentMethods.length > 0) && <button onClick={() => { setDashCat("All"); setDashPlat("All"); setReportPaymentMode("all"); setReportPaymentMethods([]); }} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Clear</button>}
+        {reportPaymentMode !== "all" && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", width: "100%" }}>
+            {PAYMETHODS.map((method) => {
+              const checked = reportPaymentMethods.includes(method);
+              return (
+                <label key={method} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 30, padding: "5px 9px", borderRadius: 6, border: checked ? "1px solid #2563eb88" : "1px solid #232c3c", background: checked ? "#1e293b" : "#121a2b", color: checked ? "#dbeafe" : "#9ca3af", fontSize: 12, cursor: "pointer" }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggleReportPaymentMethod(method)} style={{ margin: 0 }} />
+                  {method}
+                </label>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
@@ -118,8 +142,10 @@ export default function ReportsPage({ ctx }) {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 14 }}>
         <MiniTable title="Platform Revenue" rows={reportStats.platformRows} empty="No platform sales in this range." amountLabel="Revenue" />
+        <MiniTable title="Payment Revenue" rows={reportStats.paymentRows} empty="No payment-method sales in this range." amountLabel="Revenue" />
         <MiniTable title="Category Profit" rows={reportStats.categoryRows} empty="No category profit in this range." amountLabel="Profit" />
         <MiniTable title="Expense Categories" rows={reportStats.expenseRows} empty="No expenses in this range." />
+        <MiniTable title="Expense Payments" rows={reportStats.expensePaymentRows} empty="No expenses in this range." />
       </div>
     </div>
   );

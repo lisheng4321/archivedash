@@ -18,7 +18,7 @@ import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFo
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, accentTextBtn, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState, SortHeader } from "./dashboard/shared.jsx";
 
 import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
@@ -33,13 +33,23 @@ const isDemoRecord = (record) => Boolean(record && record.demo);
 
 const buildSampleSale = ({ name, category, size = "OS", brand = "", costPrice, salePrice, shippingPrice = 0, platform, saleDate, customer = "" }) => {
   const fees = platform === "eBay AU" ? estimateEbayFee(salePrice) : Math.round(salePrice * 0.1 * 100) / 100;
+  const paymentMethod = String(platform || "").toLowerCase().includes("ebay") ? "eBay Payout" : "Cash";
   return {
     id: genId(), name, category, size, brand,
     costPrice, salePrice, shippingPrice, platformFees: fees,
     profit: computeProfit({ salePrice, cost: costPrice, shipping: shippingPrice, fees }),
-    platform, saleDate, tags: SAMPLE_TAG, purchaseDate: "", preorderDate: "", customer, demo: true,
+    platform, paymentMethod, saleDate, tags: SAMPLE_TAG, purchaseDate: "", preorderDate: "", customer, demo: true,
   };
 };
+
+const paymentMethodForPlatform = (platform = "", methods = []) => {
+  const value = String(platform).toLowerCase();
+  if (value.includes("ebay")) return "eBay Payout";
+  if (value.includes("pushas")) return "Pushas Payout";
+  return methods.includes("Cash") ? "Cash" : (methods[0] || "Other");
+};
+
+const recordPaymentMethod = (record) => record?.paymentMethod || "Other";
 
 const buildSampleInventory = (over) => ({
   id: genId(), size: "OS", brand: "", preorderDate: "", listedPlatforms: [], customer: "",
@@ -61,8 +71,8 @@ const buildSampleData = () => ({
     buildSampleSale({ name: "Vintage Nike Tee", category: "Apparel", size: "M", brand: "Nike", costPrice: 25, salePrice: 60, shippingPrice: 9, platform: "Depop", saleDate: daysAgo(24) }),
   ],
   expenses: [
-    { id: genId(), name: "Shipping supplies", amount: 45, purchaseDate: daysAgo(14), tags: SAMPLE_TAG, expCategory: "Shipping & Fulfillment", demo: true },
-    { id: genId(), name: "Cook group membership", amount: 30, purchaseDate: daysAgo(7), tags: SAMPLE_TAG, expCategory: "Cook Groups & Retail Memberships", demo: true },
+    { id: genId(), name: "Shipping supplies", amount: 45, purchaseDate: daysAgo(14), tags: SAMPLE_TAG, expCategory: "Shipping & Fulfillment", paymentMethod: "Card", demo: true },
+    { id: genId(), name: "Cook group membership", amount: 30, purchaseDate: daysAgo(7), tags: SAMPLE_TAG, expCategory: "Cook Groups & Retail Memberships", paymentMethod: "Card", demo: true },
   ],
 });
 
@@ -83,6 +93,8 @@ export default function App({ onLogout, userEmail }) {
   const [customTo, setCustomTo] = useState(today());
   const [dashCat, setDashCat] = useState("All");
   const [dashPlat, setDashPlat] = useState("All");
+  const [reportPaymentMode, setReportPaymentMode] = useState("all");
+  const [reportPaymentMethods, setReportPaymentMethods] = useState([]);
   const [saveStatus, setSaveStatus] = useState("");
   const [failedSaves, setFailedSaves] = useState(() => new Map());
   const [retryingSaves, setRetryingSaves] = useState(false);
@@ -130,9 +142,9 @@ export default function App({ onLogout, userEmail }) {
 
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
-  const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
+  const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [salePayment, setSalePayment] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
-  const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
+  const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expPayment, setExpPayment] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
   const [subSearch, setSubSearch] = useState(""); const [subCatFilter, setSubCatFilter] = useState("All"); const [subSort, setSubSort] = useState("nextDue_asc");
   const [backupStatus, setBackupStatus] = useState("");
   const [backups, setBackups] = useState([]);
@@ -161,12 +173,12 @@ export default function App({ onLogout, userEmail }) {
       document.removeEventListener("keydown", closeRowMenuOnEscape);
     };
   }, []);
-  const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers;
+  const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers; const PAYMETHODS = settings.paymentMethods;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
 
   const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", listedPlatforms: [], tags: "", customer: "" };
   const [invForm, setInvForm] = useState(emptyInv);
-  const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0] };
+  const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0], paymentMethod: PAYMETHODS.includes("Card") ? "Card" : paymentMethodForPlatform("", PAYMETHODS) };
   const [expForm, setExpForm] = useState(emptyExp);
   const dashboardCardDefaults = {
     actionStrip: true,
@@ -701,7 +713,7 @@ export default function App({ onLogout, userEmail }) {
 
   const handleSell = async (item, sf) => {
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
-    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
+    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
     const salesResult = await persistSales([sale, ...sales]);
     if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => i.id !== item.id));
@@ -716,7 +728,7 @@ export default function App({ onLogout, userEmail }) {
       const r = rows.find((x) => x.id === item.id);
       if (!r) continue;
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     const salesResult = await persistSales([...newSales, ...sales]);
@@ -735,7 +747,7 @@ export default function App({ onLogout, userEmail }) {
       if (!r) continue;
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
       if (sp <= 0) continue;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     if (!newSales.length) return;
@@ -789,7 +801,7 @@ export default function App({ onLogout, userEmail }) {
     const reviewItems = review?.items || [];
     const matches = reviewItems.length ? reviewItems : findEbayMatches(draft).map((m) => m.item).slice(0, Math.max(1, Number(draft.quantity || 1)));
     if (!matches.length) return;
-    const shared = review?.shared || { platform: "eBay AU", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
+    const shared = review?.shared || { platform: "eBay AU", paymentMethod: "eBay Payout", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
     const rows = review?.rows || matches.map((item) => {
       const qty = Math.max(1, Number(draft.quantity || 1));
       const feeTotal = Number(draft.platform_fees || 0) > 0 ? Number(draft.platform_fees || 0) : estimateEbayFee(Number(draft.sale_price || 0));
@@ -798,7 +810,7 @@ export default function App({ onLogout, userEmail }) {
     const newSales = matches.map((item) => {
       const r = rows.find((x) => x.id === item.id) || {};
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", paymentMethod: shared.paymentMethod || "eBay Payout", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
     });
     const soldIds = new Set(matches.map((i) => i.id));
     const salesResult = await persistSales([...newSales, ...sales]);
@@ -888,7 +900,7 @@ export default function App({ onLogout, userEmail }) {
     const chargeDate = sub.nextDue || today();
     const subCurrency = String(sub.currency || "AUD").toUpperCase();
     const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
-    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: chargeDate, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" };
+    const newExp = { id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: chargeDate, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs", paymentMethod: PAYMETHODS.includes("Card") ? "Card" : paymentMethodForPlatform("", PAYMETHODS) };
     const expResult = await persistExp([newExp, ...expenses]);
     if (expResult?.ok === false) return;
     await persistSubs(subs.map((s) => s.id === sub.id ? { ...s, fxRateToAud: subCurrency !== "AUD" ? (fxRates[subCurrency] || s.fxRateToAud || 1) : 1, nextDue: advanceDate(chargeDate, s.frequency, s.customDays), lastLogged: chargeDate } : s));
@@ -906,7 +918,7 @@ export default function App({ onLogout, userEmail }) {
       const subCurrency = String(sub.currency || "AUD").toUpperCase();
       while (cur <= t) {
         const originalCharge = subCurrency !== "AUD" ? `${formatMoney(sub.amount, subCurrency)} @ ${Number(fxRates[subCurrency] || sub.fxRateToAud || 1).toFixed(4)}` : "";
-        newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs" });
+        newExpenses.push({ id: genId(), name: sub.name, amount: subAmountAud(sub, fxRates), purchaseDate: cur, tags: [subCategory(sub), sub.tags || "", originalCharge].filter(Boolean).join(" · "), expCategory: "Software & Subs", paymentMethod: PAYMETHODS.includes("Card") ? "Card" : paymentMethodForPlatform("", PAYMETHODS) });
         lastLogged = cur;
         const next = advanceDate(cur, sub.frequency, sub.customDays);
         if (next <= cur) break; // safety: never loop on a date that does not advance
@@ -1111,8 +1123,8 @@ export default function App({ onLogout, userEmail }) {
     return `"${safe.replace(/"/g, '""')}"`;
   };
   const exportCSV = () => {
-    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Sale Date","Purchase Date","Customer","Tags"];
-    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,s.profit,s.platform,s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
+    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Customer","Tags"];
+    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,s.profit,s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-sales-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -1360,6 +1372,13 @@ export default function App({ onLogout, userEmail }) {
     let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
+    const selectedPaymentSet = new Set(reportPaymentMethods);
+    const paymentFilterActive = reportPaymentMode !== "all" && selectedPaymentSet.size > 0;
+    if (paymentFilterActive) {
+      const matchesPayment = (record) => selectedPaymentSet.has(recordPaymentMethod(record));
+      fs = fs.filter((s) => reportPaymentMode === "include" ? matchesPayment(s) : !matchesPayment(s));
+      fe = fe.filter((e) => reportPaymentMode === "include" ? matchesPayment(e) : !matchesPayment(e));
+    }
     const revenue = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
     const cogs = fs.reduce((a, s) => a + (Number(s.costPrice) || 0), 0);
     const shipping = fs.reduce((a, s) => a + (Number(s.shippingPrice) || 0), 0);
@@ -1391,10 +1410,12 @@ export default function App({ onLogout, userEmail }) {
       operatingExpenses,
       netProfit,
       platformRows: group(fs, (s) => s.platform, (s) => Number(s.salePrice) || 0),
+      paymentRows: group(fs, recordPaymentMethod, (s) => Number(s.salePrice) || 0),
       categoryRows: group(fs, (s) => s.category, (s) => Number(s.profit) || 0),
       expenseRows: group(fe, (e) => e.expCategory, (e) => Number(e.amount) || 0),
+      expensePaymentRows: group(fe, recordPaymentMethod, (e) => Number(e.amount) || 0),
     };
-  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat]);
+  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat, reportPaymentMode, reportPaymentMethods]);
 
   const exportReportCSV = () => {
     const headers = ["Section", "Name", "Count", "Amount"];
@@ -1407,8 +1428,10 @@ export default function App({ onLogout, userEmail }) {
       ["P&L", "Operating expenses", reportStats.expenses.length, reportStats.operatingExpenses],
       ["P&L", "Net profit", reportStats.sales.length, reportStats.netProfit],
       ...reportStats.platformRows.map((r) => ["Platform revenue", r.name, r.count, r.amount]),
+      ...reportStats.paymentRows.map((r) => ["Payment method revenue", r.name, r.count, r.amount]),
       ...reportStats.categoryRows.map((r) => ["Category profit", r.name, r.count, r.amount]),
       ...reportStats.expenseRows.map((r) => ["Expense category", r.name, r.count, r.amount]),
+      ...reportStats.expensePaymentRows.map((r) => ["Expense payment method", r.name, r.count, r.amount]),
     ];
     const csv = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -1418,6 +1441,10 @@ export default function App({ onLogout, userEmail }) {
     a.download = `archivedash-profit-report-${today()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const toggleReportPaymentMethod = (method) => {
+    setReportPaymentMethods((prev) => prev.includes(method) ? prev.filter((item) => item !== method) : [...prev, method]);
   };
 
   // ─── Preorders within the reminder window ───
@@ -1564,6 +1591,7 @@ export default function App({ onLogout, userEmail }) {
     if (saleSearch) f = f.filter((s) => s.name.toLowerCase().includes(saleSearch.toLowerCase()) || (s.brand||"").toLowerCase().includes(saleSearch.toLowerCase()));
     if (saleCat !== "All") f = f.filter((s) => s.category === saleCat);
     if (salePlat !== "All") f = f.filter((s) => s.platform === salePlat);
+    if (salePayment !== "All") f = f.filter((s) => recordPaymentMethod(s) === salePayment);
     const sorted = [...f];
     switch (saleSort) {
       case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
@@ -1571,11 +1599,12 @@ export default function App({ onLogout, userEmail }) {
       case "date_desc": sorted.sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")); break;
       case "date_asc": sorted.sort((a, b) => (a.saleDate||"").localeCompare(b.saleDate||"")); break;
       case "sale_desc": sorted.sort((a, b) => b.salePrice - a.salePrice); break;
+      case "sale_asc": sorted.sort((a, b) => a.salePrice - b.salePrice); break;
       case "profit_desc": sorted.sort((a, b) => b.profit - a.profit); break;
       case "profit_asc": sorted.sort((a, b) => a.profit - b.profit); break;
     }
     return sorted;
-  }, [sales, saleSearch, saleCat, salePlat, saleSort]);
+  }, [sales, saleSearch, saleCat, salePlat, salePayment, saleSort]);
 
   const customerRows = useMemo(() => {
     const platformGroup = (platform = "") => {
@@ -1669,9 +1698,14 @@ export default function App({ onLogout, userEmail }) {
     }
     switch (customerSort) {
       case "name_asc": result.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "name_desc": result.sort((a, b) => b.name.localeCompare(a.name)); break;
       case "last_desc": result.sort((a, b) => (b.lastPurchase || "").localeCompare(a.lastPurchase || "")); break;
+      case "last_asc": result.sort((a, b) => (a.lastPurchase || "").localeCompare(b.lastPurchase || "")); break;
       case "orders_desc": result.sort((a, b) => b.orderCount - a.orderCount); break;
+      case "orders_asc": result.sort((a, b) => a.orderCount - b.orderCount); break;
       case "revenue_desc": result.sort((a, b) => b.revenue - a.revenue); break;
+      case "revenue_asc": result.sort((a, b) => a.revenue - b.revenue); break;
+      case "profit_asc": result.sort((a, b) => a.profit - b.profit); break;
       case "profit_desc":
       default: result.sort((a, b) => b.profit - a.profit); break;
     }
@@ -1682,6 +1716,7 @@ export default function App({ onLogout, userEmail }) {
     let f = expenses;
     if (expSearch) f = f.filter((e) => e.name.toLowerCase().includes(expSearch.toLowerCase()));
     if (expCatFilter !== "All") f = f.filter((e) => (e.expCategory || "Other") === expCatFilter);
+    if (expPayment !== "All") f = f.filter((e) => recordPaymentMethod(e) === expPayment);
     if (expFrom) f = f.filter((e) => e.purchaseDate >= expFrom);
     if (expTo) f = f.filter((e) => e.purchaseDate <= expTo);
     const sorted = [...f];
@@ -1689,11 +1724,12 @@ export default function App({ onLogout, userEmail }) {
       case "date_desc": sorted.sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"")); break;
       case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"")); break;
       case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
+      case "name_desc": sorted.sort((a, b) => b.name.localeCompare(a.name)); break;
       case "amount_desc": sorted.sort((a, b) => b.amount - a.amount); break;
       case "amount_asc": sorted.sort((a, b) => a.amount - b.amount); break;
     }
     return sorted;
-  }, [expenses, expSearch, expCatFilter, expFrom, expTo, expSort]);
+  }, [expenses, expSearch, expCatFilter, expPayment, expFrom, expTo, expSort]);
 
   const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
   const preorderInvCount = useMemo(() => inventory.filter((i) => i.preorderDate).length, [inventory]);
@@ -1832,7 +1868,7 @@ export default function App({ onLogout, userEmail }) {
     );
   };
   const renderNavButton = (n, zone) => (
-    <button key={n.id} className={isMobile ? undefined : "ad-nav-tip"} data-tip={isMobile ? undefined : navLabels[n.id] || n.id} aria-label={navLabels[n.id] || n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: 38, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: navDragId === n.id ? "grabbing" : "pointer", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#8b97ad", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+    <button key={n.id} className={isMobile ? "ad-nav-button" : "ad-nav-button ad-nav-tip"} data-tip={isMobile ? undefined : navLabels[n.id] || n.id} aria-label={navLabels[n.id] || n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: 38, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: navDragId === n.id ? "grabbing" : "pointer", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#8b97ad", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       {renderNavIcon(n)}
       {severityColor(navAlertSeverity(n.id)) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: severityColor(navAlertSeverity(n.id)) }} />}
     </button>
@@ -1856,7 +1892,7 @@ export default function App({ onLogout, userEmail }) {
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
   const inventoryGridColumns = "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px";
   const salesGridColumns = "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px";
-  const expenseGridColumns = "48px minmax(220px, 1.5fr) minmax(150px, 0.9fr) 110px 120px 104px";
+  const expenseGridColumns = "48px minmax(220px, 1.35fr) minmax(130px, 0.75fr) minmax(130px, 0.75fr) 100px 112px 104px";
   const rowBg = (_index, selected = false) => selected ? "#1e293b" : "#121a2b";
   const groupAccent = { boxShadow: "inset 3px 0 0 #2563eb66" };
   const childAccent = { boxShadow: "inset 3px 0 0 #232c3c" };
@@ -1915,7 +1951,7 @@ export default function App({ onLogout, userEmail }) {
                 )}
               </div>
               <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                <button onClick={() => setSellOpen(item)} style={{ minHeight: 38, padding: "9px 14px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 500 }}>Sell</button>
+                <button onClick={() => setSellOpen(item)} style={{ ...accentTextBtn, minHeight: 38, padding: "9px 14px", borderRadius: 6, fontSize: 12 }}>Sell</button>
                 <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
                 <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
               </div>
@@ -1935,7 +1971,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
-          <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, background: "transparent", color: "#60a5fa", fontWeight: 700 }}>Sell</button>
+          <button onClick={() => setSellOpen(item)} style={{ ...accentTextBtn, ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
           <div className="archive-row-actions">
             <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
             <div className="archive-row-action-wrap">
@@ -2002,7 +2038,7 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                <PlatformBadge platform={s.platform} compact style={{ marginRight: 5 }} /> {s.category} · {s.saleDate}
+                <PlatformBadge platform={s.platform} compact style={{ marginRight: 5 }} /> {recordPaymentMethod(s)} · {s.category} · {s.saleDate}
               </div>
               <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                 <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, marginRight: 2 }}>{currency(s.profit)}</span>
@@ -2017,7 +2053,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={s.id} className="archive-data-row" data-selected={selectedSales.has(s.id)} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", ...selectedAccent(selectedSales.has(s.id)), zIndex: rowMenuOpen === `sale:${s.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
-        <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
+        <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category} · {recordPaymentMethod(s)}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left" }}><PlatformBadge platform={s.platform} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "left" }}>{s.size||"OS"}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
@@ -2049,7 +2085,7 @@ export default function App({ onLogout, userEmail }) {
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(e.amount)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.expCategory || "Other"} · {e.purchaseDate}</div>
+              <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{e.expCategory || "Other"} · {recordPaymentMethod(e)} · {e.purchaseDate}</div>
               <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                 <button onClick={() => setEditExpOpen(e)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
                 <button aria-label={`Delete ${e.name}`} title="Delete" onClick={() => setConfirmDel({ type: "exp", id: e.id, name: e.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
@@ -2064,6 +2100,7 @@ export default function App({ onLogout, userEmail }) {
         <input type="checkbox" checked={selectedExp.has(e.id)} onChange={() => toggleSelExp(e.id)} style={cb} />
         <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</div>{e.tags&&<div style={{ fontSize: 11, color: "#8b97ad", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.tags}</div>}</div>
         <span style={{ color: "#9ca3af", fontSize: 11 }}>{e.expCategory || "Other"}</span>
+        <span style={{ color: "#9ca3af", fontSize: 11 }}>{recordPaymentMethod(e)}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(e.amount)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "center" }}>{e.purchaseDate}</span>
         <div className="archive-row-actions">
@@ -2259,7 +2296,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
-        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, connectEbay, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, connectEbay, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* PRICING */}
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
@@ -2268,7 +2305,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen }} />}
 
         {/* REPORTS */}
-        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
+        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
 
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
@@ -2286,21 +2323,22 @@ export default function App({ onLogout, userEmail }) {
           <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
             <input placeholder="Search..." value={expSearch} onChange={(e) => setExpSearch(e.target.value)} style={{ ...inp, maxWidth: 180 }} />
             <select value={expCatFilter} onChange={(e) => setExpCatFilter(e.target.value)} style={{ ...sel, maxWidth: 200 }}><option value="All">All Categories</option>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-            <select value={expSort} onChange={(e) => setExpSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}><option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A-Z</option><option value="amount_desc">Price ↓</option><option value="amount_asc">Price ↑</option></select>
+            <select value={expPayment} onChange={(e) => setExpPayment(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
+            {isMobile && <select aria-label="Sort expenses" value={expSort} onChange={(e) => setExpSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}><option value="date_desc">Newest</option><option value="date_asc">Oldest</option><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option><option value="amount_desc">Price ↓</option><option value="amount_asc">Price ↑</option></select>}
             <span style={{ fontSize: 12, color: "#7c8aa0" }}>From</span><input type="date" value={expFrom} onChange={(e) => setExpFrom(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
             <span style={{ fontSize: 12, color: "#7c8aa0" }}>To</span><input type="date" value={expTo} onChange={(e) => setExpTo(e.target.value)} style={{ ...inp, maxWidth: 140 }} />
-            {(expSearch||expFrom||expTo||expCatFilter!=="All"||expSort!=="date_desc")&&<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+            {(expSearch||expFrom||expTo||expCatFilter!=="All"||expPayment!=="All"||expSort!=="date_desc")&&<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpPayment("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
             <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredExp.length}{selectedExp.size>0&&` · ${selectedExp.size} selected · ${currency(selectedExpValue)}`} · {currency(filteredExp.reduce((a, e) => a + e.amount, 0))}</span>
           </div>
           <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
             {!isMobile && (
               <div style={{ display: "grid", gridTemplateColumns: expenseGridColumns, gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
                 <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
-                <span>Name</span><span>Category</span><span style={{ textAlign: "right" }}>Price</span><span style={{ textAlign: "center" }}>Date</span><span style={{ textAlign: "center" }}>Actions</span>
+                <SortHeader field="name" label="Name" sort={expSort} setSort={setExpSort} /><span>Category</span><span>Payment</span><SortHeader field="amount" label="Price" sort={expSort} setSort={setExpSort} align="right" /><SortHeader field="date" label="Date" sort={expSort} setSort={setExpSort} align="center" /><span style={{ textAlign: "center" }}>Actions</span>
               </div>
             )}
             {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}
-            {filteredExp.length === 0 && (expenses.length > 0 ? <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses match these filters.<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div> : <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses yet</div>)}
+            {filteredExp.length === 0 && (expenses.length > 0 ? <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses match these filters.<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpPayment("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div> : <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses yet</div>)}
             {filteredExp.map((e, idx) => expRow(e, idx))}
           </div>
         </div>)}
@@ -2337,7 +2375,7 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* SETTINGS */}
-        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, CUSTS, settings, persistSettings, setPage, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
+        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, PAYMETHODS, CUSTS, settings, persistSettings, setPage, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}
@@ -2434,23 +2472,24 @@ export default function App({ onLogout, userEmail }) {
       <Modal open={addExpOpen} onClose={() => setAddExpOpen(false)} title="Create expense">
         <Field label="Name" req><input value={expForm.name} onChange={(e) => setExpForm({ ...expForm, name: e.target.value })} style={inp} placeholder="e.g. eBay Sub" /></Field>
         <Row><Field label="Price (AU$)" req><input type="number" step="0.01" value={expForm.amount} onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })} style={inp} /></Field><Field label="Date"><input type="date" value={expForm.purchaseDate} onChange={(e) => setExpForm({ ...expForm, purchaseDate: e.target.value })} style={inp} /></Field></Row>
-        <Row><Field label="Category"><select value={expForm.expCategory} onChange={(e) => setExpForm({ ...expForm, expCategory: e.target.value })} style={sel}>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Tags"><input value={expForm.tags} onChange={(e) => setExpForm({ ...expForm, tags: e.target.value })} style={inp} /></Field></Row>
-        <ModalActions marginTop={6}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { if (!expForm.name||!expForm.amount) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></ModalActions>
+        <Row><Field label="Category"><select value={expForm.expCategory} onChange={(e) => setExpForm({ ...expForm, expCategory: e.target.value })} style={sel}>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Payment method"><select value={expForm.paymentMethod} onChange={(e) => setExpForm({ ...expForm, paymentMethod: e.target.value })} style={sel}>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
+        <Field label="Tags"><input value={expForm.tags} onChange={(e) => setExpForm({ ...expForm, tags: e.target.value })} style={inp} /></Field>
+        <ModalActions marginTop={6}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { if (!expForm.name||!expForm.amount) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory, paymentMethod: expForm.paymentMethod || "Other" }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></ModalActions>
       </Modal>
 
-      {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} />}
-      {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} />}
-      {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} />}
+      {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} paymentMethods={PAYMETHODS} />}
       {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
       {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
-      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} />}
-      {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} />}
+      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
       {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
       {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}
-      {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} />}
-      {bulkEditExpOpen && <BulkEditExpModal items={expenses.filter((e) => selectedExp.has(e.id))} onSave={handleBulkEditExp} onClose={() => setBulkEditExpOpen(false)} />}
-      {bulkEditSaleOpen && <BulkEditSaleModal items={sales.filter((s) => selectedSales.has(s.id))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} />}
+      {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {bulkEditExpOpen && <BulkEditExpModal items={expenses.filter((e) => selectedExp.has(e.id))} onSave={handleBulkEditExp} onClose={() => setBulkEditExpOpen(false)} paymentMethods={PAYMETHODS} />}
+      {bulkEditSaleOpen && <BulkEditSaleModal items={sales.filter((s) => selectedSales.has(s.id))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} paymentMethods={PAYMETHODS} />}
       <ConfirmDialog open={!!confirmDel} msg={confirmDel?.type==="multi"||confirmDel?.type==="multi-exp"||confirmDel?.type==="multi-sale"?`Delete ${confirmDel.name}?`:`Delete "${confirmDel?.name}"?`} onConfirm={handleDelete} onCancel={() => setConfirmDel(null)} />
       <DangerConfirmDialog
         open={!!dangerAction}

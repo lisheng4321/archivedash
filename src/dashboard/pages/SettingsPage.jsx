@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ghostBtn, inp, primaryBtn } from "../shared.jsx";
-import { IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
+import { accentTextBtn, ghostBtn, inp, primaryBtn } from "../shared.jsx";
+import { INTEGRATION_TONES, IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
 
 const removeButton = {
   background: "none",
@@ -91,6 +91,7 @@ export default function SettingsPage({ ctx }) {
     loadGmailImports,
     onLogout,
     pagePad,
+    PAYMETHODS,
     persistSettings,
     setEbayQueueOpen,
     setGmailQueueOpen,
@@ -102,8 +103,13 @@ export default function SettingsPage({ ctx }) {
     userEmail,
   } = ctx;
   const configured = !!supabase;
+  const ebayTone = integrationTone({ status: ebayStatus, busy: ebayBusy, configured });
+  const gmailTone = integrationTone({ status: gmailStatus, busy: gmailBusy, configured });
+  const ebayConnected = ebayTone === INTEGRATION_TONES.connected;
+  const gmailConnected = gmailTone === INTEGRATION_TONES.connected;
   const [newCat, setNewCat] = useState("");
   const [newPlat, setNewPlat] = useState("");
+  const [newPaymentMethod, setNewPaymentMethod] = useState("");
   const [newCust, setNewCust] = useState("");
   const [customersOpen, setCustomersOpen] = useState(false);
 
@@ -117,6 +123,12 @@ export default function SettingsPage({ ctx }) {
     if (newPlat && !PLATS.includes(newPlat)) {
       await persistSettings({ ...settings, platforms: [...PLATS, newPlat] });
       setNewPlat("");
+    }
+  };
+  const addPaymentMethod = async () => {
+    if (newPaymentMethod && !PAYMETHODS.includes(newPaymentMethod)) {
+      await persistSettings({ ...settings, paymentMethods: [...PAYMETHODS, newPaymentMethod] });
+      setNewPaymentMethod("");
     }
   };
   const addCustomer = async () => {
@@ -144,12 +156,12 @@ export default function SettingsPage({ ctx }) {
             <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect to set up the link; sync to pull recent orders. Orders power Sales; active listings power Market Review.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={connectEbay} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
+            <button onClick={connectEbay} disabled={ebayBusy} style={{ ...(ebayConnected ? ghostBtn : primaryBtn), fontSize: 12, padding: "7px 12px" }}>Connect eBay</button>
             <button onClick={syncEbayOrders} disabled={!configured || ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
-            <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
+            <button onClick={() => { setPage("sales"); setEbayQueueOpen(true); loadEbayImports(); }} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Open sales queue</button>
           </div>
         </div>
-        {ebayStatus && <div style={{ fontSize: 12, color: integrationTone({ status: ebayStatus, busy: ebayBusy, configured }).color }}>{ebayStatus}</div>}
+        {ebayStatus && <div style={{ fontSize: 12, color: ebayTone.color }}>{ebayStatus}</div>}
         <div style={{ fontSize: 12, color: "#8b97ad" }}>{ebayImports.length} awaiting-postage draft{ebayImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
@@ -162,12 +174,12 @@ export default function SettingsPage({ ctx }) {
             <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Connect to set up the link; sync to scan recent receipts. Review purchase confirmations from Inventory before adding stock.</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={connectGmail} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
+            <button onClick={connectGmail} disabled={gmailBusy} style={{ ...(gmailConnected ? ghostBtn : primaryBtn), fontSize: 12, padding: "7px 12px" }}>Connect Gmail</button>
             <button onClick={syncGmailInventory} disabled={!configured || gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Sync now</button>
-            <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
+            <button onClick={() => { setPage("inventory"); setGmailQueueOpen(true); loadGmailImports(); }} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Open inventory queue</button>
           </div>
         </div>
-        {gmailStatus && <div style={{ fontSize: 12, color: integrationTone({ status: gmailStatus, busy: gmailBusy, configured }).color }}>{gmailStatus}</div>}
+        {gmailStatus && <div style={{ fontSize: 12, color: gmailTone.color }}>{gmailStatus}</div>}
         <div style={{ fontSize: 12, color: "#8b97ad" }}>{gmailImports.length} inventory draft{gmailImports.length === 1 ? "" : "s"} currently loaded.</div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
@@ -179,6 +191,11 @@ export default function SettingsPage({ ctx }) {
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Platforms</div>
         <ChipList items={PLATS} onRemove={(platform) => persistSettings({ ...settings, platforms: PLATS.filter((item) => item !== platform) })} />
         <AddRow value={newPlat} onChange={setNewPlat} onAdd={addPlatform} placeholder="New platform" />
+      </div>
+      <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Payment Methods</div>
+        <ChipList items={PAYMETHODS} onRemove={(method) => persistSettings({ ...settings, paymentMethods: PAYMETHODS.filter((item) => item !== method) })} />
+        <AddRow value={newPaymentMethod} onChange={setNewPaymentMethod} onAdd={addPaymentMethod} placeholder="New payment method" />
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Customer Database</div>

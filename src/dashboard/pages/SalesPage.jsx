@@ -1,4 +1,4 @@
-import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
+import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
 
@@ -26,6 +26,9 @@ export default function SalesPage({ ctx }) {
     salePlat,
     setSalePlat,
     PLATS,
+    salePayment,
+    setSalePayment,
+    PAYMETHODS,
     saleSort,
     setSaleSort,
     filteredSales,
@@ -46,7 +49,7 @@ export default function SalesPage({ ctx }) {
   const recentRevenue = recentSales.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
   const recentProfit = recentSales.reduce((a, s) => a + (Number(s.profit) || 0), 0);
   const latestSaleDate = [...sales].map((sale) => sale.saleDate).filter(Boolean).sort().pop();
-  const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSaleSort("date_desc"); };
+  const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
 
   return (
     <div style={{ padding: pagePad }}>
@@ -58,10 +61,10 @@ export default function SalesPage({ ctx }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedSales.size > 0 && <>
             <button onClick={() => setBulkEditSaleOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedSales.size}</button>
-            <button onClick={() => setConfirmDel({ type: "multi-sale", name: `${selectedSales.size} sales` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedSales.size}</button>
+            <button onClick={() => setConfirmDel({ type: "multi-sale", name: `${selectedSales.size} sales` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete {selectedSales.size}</button>
           </>}
           <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add Sale</button>
-          <button onClick={async () => { setEbayQueueOpen(true); await syncEbayOrders(); }} disabled={ebayBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync eBay</button>
+          <button onClick={async () => { setEbayQueueOpen(true); await syncEbayOrders(); }} disabled={ebayBusy} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sync eBay</button>
           <button onClick={async () => { setEbayQueueOpen((v) => !v); if (!ebayImports.length) await loadEbayImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>eBay queue{ebayImports.length ? ` (${ebayImports.length})` : ""}</button>
         </div>
       </div>
@@ -80,15 +83,18 @@ export default function SalesPage({ ctx }) {
         <input placeholder="Search name / brand..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: 190 }} />
         <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: 160 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
-        <select value={saleSort} onChange={(e) => setSaleSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}>
+        <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
+        {isMobile && <select aria-label="Sort sales" value={saleSort} onChange={(e) => setSaleSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}>
           <option value="date_desc">Newest</option>
           <option value="date_asc">Oldest</option>
           <option value="name_asc">Name A-Z</option>
+          <option value="name_desc">Name Z-A</option>
           <option value="profit_desc">Profit down</option>
           <option value="profit_asc">Profit up</option>
           <option value="sale_desc">Sale down</option>
-        </select>
-        {(saleSearch || saleCat !== "All" || salePlat !== "All" || saleSort !== "date_desc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+          <option value="sale_asc">Sale up</option>
+        </select>}
+        {(saleSearch || saleCat !== "All" || salePlat !== "All" || salePayment !== "All" || saleSort !== "date_desc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredSales.length} shown</span>
       </div>
 
@@ -106,7 +112,7 @@ export default function SalesPage({ ctx }) {
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
             <input type="checkbox" checked={selectedSales.size === filteredSales.length && filteredSales.length > 0} onChange={toggleAllSales} style={cb} />
-            <span style={tableHead()}>Item</span><span style={tableHead()}>Platform</span><span style={tableHead()}>Size</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Cost</span><span style={tableHead("right")}>Sale</span><span style={tableHead("right")}>Profit</span><span style={tableHead("center")}>Actions</span>
+            <SortHeader field="name" label="Item" sort={saleSort} setSort={setSaleSort} /><span style={tableHead()}>Platform</span><span style={tableHead()}>Size</span><SortHeader field="date" label="Date" sort={saleSort} setSort={setSaleSort} align="center" /><span style={tableHead("right")}>Cost</span><SortHeader field="sale" label="Sale" sort={saleSort} setSort={setSaleSort} align="right" /><SortHeader field="profit" label="Profit" sort={saleSort} setSort={setSaleSort} align="right" /><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(selectedSales.size === filteredSales.length && filteredSales.length > 0, toggleAllSales, filteredSales.length)}
