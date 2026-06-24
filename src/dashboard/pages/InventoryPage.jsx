@@ -1,4 +1,4 @@
-import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
+import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
 
@@ -57,13 +57,13 @@ export default function InventoryPage({ ctx }) {
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
-            <button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button>
+            <button onClick={() => setBulkSellOpen(true)} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button>
-            <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button>
+            <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button>
           </>}
-          <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", color: "#93c5fd" }}>Sync Gmail</button>
+          <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sync Gmail</button>
           <button onClick={async () => { setGmailQueueOpen((v) => !v); if (!gmailImports.length) await loadGmailImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Gmail queue{gmailImports.length ? ` (${gmailImports.length})` : ""}</button>
-          <button onClick={openAddInventory} style={primaryBtn}>+ Add inventory</button>
+          <button onClick={openAddInventory} style={selectedInv.size > 0 ? ghostBtn : primaryBtn}>+ Add inventory</button>
         </div>
       </div>
 
@@ -80,7 +80,7 @@ export default function InventoryPage({ ctx }) {
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("ebay")) && <option value="eBay">eBay</option>}
         </select>
-        <select value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}>
+        {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}>
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
           <option value="preorder_asc">Preorder date up</option>
@@ -89,7 +89,7 @@ export default function InventoryPage({ ctx }) {
           <option value="price_asc">Price up</option>
           <option value="date_desc">Newest</option>
           <option value="date_asc">Oldest</option>
-        </select>
+        </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
         {(invSearch || invCat !== "All" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
@@ -109,7 +109,7 @@ export default function InventoryPage({ ctx }) {
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
             <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={cb} />
-            <span style={tableHead()}>Name</span><span style={tableHead()}>Listed</span><span style={tableHead()}>Category</span><span style={tableHead()}>Size</span><span style={tableHead("right")}>Price</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Qty</span><span style={tableHead("center")}>Actions</span>
+            <SortHeader field="name" label="Name" sort={invSort} setSort={setInvSort} /><span style={tableHead()}>Listed</span><span style={tableHead()}>Category</span><span style={tableHead()}>Size</span><SortHeader field="price" label="Price" sort={invSort} setSort={setInvSort} align="right" /><SortHeader field="date" label="Date" sort={invSort} setSort={setInvSort} align="center" /><span style={tableHead("right")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}
@@ -135,9 +135,9 @@ export default function InventoryPage({ ctx }) {
             <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={() => setBulkEditOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
-            <button onClick={() => setBulkSellOpen(true)} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Sell</button>
-            <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...ghostBtn, color: "#f87171", fontSize: 12, padding: "7px 12px" }}>Delete</button>
+            <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
+            <button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell</button>
+            <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete</button>
           </div>
         </div>
       )}

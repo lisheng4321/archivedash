@@ -7,6 +7,7 @@ import {
   ghostBtn,
   badge,
   KPI,
+  SortHeader,
   currency,
   formatMoney,
   frequencyLabel,
@@ -37,20 +38,6 @@ export default function SubscriptionsPage({ ctx }) {
     fxRates,
   } = ctx;
 
-  const setSubSortField = (field) => {
-    setSubSort((prev) => {
-      const prevField = prev.replace(/_(asc|desc)$/, "");
-      const prevDir = prev.endsWith("_desc") ? "desc" : "asc";
-      const nextDir = prevField === field && prevDir === "asc" ? "desc" : "asc";
-      return `${field}_${nextDir}`;
-    });
-  };
-  const subSortIcon = (field) => subSort.startsWith(`${field}_`) ? (subSort.endsWith("_asc") ? " ↑" : " ↓") : "";
-  const subHeaderBtn = (field, label, align = "left") => (
-    <button onClick={() => setSubSortField(field)} style={{ background: "transparent", border: "none", color: subSort.startsWith(`${field}_`) ? "#93c5fd" : "#8b97ad", padding: 0, textAlign: align, textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", width: "100%" }}>
-      {label}{subSortIcon(field)}
-    </button>
-  );
   const subCatChip = (cat) => {
     const [bg, fg] = subCategoryColor(cat);
     return <span style={{ display: "inline-flex", alignItems: "center", width: "fit-content", padding: "2px 7px", borderRadius: 999, background: bg, color: fg, fontSize: 11, fontWeight: 700, lineHeight: 1.2 }}>{cat}</span>;
@@ -105,14 +92,14 @@ export default function SubscriptionsPage({ ctx }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
         <input type="search" aria-label="Search subscriptions" placeholder="Search subscriptions..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 210 }} />
         <select aria-label="Filter by category" value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: 170, flex: isMobile ? "1 1 120px" : undefined }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-        <select aria-label="Sort subscriptions" value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150, flex: isMobile ? "1 1 110px" : undefined }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="category_asc">Category A-Z</option><option value="name_asc">Name A-Z</option></select>
+        {isMobile && <select aria-label="Sort subscriptions" value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150, flex: "1 1 110px" }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="amount_desc">Amount ↓</option><option value="amount_asc">Amount ↑</option><option value="frequency_asc">Frequency A-Z</option><option value="frequency_desc">Frequency Z-A</option><option value="category_asc">Category A-Z</option><option value="category_desc">Category Z-A</option><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option></select>}
         {filtersActive && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600 }}>
-            {subHeaderBtn("name", "Name")}{subHeaderBtn("category", "Category")}{subHeaderBtn("amount", "Amount", "right")}{subHeaderBtn("frequency", "Frequency")}{subHeaderBtn("monthly", "Monthly", "right")}{subHeaderBtn("nextDue", "Next due")}<span>Actions</span>
+            <SortHeader field="name" label="Name" sort={subSort} setSort={setSubSort} /><SortHeader field="category" label="Category" sort={subSort} setSort={setSubSort} /><SortHeader field="amount" label="Amount" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="frequency" label="Frequency" sort={subSort} setSort={setSubSort} /><SortHeader field="monthly" label="Monthly" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="nextDue" label="Next due" sort={subSort} setSort={setSubSort} /><span>Actions</span>
           </div>
         )}
         {sortedSubs.length === 0 && (subsCount > 0 ? (

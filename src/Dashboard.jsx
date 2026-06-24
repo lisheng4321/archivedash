@@ -14,6 +14,7 @@ import SubscriptionsPage from "./dashboard/pages/SubscriptionsPage.jsx";
 import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx";
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
+import { mergeCustomerInterests } from "./dashboard/customerMarketing.js";
 import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
@@ -1656,6 +1657,7 @@ export default function App({ onLogout, userEmail }) {
     });
     let result = [...rows.values()].map((row) => {
       const orderCount = row.orderKeys.size;
+      const interests = mergeCustomerInterests(row.sales, row.profile);
       return {
         ...row,
         orderCount,
@@ -1663,7 +1665,8 @@ export default function App({ onLogout, userEmail }) {
         platformsList: [...row.platforms],
         platformGroupsList: [...row.platformGroups],
         categoriesList: [...row.categories],
-        brandsList: [...row.brands],
+        brandsList: interests.brands,
+        productTypesList: interests.productTypes,
         defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
       };
     }).filter((row) => !hiddenCustomerKeys.includes(row.key));
@@ -1691,6 +1694,8 @@ export default function App({ onLogout, userEmail }) {
         row.profile.notes,
         row.profile.tags,
         ...row.platformsList,
+        ...row.brandsList,
+        ...row.productTypesList,
       ].some((v) => String(v || "").toLowerCase().includes(q)));
     }
     if (customerPlatform !== "All") {
@@ -2223,7 +2228,7 @@ export default function App({ onLogout, userEmail }) {
     <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", minHeight: "100vh", background: "#0b0f19", color: "#e5e7eb", fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
       <style>{`.np-edit ul,.np-edit ol{padding-left:24px;margin:6px 0}.np-edit li{margin:3px 0}.np-edit input[type="checkbox"]{margin-right:6px;cursor:pointer;accent-color:#2563eb;vertical-align:middle}.np-edit label{display:inline-flex;align-items:flex-start;gap:6px;cursor:default}.np-edit label input[type="checkbox"]:checked + *,.np-edit input[type="checkbox"]:checked ~ *{opacity:0.55}`}</style>
       {/* SIDEBAR */}
-      <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #232c3c", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, background: "#0b0f19", borderRight: "1px solid #232c3c", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0 }}>
+      <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #232c3c", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, height: "100vh", position: "sticky", top: 0, zIndex: 120, overflow: "visible", background: "#0b0f19", borderRight: "1px solid #232c3c", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0, boxSizing: "border-box" }}>
         {!isMobile && <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>}
         {(isMobile ? mobilePrimaryNavItems : mainNavItems).map((n) => renderNavButton(n, "main"))}
         {isMobile && (
@@ -2302,7 +2307,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
 
         {/* CUSTOMERS */}
-        {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen }} />}
+        {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen, settings, persistSettings }} />}
 
         {/* REPORTS */}
         {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, velocityStats, agingStats, exportReportCSV }} />}

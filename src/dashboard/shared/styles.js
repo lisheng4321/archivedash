@@ -63,8 +63,11 @@ const ghostBtn = {
   fontSize: 13,
   cursor: "pointer",
   fontFamily: "inherit",
-  transition: "filter 120ms ease",
+  transition: "background-color 120ms ease, color 120ms ease, border-color 120ms ease",
+  "--ad-hover-bg": C.raised,
 };
+const accentTextBtn = { ...ghostBtn, color: "#93c5fd", fontWeight: 600 };
+const dangerQuietBtn = { ...ghostBtn, color: C.danger, border: "1px solid #ef444444" };
 const destructiveBtn = { ...primaryBtn, background: C.destructive };
 const cb = { width: 16, height: 16, accentColor: C.accent, cursor: "pointer" };
 
@@ -110,6 +113,8 @@ export {
   sel,
   primaryBtn,
   ghostBtn,
+  accentTextBtn,
+  dangerQuietBtn,
   destructiveBtn,
   cb,
   badge,

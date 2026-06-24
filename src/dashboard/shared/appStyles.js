@@ -7,6 +7,12 @@ button, [role="button"], a, input, select, textarea {
 }
 button:not(:disabled):hover,
 [role="button"]:not([aria-disabled="true"]):hover { filter: brightness(1.08); }
+button[style*="--ad-hover-bg"]:not(:disabled):hover,
+[role="button"][style*="--ad-hover-bg"]:not([aria-disabled="true"]):hover,
+.ad-nav-button:not(:disabled):hover {
+  background: var(--ad-hover-bg, #1a2333) !important;
+  filter: none;
+}
 button:not(:disabled):active,
 [role="button"]:not([aria-disabled="true"]):active {
   filter: brightness(0.95); transform: translateY(0.5px);

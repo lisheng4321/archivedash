@@ -187,6 +187,33 @@ function EmptyState({ title, hint, actions }) {
   );
 }
 
+function SortHeader({ field, label, sort, setSort, align = "left" }) {
+  const active = sort.startsWith(`${field}_`);
+  const direction = active && sort.endsWith("_desc") ? "desc" : "asc";
+  const directionLabel = direction === "asc" ? "ascending" : "descending";
+
+  const toggleSort = () => {
+    setSort((previous) => {
+      const previousField = previous.replace(/_(asc|desc)$/, "");
+      const previousDirection = previous.endsWith("_desc") ? "desc" : "asc";
+      const nextDirection = previousField === field && previousDirection === "asc" ? "desc" : "asc";
+      return `${field}_${nextDirection}`;
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggleSort}
+      aria-label={`Sort by ${label}${active ? `, currently ${directionLabel}` : ""}`}
+      aria-pressed={active}
+      style={{ background: "transparent", border: "none", color: active ? "#93c5fd" : "#8b97ad", padding: 0, textAlign: align, textTransform: "uppercase", letterSpacing: 0.5, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", width: "100%", minWidth: 0 }}
+    >
+      {label}{active ? ` ${direction === "asc" ? "\u2191" : "\u2193"}` : ""}
+    </button>
+  );
+}
+
 function Spark({ data, color = "#3b82f6" }) {
   const w = 500, h = 100;
   if (!data || data.length < 2) return <div style={{ height: h, display: "flex", alignItems: "center", justifyContent: "center", color: "#334155", fontSize: 12 }}>No trend data yet</div>;
@@ -210,5 +237,6 @@ export {
   KPI,
   TopBar,
   EmptyState,
+  SortHeader,
   Spark,
 };
