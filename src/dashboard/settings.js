@@ -27,6 +27,7 @@ const defaultSettings = () => ({
   dashboardCards: {},
   navOrder: [],
   navUtilityIds: DEFAULT_NAV_UTILITY_IDS,
+  hiddenNavIds: [],
   backup: DEFAULT_BACKUP_SETTINGS,
 });
 
@@ -42,6 +43,7 @@ const normalizeSettings = (settings = {}) => ({
   dashboardCards: settings.dashboardCards || {},
   navOrder: Array.isArray(settings.navOrder) ? settings.navOrder : [],
   navUtilityIds: Array.isArray(settings.navUtilityIds) ? settings.navUtilityIds : DEFAULT_NAV_UTILITY_IDS,
+  hiddenNavIds: Array.isArray(settings.hiddenNavIds) ? settings.hiddenNavIds : [],
   backup: { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) },
 });
 

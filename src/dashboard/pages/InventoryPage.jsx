@@ -10,11 +10,6 @@ export default function InventoryPage({ ctx }) {
     setBulkSellOpen,
     setBulkEditOpen,
     setConfirmDel,
-    syncGmailInventory,
-    gmailBusy,
-    setGmailQueueOpen,
-    gmailImports,
-    loadGmailImports,
     CATS = [],
     listingPlatforms = [],
     openAddInventory,
@@ -24,6 +19,8 @@ export default function InventoryPage({ ctx }) {
     setInvSearch,
     invCat,
     setInvCat,
+    invPreorderView,
+    setInvPreorderView,
     invStatus,
     setInvStatus,
     invSort,
@@ -32,6 +29,8 @@ export default function InventoryPage({ ctx }) {
     setInvCollapse,
     filteredInv,
     selectedValue,
+    preorderInvCount,
+    availableInvCount,
     isMobile,
     toggleAll,
     mobileSelectAll,
@@ -46,7 +45,33 @@ export default function InventoryPage({ ctx }) {
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
-  const clearFilters = () => { setInvSearch(""); setInvCat("All"); setInvStatus("All"); setInvSort("name_asc"); };
+  const setInventoryView = (view) => {
+    setInvPreorderView(view);
+    if (view === "preorders" && invSort === "name_asc") setInvSort("preorder_asc");
+    if (view === "available" && invSort.startsWith("preorder_")) setInvSort("name_asc");
+  };
+  const viewButton = (view, label, count) => {
+    const active = invPreorderView === view;
+    return {
+      type: "button",
+      "aria-pressed": active,
+      onClick: () => setInventoryView(view),
+      style: {
+        padding: "7px 11px",
+        borderRadius: 6,
+        border: "none",
+        background: active ? "#2563eb" : "transparent",
+        color: active ? "#fff" : "#9aa6bb",
+        fontSize: 12,
+        fontWeight: active ? 700 : 500,
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap",
+      },
+      children: `${label} ${count}`,
+    };
+  };
+  const clearFilters = () => { setInvSearch(""); setInvCat("All"); setInvPreorderView("available"); setInvStatus("All"); setInvSort("name_asc"); };
 
   return (
     <div style={{ padding: pagePad }}>
@@ -61,8 +86,6 @@ export default function InventoryPage({ ctx }) {
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button>
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button>
           </>}
-          <button onClick={async () => { setGmailQueueOpen(true); await syncGmailInventory(); }} disabled={gmailBusy} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sync Gmail</button>
-          <button onClick={async () => { setGmailQueueOpen((v) => !v); if (!gmailImports.length) await loadGmailImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Gmail queue{gmailImports.length ? ` (${gmailImports.length})` : ""}</button>
           <button onClick={openAddInventory} style={selectedInv.size > 0 ? ghostBtn : primaryBtn}>+ Add inventory</button>
         </div>
       </div>
@@ -72,14 +95,17 @@ export default function InventoryPage({ ctx }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
         <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
-        <select value={invStatus} onChange={(e) => { const next = e.target.value; setInvStatus(next); if (next === "Preorders" && invSort === "name_asc") setInvSort("preorder_asc"); }} style={{ ...sel, maxWidth: 140 }}>
-          <option value="All">All Status</option>
-          <option value="Preorders">Preorders</option>
+        <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: 140 }}>
+          <option value="All">All Listings</option>
           <option value="Listed">Listed</option>
           <option value="Unlisted">Unlisted</option>
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("ebay")) && <option value="eBay">eBay</option>}
         </select>
+        <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3 }}>
+          <button {...viewButton("available", "Available", availableInvCount)} />
+          <button {...viewButton("preorders", "Preorders", preorderInvCount)} />
+        </div>
         {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}>
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
@@ -91,17 +117,16 @@ export default function InventoryPage({ ctx }) {
           <option value="date_asc">Oldest</option>
         </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
-        {(invSearch || invCat !== "All" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+        {(invSearch || invCat !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
       </div>
 
       {inventory.length === 0 ? (
         <EmptyState
           title="No inventory yet"
-          hint="Add your first item by hand, or import receipts from Gmail to build inventory automatically."
+          hint="Add your first item by hand to start tracking stock."
           actions={[
             { label: "+ Add inventory", primary: true, onClick: openAddInventory },
-            { label: gmailBusy ? "Syncing Gmail…" : "Import receipts from Gmail", disabled: gmailBusy, onClick: async () => { setGmailQueueOpen(true); await syncGmailInventory(); } },
           ]}
         />
       ) : (

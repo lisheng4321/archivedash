@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ghostBtn, inp, primaryBtn } from "../shared.jsx";
+import { cb, ghostBtn, inp, primaryBtn } from "../shared.jsx";
 import { INTEGRATION_TONES, IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
 
 const removeButton = {
@@ -89,6 +89,7 @@ export default function SettingsPage({ ctx }) {
     gmailStatus,
     loadEbayImports,
     loadGmailImports,
+    navSettingsItems = [],
     onLogout,
     pagePad,
     PAYMETHODS,
@@ -112,6 +113,15 @@ export default function SettingsPage({ ctx }) {
   const [newPaymentMethod, setNewPaymentMethod] = useState("");
   const [newCust, setNewCust] = useState("");
   const [customersOpen, setCustomersOpen] = useState(false);
+  const hiddenNavIds = Array.isArray(settings.hiddenNavIds) ? settings.hiddenNavIds.filter((id) => id !== "settings") : [];
+  const hiddenNavSet = new Set(hiddenNavIds);
+  const toggleNavItem = async (id, visible) => {
+    if (id === "settings") return;
+    const next = new Set(hiddenNavIds);
+    if (visible) next.delete(id);
+    else next.add(id);
+    await persistSettings({ ...settings, hiddenNavIds: [...next] });
+  };
 
   const addCategory = async () => {
     if (newCat && !CATS.includes(newCat)) {
@@ -145,6 +155,28 @@ export default function SettingsPage({ ctx }) {
         <button onClick={() => setPage("settings")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>General</button>
         <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
         <button onClick={() => setPage("backup")} style={ghostBtn}>Backup & Restore</button>
+      </div>
+      <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 4 }}>Sidebar tools</div>
+            <p style={{ fontSize: 12, color: "#7c8aa0", margin: 0 }}>Choose what appears in the sidebar. Hidden tools can be re-added anytime.</p>
+          </div>
+          {hiddenNavIds.length > 0 && <button onClick={() => persistSettings({ ...settings, hiddenNavIds: [] })} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Show all</button>}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 8 }}>
+          {navSettingsItems.map((item) => {
+            const locked = item.id === "settings";
+            const visible = locked || !hiddenNavSet.has(item.id);
+            return (
+              <label key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, background: "#0d1117", border: `1px solid ${visible ? "#232c3c" : "#334155"}`, borderRadius: 8, padding: "9px 10px", color: visible ? "#d6dbe4" : "#7c8aa0", fontSize: 12, cursor: locked ? "default" : "pointer" }}>
+                <input type="checkbox" checked={visible} disabled={locked} onChange={(e) => toggleNavItem(item.id, e.target.checked)} style={cb} />
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{item.label}</span>
+                {locked && <span style={{ marginLeft: "auto", color: "#7c8aa0", fontSize: 11 }}>Always on</span>}
+              </label>
+            );
+          })}
+        </div>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>

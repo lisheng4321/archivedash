@@ -10,12 +10,6 @@ export default function SalesPage({ ctx }) {
     setAddSaleOpen,
     setBulkEditSaleOpen,
     setConfirmDel,
-    syncEbayOrders,
-    connectEbay,
-    ebayBusy,
-    setEbayQueueOpen,
-    ebayImports,
-    loadEbayImports,
     ebayQueueOpen,
     ebayQueuePanel,
     saleSearch,
@@ -64,8 +58,6 @@ export default function SalesPage({ ctx }) {
             <button onClick={() => setConfirmDel({ type: "multi-sale", name: `${selectedSales.size} sales` })} style={{ ...ghostBtn, color: "#f87171", border: "1px solid #ef444444", fontSize: 12, padding: "7px 12px" }}>Delete {selectedSales.size}</button>
           </>}
           <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add Sale</button>
-          <button onClick={async () => { setEbayQueueOpen(true); await syncEbayOrders(); }} disabled={ebayBusy} style={{ ...ghostBtn, color: "#93c5fd", fontWeight: 600, fontSize: 12, padding: "7px 12px" }}>Sync eBay</button>
-          <button onClick={async () => { setEbayQueueOpen((v) => !v); if (!ebayImports.length) await loadEbayImports(); }} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>eBay queue{ebayImports.length ? ` (${ebayImports.length})` : ""}</button>
         </div>
       </div>
 
@@ -101,10 +93,9 @@ export default function SalesPage({ ctx }) {
       {sales.length === 0 ? (
         <EmptyState
           title="No sales yet"
-          hint="Record your first sale by hand, or connect eBay to pull in orders awaiting postage automatically."
+          hint="Record your first sale by hand to start tracking revenue and profit."
           actions={[
             { label: "+ Add Sale", primary: true, onClick: () => setAddSaleOpen(true) },
-            connectEbay ? { label: ebayBusy ? "Connecting…" : "Connect eBay", disabled: ebayBusy, onClick: connectEbay } : null,
           ]}
         />
       ) : (

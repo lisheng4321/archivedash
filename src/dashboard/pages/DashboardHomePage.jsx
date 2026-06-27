@@ -46,15 +46,10 @@ export default function DashboardHomePage({ ctx }) {
     setDashboardCard,
     settings,
     persistSettings,
-    ebayImports,
-    setEbayQueueOpen,
-    loadEbayImports,
-    gmailImports,
-    setGmailQueueOpen,
-    loadGmailImports,
     upcomingPreorderGroups,
     upcomingPreorders,
     setPage,
+    setInvPreorderView,
     setInvStatus,
     setInvSort,
     agingStats,
@@ -111,11 +106,9 @@ export default function DashboardHomePage({ ctx }) {
       </div>
 
       {dashboardCards.actionStrip && (
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 12 }}>
           {[
-            { label: "eBay queue", value: ebayImports.length, detail: "awaiting postage", tone: ebayImports.length ? "#60a5fa" : "#7c8aa0", onClick: async () => { setPage("sales"); setEbayQueueOpen(true); if (!ebayImports.length) await loadEbayImports(); } },
-            { label: "Gmail queue", value: gmailImports.length, detail: "inventory drafts", tone: gmailImports.length ? "#60a5fa" : "#7c8aa0", onClick: async () => { setPage("inventory"); setGmailQueueOpen(true); if (!gmailImports.length) await loadGmailImports(); } },
-            { label: "Preorders", value: upcomingPreorderGroups.length, detail: upcomingPreorders.length === upcomingPreorderGroups.length ? "release window" : `${upcomingPreorders.length} units due`, tone: upcomingPreorders.length ? "#60a5fa" : "#7c8aa0", onClick: () => { setPage("inventory"); setInvStatus("Preorders"); setInvSort("preorder_asc"); } },
+            { label: "Preorders", value: upcomingPreorderGroups.length, detail: upcomingPreorders.length === upcomingPreorderGroups.length ? "release window" : `${upcomingPreorders.length} units due`, tone: upcomingPreorders.length ? "#60a5fa" : "#7c8aa0", onClick: () => { setPage("inventory"); setInvPreorderView("preorders"); setInvStatus("All"); setInvSort("preorder_asc"); } },
             { label: "Aged stock", value: agingStats.aged90.length, detail: "90+ days held", tone: agingStats.aged90.length ? "#f59e0b" : "#7c8aa0", onClick: () => setPage("inventory") },
           ].map((a) => (
             <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
@@ -137,7 +130,7 @@ export default function DashboardHomePage({ ctx }) {
               <span style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>Preorders releasing soon</span>
               <span style={{ fontSize: 11, padding: "1px 7px", borderRadius: 999, background: "#2563eb", color: "#fff", fontWeight: 600 }}>{upcomingPreorderGroups.length}</span>
             </div>
-            <button onClick={() => setPage("inventory")} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "none", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>View all</button>
+            <button onClick={() => { setPage("inventory"); setInvPreorderView("preorders"); setInvStatus("All"); setInvSort("preorder_asc"); }} style={{ padding: "3px 10px", background: "transparent", color: "#60a5fa", border: "none", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>View all</button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {upcomingPreorderGroups.slice(0, isMobile ? 4 : 6).map((i) => {
@@ -181,7 +174,7 @@ export default function DashboardHomePage({ ctx }) {
         <PeriodComparisonChart points={periodTrend} isMobile={isMobile} />
       </div>}
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(4, minmax(0, 1fr))", gap: 10, marginBottom: 18 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "repeat(3, minmax(0, 1fr))", gap: 10, marginBottom: 18 }}>
         {dashboardCards.salesIncome && <KPI label="Sales income" value={currency(stats.salesIncome)} />}
         <ProfitMarginKPI profitLabel="Net profit" profitValue={currency(stats.netProfit)} profitVisible={dashboardCards.netProfit} marginLabel="Net margin" marginValue={(stats.netMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.netMargin} accent={stats.netProfit>=0?"#34d399":"#f87171"} />
         <ProfitMarginKPI profitLabel="Gross profit" profitValue={currency(stats.grossProfit)} profitVisible={dashboardCards.grossProfit} marginLabel="Gross margin" marginValue={(stats.grossMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.grossMargin} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />

@@ -142,7 +142,7 @@ export default function App({ onLogout, userEmail }) {
   const [gmailReviewOpen, setGmailReviewOpen] = useState(null);
 
   // Filters
-  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
+  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invPreorderView, setInvPreorderView] = useState("available"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [salePayment, setSalePayment] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expPayment, setExpPayment] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
@@ -1538,11 +1538,11 @@ export default function App({ onLogout, userEmail }) {
       f = f.filter((i) => [i.name, i.brand, i.tags, ...listedPlatformsFor(i)].some((v) => String(v || "").toLowerCase().includes(q)));
     }
     if (invCat !== "All") f = f.filter((i) => i.category === invCat);
+    if (invPreorderView === "available") f = f.filter((i) => !i.preorderDate);
+    if (invPreorderView === "preorders") f = f.filter((i) => Boolean(i.preorderDate));
     if (invStatus !== "All") {
       f = f.filter((i) => {
         const listed = listedPlatformsFor(i);
-        const hasPreorder = Boolean(i.preorderDate);
-        if (invStatus === "Preorders") return hasPreorder;
         if (invStatus === "Listed") return listed.length > 0;
         if (invStatus === "Unlisted") return listed.length === 0;
         if (invStatus === "Facebook") return listed.some((p) => String(p).toLowerCase().includes("facebook"));
@@ -1562,7 +1562,7 @@ export default function App({ onLogout, userEmail }) {
       case "preorder_desc": sorted.sort((a, b) => (b.preorderDate || "").localeCompare(a.preorderDate || "") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
     }
     return sorted;
-  }, [inventory, invSearch, invCat, invStatus, invSort]);
+  }, [inventory, invSearch, invCat, invPreorderView, invStatus, invSort]);
 
   const groupedInv = useMemo(() => {
     if (!invCollapse) return filteredInv.map((i) => ({ ...i, _group: false }));
@@ -1738,6 +1738,7 @@ export default function App({ onLogout, userEmail }) {
 
   const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
   const preorderInvCount = useMemo(() => inventory.filter((i) => i.preorderDate).length, [inventory]);
+  const availableInvCount = useMemo(() => inventory.filter((i) => !i.preorderDate).length, [inventory]);
   const listedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).length > 0).length, [inventory]);
   const facebookListedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).some((p) => String(p).toLowerCase().includes("facebook"))).length, [inventory]);
   const toggleSel = (id) => setSelectedInv((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -1818,6 +1819,8 @@ export default function App({ onLogout, userEmail }) {
   const orderedNavItems = [...navItems].sort((a, b) => (navRank.has(a.id) ? navRank.get(a.id) : navItems.findIndex((n) => n.id === a.id) + 1000) - (navRank.has(b.id) ? navRank.get(b.id) : navItems.findIndex((n) => n.id === b.id) + 1000));
   const utilityIds = Array.isArray(settings.navUtilityIds) ? settings.navUtilityIds : defaultUtilityIds;
   const utilityIdSet = new Set(utilityIds);
+  const hiddenNavIds = Array.isArray(settings.hiddenNavIds) ? settings.hiddenNavIds : [];
+  const hiddenNavIdSet = new Set(hiddenNavIds.filter((id) => id !== "settings"));
   const moveNavItem = (fromId, toId, zone) => {
     if (!fromId || (toId && fromId === toId)) return;
     const ids = orderedNavItems.map((n) => n.id);
@@ -1835,8 +1838,6 @@ export default function App({ onLogout, userEmail }) {
     if (targetZone === "main") nextUtilityIds.delete(fromId);
     persistSettings({ ...settings, navOrder: next, navUtilityIds: [...nextUtilityIds].filter((id) => next.includes(id)) });
   };
-  const mainNavItems = orderedNavItems.filter((n) => !utilityIdSet.has(n.id));
-  const utilityNavItems = orderedNavItems.filter((n) => utilityIdSet.has(n.id));
   const navLabels = {
     dashboard: "Dashboard",
     inventory: "Inventory",
@@ -1849,9 +1850,13 @@ export default function App({ onLogout, userEmail }) {
     calculator: "Calculator",
     settings: "Settings",
   };
+  const visibleNavItems = orderedNavItems.filter((n) => !hiddenNavIdSet.has(n.id));
+  const mainNavItems = visibleNavItems.filter((n) => !utilityIdSet.has(n.id));
+  const utilityNavItems = visibleNavItems.filter((n) => utilityIdSet.has(n.id));
+  const navSettingsItems = orderedNavItems.map((n) => ({ id: n.id, label: navLabels[n.id] || n.id }));
   const mobilePrimaryNavIds = ["dashboard", "inventory", "sales", "customers", "reports"];
-  const mobilePrimaryNavItems = orderedNavItems.filter((n) => mobilePrimaryNavIds.includes(n.id));
-  const mobileMoreNavItems = orderedNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
+  const mobilePrimaryNavItems = visibleNavItems.filter((n) => mobilePrimaryNavIds.includes(n.id));
+  const mobileMoreNavItems = visibleNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
   const activeNavId = page === "subs" ? "expenses" : ["health", "backup"].includes(page) ? "settings" : page;
   const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === activeNavId);
   // Alert severity per nav item: 3 = critical (red), 2 = warning (amber), 1 = info (blue), 0 = none.
@@ -2231,7 +2236,7 @@ export default function App({ onLogout, userEmail }) {
       <div style={isMobile ? { position: "fixed", left: 0, right: 0, bottom: 0, height: 58, background: "#0b0f19", borderTop: "1px solid #232c3c", display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-around", padding: "6px 8px", gap: 1, zIndex: 140, boxSizing: "border-box" } : { width: 54, height: "100vh", position: "sticky", top: 0, zIndex: 120, overflow: "visible", background: "#0b0f19", borderRight: "1px solid #232c3c", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 14, gap: 2, flexShrink: 0, boxSizing: "border-box" }}>
         {!isMobile && <div style={{ width: 32, height: 32, background: "#2563eb", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, fontSize: 15, fontWeight: 800, color: "#fff" }}>A</div>}
         {(isMobile ? mobilePrimaryNavItems : mainNavItems).map((n) => renderNavButton(n, "main"))}
-        {isMobile && (
+        {isMobile && mobileMoreNavItems.length > 0 && (
           <>
             <button
               onClick={() => setMobileNavMoreOpen((v) => !v)}
@@ -2296,12 +2301,12 @@ export default function App({ onLogout, userEmail }) {
         )}
 
         {/* DASHBOARD */}
-        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, ebayImports, setEbayQueueOpen, loadEbayImports, gmailImports, setGmailQueueOpen, loadGmailImports, upcomingPreorderGroups, upcomingPreorders, setPage, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
+        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorders, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, syncGmailInventory, gmailBusy, setGmailQueueOpen, gmailImports, loadGmailImports, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
-        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, syncEbayOrders, connectEbay, ebayBusy, setEbayQueueOpen, ebayImports, loadEbayImports, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* PRICING */}
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
@@ -2380,7 +2385,7 @@ export default function App({ onLogout, userEmail }) {
         </div>)}
 
         {/* SETTINGS */}
-        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, PAYMETHODS, CUSTS, settings, persistSettings, setPage, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
+        {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, PAYMETHODS, CUSTS, settings, persistSettings, setPage, navSettingsItems, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}
