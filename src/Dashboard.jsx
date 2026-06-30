@@ -62,7 +62,7 @@ const buildSampleData = () => ({
     buildSampleInventory({ name: "Nike Dunk Low Panda", category: "Sneakers", size: "US 9", price: 130, ebayListedPrice: 210, brand: "Nike", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(38) }),
     buildSampleInventory({ name: "Jordan 4 Black Cat", category: "Sneakers", size: "US 10", price: 320, ebayListedPrice: 470, brand: "Jordan", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(96) }),
     buildSampleInventory({ name: "Supreme Box Logo Hoodie", category: "Apparel", size: "L", price: 240, brand: "Supreme", listedPlatforms: ["Facebook Marketplace"], purchaseDate: daysAgo(21) }),
-    buildSampleInventory({ name: "Pokemon 151 Booster Box", category: "Collectables", size: "OS", price: 180, brand: "Pokemon", purchaseDate: daysAgo(9), preorderDate: daysAgo(-7) }),
+    buildSampleInventory({ name: "Pokemon 151 Booster Box", category: "TCG", size: "OS", price: 180, brand: "Pokemon", purchaseDate: daysAgo(9), preorderDate: daysAgo(-7) }),
     buildSampleInventory({ name: "Louis Vuitton Card Holder", category: "Accessories", size: "OS", price: 350, brand: "Louis Vuitton", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(63) }),
   ],
   sales: [

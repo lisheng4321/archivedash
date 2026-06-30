@@ -1,4 +1,4 @@
-const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables"];
+const DEF_CATEGORIES = ["Sneakers", "Apparel", "Accessories", "Collectables", "TCG"];
 const DEF_PLATFORMS = ["eBay AU", "Pushas", "StockX", "Facebook Marketplace", "Instagram", "Depop", "Discord", "GOAT", "CSFloat", "Bonusbank", "Other"];
 const DEF_PAYMENT_METHODS = ["Cash", "PayID", "Bank Transfer", "PayPal", "Card", "eBay Payout", "Pushas Payout", "Other"];
 const TIME_RANGES = ["1D", "1W", "1M", "MTD", "3M", "YTD", "1Y", "ALL", "Custom"];
