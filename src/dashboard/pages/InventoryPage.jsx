@@ -10,6 +10,8 @@ export default function InventoryPage({ ctx }) {
     setBulkSellOpen,
     setBulkEditOpen,
     setConfirmDel,
+    ebayExportStatus,
+    handleEbayPartnerExport,
     CATS = [],
     listingPlatforms = [],
     openAddInventory,
@@ -83,12 +85,19 @@ export default function InventoryPage({ ctx }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
             <button onClick={() => setBulkSellOpen(true)} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button>
+            <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button>
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button>
           </>}
           <button onClick={openAddInventory} style={selectedInv.size > 0 ? ghostBtn : primaryBtn}>+ Add inventory</button>
         </div>
       </div>
+
+      {ebayExportStatus && (
+        <div role="status" style={{ margin: "-6px 0 12px", padding: "8px 10px", borderRadius: 8, background: "#0d1b2f", border: "1px solid #2563eb66", color: "#bfdbfe", fontSize: 12, fontWeight: 700 }}>
+          {ebayExportStatus}
+        </div>
+      )}
 
       {gmailQueueOpen && gmailQueuePanel()}
 
@@ -161,6 +170,7 @@ export default function InventoryPage({ ctx }) {
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
+            <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
             <button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell</button>
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete</button>
           </div>

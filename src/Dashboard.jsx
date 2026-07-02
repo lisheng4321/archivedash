@@ -112,6 +112,7 @@ export default function App({ onLogout, userEmail }) {
   const [dangerAction, setDangerAction] = useState(null); // { title, intro, counts, keyword, confirmLabel, snapshot, snapshotReason, run }
   const [dangerBusy, setDangerBusy] = useState(false);
   const [selectedInv, setSelectedInv] = useState(new Set());
+  const [ebayExportStatus, setEbayExportStatus] = useState("");
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [invQueue, setInvQueue] = useState([]);
@@ -969,6 +970,59 @@ export default function App({ onLogout, userEmail }) {
       return next;
     }));
     setBulkEditOpen(false); setSelectedInv(new Set());
+  };
+
+  const copyTextToClipboard = async (text) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+    if (!copied) throw new Error("Clipboard copy failed");
+  };
+
+  const ebayPartnerListPrice = (item) => {
+    const price = Number(item.ebayListedPrice);
+    return Number.isFinite(price) && price > 0 ? currency(price) : "TBC";
+  };
+
+  const buildEbayPartnerExport = (items) => [
+    `eBay listing batch (${items.length} item${items.length === 1 ? "" : "s"})`,
+    ...items.map((item, index) => [
+      `${index + 1}. ${item.name || "Untitled item"}`,
+      `Size: ${item.size || "OS"}`,
+      `List price: ${ebayPartnerListPrice(item)}`,
+    ].join("\n")),
+  ].join("\n\n");
+
+  const handleEbayPartnerExport = async () => {
+    const items = inventory.filter((item) => selectedInv.has(item.id));
+    if (!items.length) return;
+    const text = buildEbayPartnerExport(items);
+    try {
+      await copyTextToClipboard(text);
+    } catch {
+      setEbayExportStatus("Clipboard blocked. Please try again from the Inventory page.");
+      setTimeout(() => setEbayExportStatus(""), 4000);
+      return;
+    }
+    const ebayPlatform = listingPlatforms.find((platform) => String(platform).toLowerCase().includes("ebay")) || "eBay AU";
+    const ids = new Set(items.map((item) => item.id));
+    await persistInv(inventory.map((item) => {
+      if (!ids.has(item.id)) return item;
+      return { ...item, listedPlatforms: [...new Set([...listedPlatformsFor(item), ebayPlatform])] };
+    }));
+    setSelectedInv(new Set());
+    setEbayExportStatus(`Copied ${items.length} item${items.length === 1 ? "" : "s"} and marked eBay listed.`);
+    setTimeout(() => setEbayExportStatus(""), 4000);
   };
 
   // ─── Export ───
@@ -2303,7 +2357,7 @@ export default function App({ onLogout, userEmail }) {
         {/* DASHBOARD */}
         {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorders, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
