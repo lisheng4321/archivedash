@@ -6,6 +6,7 @@ export default function SalesPage({ ctx }) {
   const {
     pagePad,
     sales,
+    saleProfit,
     selectedSales,
     setAddSaleOpen,
     setBulkEditSaleOpen,
@@ -41,7 +42,7 @@ export default function SalesPage({ ctx }) {
   })();
   const recentSales = sales.filter((sale) => String(sale.saleDate || "") >= since30);
   const recentRevenue = recentSales.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
-  const recentProfit = recentSales.reduce((a, s) => a + (Number(s.profit) || 0), 0);
+  const recentProfit = recentSales.reduce((a, s) => a + saleProfit(s), 0);
   const latestSaleDate = [...sales].map((sale) => sale.saleDate).filter(Boolean).sort().pop();
   const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
 

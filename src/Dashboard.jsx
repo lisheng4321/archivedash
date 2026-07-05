@@ -51,6 +51,13 @@ const paymentMethodForPlatform = (platform = "", methods = []) => {
 };
 
 const recordPaymentMethod = (record) => record?.paymentMethod || "Other";
+const saleProfit = (sale = {}) => computeProfit({
+  salePrice: sale.salePrice,
+  cost: sale.costPrice,
+  shipping: sale.shippingPrice,
+  fees: sale.platformFees,
+});
+const withComputedSaleProfit = (sale) => ({ ...sale, profit: saleProfit(sale) });
 
 const buildSampleInventory = (over) => ({
   id: genId(), size: "OS", brand: "", preorderDate: "", listedPlatforms: [], customer: "",
@@ -1179,7 +1186,7 @@ export default function App({ onLogout, userEmail }) {
   };
   const exportCSV = () => {
     const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Customer","Tags"];
-    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,s.profit,s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
+    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,saleProfit(s),s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-sales-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -1279,7 +1286,7 @@ export default function App({ onLogout, userEmail }) {
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
     if (dashCat !== "All") fi = fi.filter((i) => i.category === dashCat);
     if (dashPlat !== "All") fi = fi.filter((i) => listedPlatformsFor(i).includes(dashPlat));
-    const salesIncome = fs.reduce((a, s) => a + s.salePrice, 0), grossProfit = fs.reduce((a, s) => a + s.profit, 0);
+    const salesIncome = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0), grossProfit = fs.reduce((a, s) => a + saleProfit(s), 0);
     const totalExpenses = fe.reduce((a, e) => a + e.amount, 0), netProfit = grossProfit - totalExpenses;
     const inventorySpend = fi.reduce((a, i) => a + (Number(i.price) || 0), 0);
     const invValue = inventory.reduce((a, i) => a + i.price, 0), cnt = fs.length, aov = cnt > 0 ? salesIncome / cnt : 0;
@@ -1288,7 +1295,7 @@ export default function App({ onLogout, userEmail }) {
     const grossMargin = salesIncome > 0 ? grossProfit / salesIncome : 0;
     const netMargin = salesIncome > 0 ? netProfit / salesIncome : 0;
     const pbd = {};
-    fs.forEach((s) => { pbd[s.saleDate] = (pbd[s.saleDate] || 0) + (Number(s.profit) || 0); });
+    fs.forEach((s) => { pbd[s.saleDate] = (pbd[s.saleDate] || 0) + saleProfit(s); });
     fe.forEach((e) => { pbd[e.purchaseDate] = (pbd[e.purchaseDate] || 0) - (Number(e.amount) || 0); });
     const dates = activePeriod.periodDays > 730 ? Object.keys(pbd).sort() : [];
     if (!dates.length && activePeriod.periodDays <= 730) {
@@ -1296,7 +1303,7 @@ export default function App({ onLogout, userEmail }) {
     }
     let cum = 0; const spark = dates.map((d) => { cum += pbd[d] || 0; return cum; });
     const ri = [...inventory].sort((a, b) => (b.addedAt||0) - (a.addedAt||0)).slice(0, 7);
-    const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7);
+    const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7).map(withComputedSaleProfit);
     return { salesIncome, grossProfit, totalExpenses, netProfit, inventorySpend, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
   }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat]);
 
@@ -1305,9 +1312,9 @@ export default function App({ onLogout, userEmail }) {
     const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
     const currentSales = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= currentEnd && matchesFilters(s));
     const previousSales = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s));
-    const currentSalesProfit = currentSales.reduce((a, s) => a + (s.profit || 0), 0);
+    const currentSalesProfit = currentSales.reduce((a, s) => a + saleProfit(s), 0);
     const currentExpenses = expenses.filter((e) => e.purchaseDate >= currentStart && e.purchaseDate <= currentEnd).reduce((a, e) => a + (e.amount || 0), 0);
-    const previousSalesProfit = previousSales.reduce((a, s) => a + (s.profit || 0), 0);
+    const previousSalesProfit = previousSales.reduce((a, s) => a + saleProfit(s), 0);
     const previousExpenses = expenses.filter((e) => e.purchaseDate >= previousStart && e.purchaseDate <= previousEnd).reduce((a, e) => a + (e.amount || 0), 0);
     const current = currentSalesProfit - currentExpenses;
     const previous = previousSalesProfit - previousExpenses;
@@ -1326,7 +1333,7 @@ export default function App({ onLogout, userEmail }) {
       const map = new Map();
       sales.filter((s) => s.saleDate >= from && s.saleDate <= to && matchesFilters(s)).forEach((s) => {
         const row = map.get(s.saleDate) || { profit: 0, units: 0 };
-        row.profit += Number(s.profit) || 0;
+        row.profit += saleProfit(s);
         row.units += saleUnits(s);
         map.set(s.saleDate, row);
       });
@@ -1413,7 +1420,7 @@ export default function App({ onLogout, userEmail }) {
       const prev = categoryMap.get(key) || { category: key, count: 0, revenue: 0, profit: 0 };
       prev.count += 1;
       prev.revenue += Number(s.salePrice) || 0;
-      prev.profit += Number(s.profit) || 0;
+      prev.profit += saleProfit(s);
       categoryMap.set(key, prev);
     });
     const topCategories = [...categoryMap.values()].sort((a, b) => b.count - a.count || b.profit - a.profit).slice(0, 5);
@@ -1466,7 +1473,7 @@ export default function App({ onLogout, userEmail }) {
       netProfit,
       platformRows: group(fs, (s) => s.platform, (s) => Number(s.salePrice) || 0),
       paymentRows: group(fs, recordPaymentMethod, (s) => Number(s.salePrice) || 0),
-      categoryRows: group(fs, (s) => s.category, (s) => Number(s.profit) || 0),
+      categoryRows: group(fs, (s) => s.category, saleProfit),
       expenseRows: group(fe, (e) => e.expCategory, (e) => Number(e.amount) || 0),
       expensePaymentRows: group(fe, recordPaymentMethod, (e) => Number(e.amount) || 0),
     };
@@ -1647,7 +1654,7 @@ export default function App({ onLogout, userEmail }) {
     if (saleCat !== "All") f = f.filter((s) => s.category === saleCat);
     if (salePlat !== "All") f = f.filter((s) => s.platform === salePlat);
     if (salePayment !== "All") f = f.filter((s) => recordPaymentMethod(s) === salePayment);
-    const sorted = [...f];
+    const sorted = f.map(withComputedSaleProfit);
     switch (saleSort) {
       case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name)); break;
       case "name_desc": sorted.sort((a, b) => b.name.localeCompare(a.name)); break;
@@ -1699,10 +1706,11 @@ export default function App({ onLogout, userEmail }) {
     });
     sales.forEach((sale) => {
       const row = ensure(sale.customer || "Unknown customer");
-      row.sales.push(sale);
+      const computedProfit = saleProfit(sale);
+      row.sales.push({ ...sale, profit: computedProfit });
       row.orderKeys.add(orderKeyForSale(sale));
       row.revenue += Number(sale.salePrice) || 0;
-      row.profit += Number(sale.profit) || 0;
+      row.profit += computedProfit;
       if (sale.platform) row.platforms.add(sale.platform);
       row.platformGroups.add(platformGroup(sale.platform));
       if (sale.category) row.categories.add(sale.category);
@@ -1817,7 +1825,7 @@ export default function App({ onLogout, userEmail }) {
     setConfirmDel({ type: "multi-exp", name: `${selectedExp.size} expenses` });
   };
 
-  const selectedSalesProfit = useMemo(() => sales.filter((s) => selectedSales.has(s.id)).reduce((a, s) => a + s.profit, 0), [sales, selectedSales]);
+  const selectedSalesProfit = useMemo(() => sales.filter((s) => selectedSales.has(s.id)).reduce((a, s) => a + saleProfit(s), 0), [sales, selectedSales]);
   const selectedSalesRevenue = useMemo(() => sales.filter((s) => selectedSales.has(s.id)).reduce((a, s) => a + s.salePrice, 0), [sales, selectedSales]);
   const toggleSelSale = (id) => setSelectedSales((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
   const toggleAllSales = () => { if (selectedSales.size === filteredSales.length) setSelectedSales(new Set()); else setSelectedSales(new Set(filteredSales.map((s) => s.id))); };
@@ -2360,7 +2368,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
-        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* PRICING */}
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
