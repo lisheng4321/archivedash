@@ -38,13 +38,32 @@ const keepButton = {
   minHeight: 32,
   borderRadius: 6,
 };
+const moveButton = {
+  background: "#111827",
+  border: "1px solid #334155",
+  color: "#cbd5e1",
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 800,
+  lineHeight: 1,
+  padding: "6px 7px",
+  minWidth: 28,
+  minHeight: 32,
+  borderRadius: 6,
+};
+const disabledMoveButton = {
+  ...moveButton,
+  opacity: 0.35,
+  cursor: "not-allowed",
+};
 
-function ChipList({ items, onRemove, emptyLabel }) {
+function ChipList({ items, onRemove, onMove, emptyLabel }) {
   const [pending, setPending] = useState(null);
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-      {items.map((item) => {
+      {items.map((item, index) => {
         const confirming = pending === item;
+        const canMove = typeof onMove === "function" && !confirming;
         return (
           <div key={item} style={{ display: "flex", alignItems: "center", gap: 4, background: confirming ? "#2a1a1d" : "#232c3c", border: confirming ? "1px solid #ef444455" : "1px solid transparent", borderRadius: 6, padding: "4px 8px 4px 10px", fontSize: 13, color: "#e5e7eb" }}>
             {item}
@@ -55,7 +74,13 @@ function ChipList({ items, onRemove, emptyLabel }) {
                 <button onClick={() => setPending(null)} style={keepButton} aria-label={`Keep ${item}`}>Keep</button>
               </>
             ) : (
-              <button onClick={() => setPending(item)} style={removeButton} aria-label={`Remove ${item}`} title={`Remove ${item}`}>x</button>
+              <>
+                {onMove && <>
+                  <button onClick={() => onMove(index, index - 1)} disabled={!canMove || index === 0} style={index === 0 ? disabledMoveButton : moveButton} aria-label={`Move ${item} earlier`} title={`Move ${item} earlier`}>{"<"}</button>
+                  <button onClick={() => onMove(index, index + 1)} disabled={!canMove || index === items.length - 1} style={index === items.length - 1 ? disabledMoveButton : moveButton} aria-label={`Move ${item} later`} title={`Move ${item} later`}>{">"}</button>
+                </>}
+                <button onClick={() => setPending(item)} style={removeButton} aria-label={`Remove ${item}`} title={`Remove ${item}`}>x</button>
+              </>
             )}
           </div>
         );
@@ -121,6 +146,13 @@ export default function SettingsPage({ ctx }) {
     if (visible) next.delete(id);
     else next.add(id);
     await persistSettings({ ...settings, hiddenNavIds: [...next] });
+  };
+  const moveListItem = async (key, items, from, to) => {
+    if (to < 0 || to >= items.length || from === to) return;
+    const next = [...items];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    await persistSettings({ ...settings, [key]: next });
   };
 
   const addCategory = async () => {
@@ -216,17 +248,17 @@ export default function SettingsPage({ ctx }) {
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Categories</div>
-        <ChipList items={CATS} onRemove={(cat) => persistSettings({ ...settings, categories: CATS.filter((item) => item !== cat) })} />
+        <ChipList items={CATS} onMove={(from, to) => moveListItem("categories", CATS, from, to)} onRemove={(cat) => persistSettings({ ...settings, categories: CATS.filter((item) => item !== cat) })} />
         <AddRow value={newCat} onChange={setNewCat} onAdd={addCategory} placeholder="New category" />
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Platforms</div>
-        <ChipList items={PLATS} onRemove={(platform) => persistSettings({ ...settings, platforms: PLATS.filter((item) => item !== platform) })} />
+        <ChipList items={PLATS} onMove={(from, to) => moveListItem("platforms", PLATS, from, to)} onRemove={(platform) => persistSettings({ ...settings, platforms: PLATS.filter((item) => item !== platform) })} />
         <AddRow value={newPlat} onChange={setNewPlat} onAdd={addPlatform} placeholder="New platform" />
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Payment Methods</div>
-        <ChipList items={PAYMETHODS} onRemove={(method) => persistSettings({ ...settings, paymentMethods: PAYMETHODS.filter((item) => item !== method) })} />
+        <ChipList items={PAYMETHODS} onMove={(from, to) => moveListItem("paymentMethods", PAYMETHODS, from, to)} onRemove={(method) => persistSettings({ ...settings, paymentMethods: PAYMETHODS.filter((item) => item !== method) })} />
         <AddRow value={newPaymentMethod} onChange={setNewPaymentMethod} onAdd={addPaymentMethod} placeholder="New payment method" />
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20 }}>
