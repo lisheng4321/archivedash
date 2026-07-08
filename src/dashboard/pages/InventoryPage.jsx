@@ -12,6 +12,9 @@ export default function InventoryPage({ ctx }) {
     setConfirmDel,
     ebayExportStatus,
     handleEbayPartnerExport,
+    buyerNotifyStatus,
+    handleBuyerNotifyExport,
+    selectedBuyerNotifyCount,
     CATS = [],
     listingPlatforms = [],
     openAddInventory,
@@ -85,6 +88,7 @@ export default function InventoryPage({ ctx }) {
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
             <button onClick={() => setBulkSellOpen(true)} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button>
+            <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify buyers{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button>
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete {selectedInv.size}</button>
@@ -96,6 +100,11 @@ export default function InventoryPage({ ctx }) {
       {ebayExportStatus && (
         <div role="status" style={{ margin: "-6px 0 12px", padding: "8px 10px", borderRadius: 8, background: "#0d1b2f", border: "1px solid #2563eb66", color: "#bfdbfe", fontSize: 12, fontWeight: 700 }}>
           {ebayExportStatus}
+        </div>
+      )}
+      {buyerNotifyStatus && (
+        <div role="status" style={{ margin: "-6px 0 12px", padding: "8px 10px", borderRadius: 8, background: "#0f2418", border: "1px solid #16a34a66", color: "#bbf7d0", fontSize: 12, fontWeight: 700 }}>
+          {buyerNotifyStatus}
         </div>
       )}
 
@@ -170,6 +179,7 @@ export default function InventoryPage({ ctx }) {
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
+            <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
             <button onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell</button>
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete</button>

@@ -14,7 +14,7 @@ import SubscriptionsPage from "./dashboard/pages/SubscriptionsPage.jsx";
 import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx";
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
-import { mergeCustomerInterests } from "./dashboard/customerMarketing.js";
+import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
 import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
@@ -148,6 +148,7 @@ export default function App({ onLogout, userEmail }) {
   const [gmailStatus, setGmailStatus] = useState("");
   const [gmailQueueOpen, setGmailQueueOpen] = useState(false);
   const [gmailReviewOpen, setGmailReviewOpen] = useState(null);
+  const [buyerNotifyStatus, setBuyerNotifyStatus] = useState("");
 
   // Filters
   const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invPreorderView, setInvPreorderView] = useState("available"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
@@ -1033,6 +1034,77 @@ export default function App({ onLogout, userEmail }) {
   };
 
   // ─── Export ───
+  const buyerContactFor = (customer) => customer.profile?.facebookName
+    || customer.profile?.discordHandle
+    || customer.profile?.phone
+    || customer.profile?.email
+    || customer.name;
+
+  const buildBuyerNotifyExport = (items) => {
+    const byCustomer = new Map();
+    items.forEach((item) => {
+      matchedBuyerRequestsForItem(item, customerRows).forEach(({ customer, request }) => {
+        const entry = byCustomer.get(customer.key) || { customer, rows: [] };
+        entry.rows.push({ item, request });
+        byCustomer.set(customer.key, entry);
+      });
+    });
+    return [...byCustomer.values()].map(({ customer, rows }) => {
+      const matchedItems = rows.map(({ item, request }) => {
+        const price = Number(item.price) > 0 ? ` - ${currency(item.price)}` : "";
+        return `- ${item.name || "Untitled item"} (${item.size || "OS"})${price} [${request.label}]`;
+      }).join("\n");
+      const firstItem = rows[0]?.item || {};
+      return [
+        `${customer.name} - ${buyerContactFor(customer)}`,
+        matchedItems,
+        "",
+        `Hey ${customer.name || "there"}, I just got ${firstItem.name || "something you asked about"} in. You asked me to let you know when this kind of stock came through. Want me to hold one for you?`,
+      ].join("\n");
+    }).join("\n\n---\n\n");
+  };
+
+  const handleBuyerNotifyExport = async () => {
+    const items = inventory.filter((item) => selectedInv.has(item.id));
+    if (!items.length) return;
+    const matches = items.flatMap((item) => matchedBuyerRequestsForItem(item, customerRows).map((match) => ({ ...match, item })));
+    const customerCount = new Set(matches.map((match) => match.customer.key)).size;
+    if (!matches.length) {
+      setBuyerNotifyStatus("No saved buyer requests matched the selected inventory.");
+      setTimeout(() => setBuyerNotifyStatus(""), 4000);
+      return;
+    }
+    try {
+      await copyTextToClipboard(buildBuyerNotifyExport(items));
+    } catch {
+      setBuyerNotifyStatus("Clipboard blocked. Try again from the Inventory page.");
+      setTimeout(() => setBuyerNotifyStatus(""), 4000);
+      return;
+    }
+    const now = new Date().toISOString();
+    const notifiedByCustomer = matches.reduce((map, match) => {
+      if (!map.has(match.customer.key)) map.set(match.customer.key, new Set());
+      map.get(match.customer.key).add(match.request.id);
+      return map;
+    }, new Map());
+    const nextProfiles = { ...(settings.customerProfiles || {}) };
+    notifiedByCustomer.forEach((requestIds, key) => {
+      const profile = nextProfiles[key] || {};
+      nextProfiles[key] = {
+        ...profile,
+        notifyRequests: normalizeBuyerRequests(profile).map((request) => requestIds.has(request.id)
+          ? { ...request, lastNotifiedAt: now, updatedAt: now }
+          : request),
+        lastContactedAt: now,
+        outreachStatus: "contacted",
+        updatedAt: Date.now(),
+      };
+    });
+    await persistSettings({ ...settings, customerProfiles: nextProfiles });
+    setBuyerNotifyStatus(`Copied messages for ${customerCount} buyer${customerCount === 1 ? "" : "s"}.`);
+    setTimeout(() => setBuyerNotifyStatus(""), 4000);
+  };
+
   const buildBackupSnapshot = (reason = "manual") => ({
     id: genId(),
     reason,
@@ -1729,6 +1801,7 @@ export default function App({ onLogout, userEmail }) {
         categoriesList: [...row.categories],
         brandsList: interests.brands,
         productTypesList: interests.productTypes,
+        notifyRequests: normalizeBuyerRequests(row.profile),
         defaultPlatform: row.profile.defaultPlatform || [...row.platformGroups][0] || "Other",
       };
     }).filter((row) => !hiddenCustomerKeys.includes(row.key));
@@ -1758,6 +1831,7 @@ export default function App({ onLogout, userEmail }) {
         ...row.platformsList,
         ...row.brandsList,
         ...row.productTypesList,
+        ...(row.notifyRequests || []).flatMap((request) => [request.label, request.keywords, request.category, request.brand, request.notes, request.channel]),
       ].some((v) => String(v || "").toLowerCase().includes(q)));
     }
     if (customerPlatform !== "All") {
@@ -1779,6 +1853,15 @@ export default function App({ onLogout, userEmail }) {
     return result;
   }, [sales, CUSTS, customerProfiles, hiddenCustomerKeys, customerSearch, customerPlatform, customerSort]);
 
+  const buyerMatchesByInventoryId = useMemo(() => {
+    const next = new Map();
+    inventory.forEach((item) => {
+      const matches = matchedBuyerRequestsForItem(item, customerRows);
+      if (matches.length) next.set(item.id, matches);
+    });
+    return next;
+  }, [inventory, customerRows]);
+
   const filteredExp = useMemo(() => {
     let f = expenses;
     if (expSearch) f = f.filter((e) => e.name.toLowerCase().includes(expSearch.toLowerCase()));
@@ -1799,6 +1882,14 @@ export default function App({ onLogout, userEmail }) {
   }, [expenses, expSearch, expCatFilter, expPayment, expFrom, expTo, expSort]);
 
   const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
+  const selectedBuyerNotifyCount = useMemo(() => {
+    const keys = new Set();
+    inventory.forEach((item) => {
+      if (!selectedInv.has(item.id)) return;
+      (buyerMatchesByInventoryId.get(item.id) || []).forEach(({ customer }) => keys.add(customer.key));
+    });
+    return keys.size;
+  }, [inventory, selectedInv, buyerMatchesByInventoryId]);
   const preorderInvCount = useMemo(() => inventory.filter((i) => i.preorderDate).length, [inventory]);
   const availableInvCount = useMemo(() => inventory.filter((i) => !i.preorderDate).length, [inventory]);
   const listedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).length > 0).length, [inventory]);
@@ -2004,13 +2095,14 @@ export default function App({ onLogout, userEmail }) {
   ) : null;
 
   const invRow = (item, isGroupChild, index = 0) => {
+    const buyerMatchCount = buyerMatchesByInventoryId.get(item.id)?.length || 0;
     if (isMobile) {
       return (
         <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...(isGroupChild ? childAccent : {}) }}>
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
@@ -2035,7 +2127,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}</div>{item.brand && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{item.brand && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-start" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "left" }}>{item.size||"OS"}</span>
@@ -2365,7 +2457,7 @@ export default function App({ onLogout, userEmail }) {
         {/* DASHBOARD */}
         {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorders, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}

@@ -128,7 +128,7 @@ export default function CustomersPage({ ctx }) {
           ))}
         </div>
 
-        <CustomerDetail customer={active} isMobile={isMobile} updateCustomerProfile={updateCustomerProfile} removeCustomer={removeCustomer} setActiveCustomerKey={setActiveCustomerKey} setAddSaleOpen={setAddSaleOpen} />
+        <CustomerDetail customer={active} isMobile={isMobile} categories={settings.categories || []} updateCustomerProfile={updateCustomerProfile} removeCustomer={removeCustomer} setActiveCustomerKey={setActiveCustomerKey} setAddSaleOpen={setAddSaleOpen} />
       </div>
 
       {addOpen && <AddCustomerModal onClose={() => setAddOpen(false)} onSave={async (profile) => { const key = await addCustomer(profile.name, profile); setActiveCustomerKey(key); setAddOpen(false); }} />}
@@ -170,12 +170,39 @@ function CustomerRow({ customer, active, selected, onToggle, index, isMobile, on
   );
 }
 
-function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCustomer, setActiveCustomerKey, setAddSaleOpen }) {
+const requestDraftDefaults = { label: "", keywords: "", category: "Any", brand: "", maxPrice: "", channel: "Facebook", notes: "" };
+
+function CustomerDetail({ customer, isMobile, categories, updateCustomerProfile, removeCustomer, setActiveCustomerKey, setAddSaleOpen }) {
+  const [requestDraft, setRequestDraft] = useState(requestDraftDefaults);
+  const setRequestDraftField = (field, value) => setRequestDraft((current) => ({ ...current, [field]: value }));
   if (!customer) {
     return <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 24, color: "#374151", fontSize: 13, textAlign: "center" }}>Select a customer</div>;
   }
   const p = customer.profile || {};
   const update = (field, value) => updateCustomerProfile(customer.key, { [field]: value });
+  const notifyRequests = customer.notifyRequests || (Array.isArray(p.notifyRequests) ? p.notifyRequests : Array.isArray(p.wants) ? p.wants : []);
+  const saveNotifyRequests = (requests) => update("notifyRequests", requests);
+  const addNotifyRequest = () => {
+    const label = requestDraft.label.trim();
+    const keywords = requestDraft.keywords.trim() || label;
+    if (!label && !keywords) return;
+    saveNotifyRequests([{
+      id: `notify-${Date.now()}`,
+      label: label || keywords,
+      keywords,
+      category: requestDraft.category || "Any",
+      brand: requestDraft.brand.trim(),
+      maxPrice: requestDraft.maxPrice,
+      channel: requestDraft.channel || p.defaultPlatform || "Facebook",
+      active: true,
+      notes: requestDraft.notes.trim(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }, ...notifyRequests]);
+    setRequestDraft(requestDraftDefaults);
+  };
+  const updateNotifyRequest = (id, changes) => saveNotifyRequests(notifyRequests.map((request) => request.id === id ? { ...request, ...changes, updatedAt: new Date().toISOString() } : request));
+  const removeNotifyRequest = (id) => saveNotifyRequests(notifyRequests.filter((request) => request.id !== id));
   return (
     <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 16, alignSelf: "start", position: isMobile ? "static" : "sticky", top: 46 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", marginBottom: 12 }}>
@@ -208,6 +235,42 @@ function CustomerDetail({ customer, isMobile, updateCustomerProfile, removeCusto
         <Field label="Product types"><input value={p.productTypes || ""} onChange={(e) => update("productTypes", e.target.value)} style={inp} placeholder="TCG sealed, Sneakers..." /></Field>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
           {[...customer.brandsList, ...customer.productTypesList].map((interest) => <span key={interest} style={{ background: "#0d1f33", border: "1px solid #1d4ed866", color: "#93c5fd", borderRadius: 999, padding: "3px 7px", fontSize: 10, fontWeight: 700 }}>{interest}</span>)}
+        </div>
+      </Section>
+
+      <Section title="Notify requests">
+        {notifyRequests.length === 0 ? (
+          <div style={{ color: "#64748b", fontSize: 12, padding: "3px 0 10px" }}>No notify requests saved.</div>
+        ) : notifyRequests.map((request) => (
+          <div key={request.id} style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, padding: 10, marginBottom: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{request.label || request.keywords}</div>
+                <div style={{ color: "#8b97ad", fontSize: 11, marginTop: 2 }}>{[request.category && request.category !== "Any" ? request.category : "", request.brand, request.maxPrice ? `max ${currency(request.maxPrice)}` : "", request.channel].filter(Boolean).join(" - ")}</div>
+                {request.keywords && <div style={{ color: "#64748b", fontSize: 11, marginTop: 3 }}>{request.keywords}</div>}
+                {request.lastNotifiedAt && <div style={{ color: "#86efac", fontSize: 10, marginTop: 4 }}>Last notified {new Date(request.lastNotifiedAt).toLocaleString("en-AU")}</div>}
+              </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                <label style={{ color: "#9ca3af", fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}><input type="checkbox" checked={request.active !== false} onChange={(event) => updateNotifyRequest(request.id, { active: event.target.checked })} />Active</label>
+                <button onClick={() => removeNotifyRequest(request.id)} style={{ ...dangerQuietBtn, padding: "5px 8px", fontSize: 11 }}>Remove</button>
+              </div>
+            </div>
+            {request.notes && <div style={{ color: "#9ca3af", fontSize: 11, marginTop: 7, lineHeight: 1.4 }}>{request.notes}</div>}
+          </div>
+        ))}
+        <div style={{ background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, padding: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.4fr", gap: 8 }}>
+            <Field label="Request"><input value={requestDraft.label} onChange={(e) => setRequestDraftField("label", e.target.value)} style={inp} placeholder="Hot Wheels RLC Chevys" /></Field>
+            <Field label="Match keywords"><input value={requestDraft.keywords} onChange={(e) => setRequestDraftField("keywords", e.target.value)} style={inp} placeholder="hot wheels, rlc, chevy, chevrolet" /></Field>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 0.8fr 0.9fr", gap: 8 }}>
+            <Field label="Category"><select value={requestDraft.category} onChange={(e) => setRequestDraftField("category", e.target.value)} style={sel}><option value="Any">Any</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></Field>
+            <Field label="Brand"><input value={requestDraft.brand} onChange={(e) => setRequestDraftField("brand", e.target.value)} style={inp} placeholder="Hot Wheels" /></Field>
+            <Field label="Max price"><input type="number" min="0" value={requestDraft.maxPrice} onChange={(e) => setRequestDraftField("maxPrice", e.target.value)} style={inp} /></Field>
+            <Field label="Channel"><select value={requestDraft.channel} onChange={(e) => setRequestDraftField("channel", e.target.value)} style={sel}>{PLATFORM_FILTERS.filter((x) => x !== "All").map((x) => <option key={x}>{x}</option>)}</select></Field>
+          </div>
+          <Field label="Notes"><input value={requestDraft.notes} onChange={(e) => setRequestDraftField("notes", e.target.value)} style={inp} placeholder="Prefers carded / sealed / preorders ok" /></Field>
+          <button onClick={addNotifyRequest} disabled={!requestDraft.label.trim() && !requestDraft.keywords.trim()} style={{ ...primaryBtn, padding: "7px 12px", fontSize: 12, opacity: requestDraft.label.trim() || requestDraft.keywords.trim() ? 1 : 0.5 }}>Add request</button>
         </div>
       </Section>
 
