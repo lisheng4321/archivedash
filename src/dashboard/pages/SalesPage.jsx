@@ -45,6 +45,11 @@ export default function SalesPage({ ctx }) {
   const recentProfit = recentSales.reduce((a, s) => a + saleProfit(s), 0);
   const latestSaleDate = [...sales].map((sale) => sale.saleDate).filter(Boolean).sort().pop();
   const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
+  const titleSearch = saleSearch.trim().toLowerCase();
+  const visibleSales = titleSearch
+    ? filteredSales.filter((sale) => String(sale.name || "").toLowerCase().includes(titleSearch))
+    : filteredSales;
+  const allVisibleSalesSelected = visibleSales.length > 0 && visibleSales.every((sale) => selectedSales.has(sale._saleKey || sale.id));
 
   return (
     <div style={{ padding: pagePad }}>
@@ -73,7 +78,7 @@ export default function SalesPage({ ctx }) {
       {ebayQueueOpen && ebayQueuePanel()}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <input placeholder="Search name / brand..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: 190 }} />
+        <input placeholder="Search item title..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: 190 }} />
         <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: 160 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
         <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
@@ -88,7 +93,7 @@ export default function SalesPage({ ctx }) {
           <option value="sale_asc">Sale up</option>
         </select>}
         {(saleSearch || saleCat !== "All" || salePlat !== "All" || salePayment !== "All" || saleSort !== "date_desc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredSales.length} shown</span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{visibleSales.length} shown</span>
       </div>
 
       {sales.length === 0 ? (
@@ -103,13 +108,13 @@ export default function SalesPage({ ctx }) {
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
-            <input type="checkbox" checked={selectedSales.size === filteredSales.length && filteredSales.length > 0} onChange={toggleAllSales} style={cb} />
+            <input type="checkbox" checked={allVisibleSalesSelected} onChange={toggleAllSales} style={cb} />
             <span style={tableHead()}>Item</span><span style={tableHead()}>Platform</span><span style={tableHead()}>Size</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Cost</span><span style={tableHead("right")}>Sale</span><span style={tableHead("right")}>Profit</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
-        {mobileSelectAll(selectedSales.size === filteredSales.length && filteredSales.length > 0, toggleAllSales, filteredSales.length)}
-        {filteredSales.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No sales match these filters.<button onClick={clearFilters} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div>}
-        {filteredSales.map((s, idx) => saleRow(s, idx))}
+        {mobileSelectAll(allVisibleSalesSelected, toggleAllSales, visibleSales.length)}
+        {visibleSales.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No sales match these filters.<button onClick={clearFilters} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div>}
+        {visibleSales.map((s, idx) => saleRow(s, idx))}
       </div>
       )}
     </div>

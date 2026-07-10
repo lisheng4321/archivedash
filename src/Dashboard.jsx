@@ -886,11 +886,15 @@ export default function App({ onLogout, userEmail }) {
   const handleDelete = async () => {
     if (!confirmDel) return;
     if (confirmDel.type === "inv") await persistInv(inventory.filter((i) => i.id !== confirmDel.id));
-    else if (confirmDel.type === "sale") await persistSales(sales.filter((s) => s.id !== confirmDel.id));
+    else if (confirmDel.type === "sale") await persistSales(
+      confirmDel.saleKey
+        ? keyedSales.filter((s) => s._saleKey !== confirmDel.saleKey).map(stripSaleKey)
+        : sales.filter((s) => s.id !== confirmDel.id)
+    );
     else if (confirmDel.type === "exp") await persistExp(expenses.filter((e) => e.id !== confirmDel.id));
     else if (confirmDel.type === "multi") { await persistInv(inventory.filter((i) => !selectedInv.has(i.id))); setSelectedInv(new Set()); }
     else if (confirmDel.type === "multi-exp") { await persistExp(expenses.filter((e) => !selectedExp.has(e.id))); setSelectedExp(new Set()); }
-    else if (confirmDel.type === "multi-sale") { await persistSales(sales.filter((s) => !selectedSales.has(s.id))); setSelectedSales(new Set()); }
+    else if (confirmDel.type === "multi-sale") { await persistSales(keyedSales.filter((s) => !selectedSales.has(s._saleKey)).map(stripSaleKey)); setSelectedSales(new Set()); }
     else if (confirmDel.type === "sub") await persistSubs(subs.filter((s) => s.id !== confirmDel.id));
     else if (confirmDel.type === "note") await deleteNote(confirmDel.id);
     setConfirmDel(null);
@@ -1720,9 +1724,44 @@ export default function App({ onLogout, userEmail }) {
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const toggleGroup = (key) => setExpandedGroups((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
 
+  const stripSaleKey = (sale) => {
+    const { _saleKey, ...clean } = sale;
+    return clean;
+  };
+
+  const keyedSales = useMemo(() => {
+    const seen = new Map();
+    return sales.map((sale) => {
+      const fingerprint = [
+        sale.id || "",
+        sale.name || "",
+        sale.saleDate || "",
+        sale.salePrice ?? "",
+        sale.costPrice ?? "",
+        sale.platform || "",
+        sale.customer || "",
+        sale.profit ?? "",
+      ].join("::");
+      const occurrence = seen.get(fingerprint) || 0;
+      seen.set(fingerprint, occurrence + 1);
+      return { ...sale, _saleKey: `${fingerprint}::${occurrence}` };
+    });
+  }, [sales]);
+
+  useEffect(() => {
+    const validKeys = new Set(keyedSales.map((sale) => sale._saleKey));
+    setSelectedSales((prev) => {
+      const next = new Set([...prev].filter((key) => validKeys.has(key)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [keyedSales]);
+
   const filteredSales = useMemo(() => {
-    let f = sales;
-    if (saleSearch) f = f.filter((s) => s.name.toLowerCase().includes(saleSearch.toLowerCase()) || (s.brand||"").toLowerCase().includes(saleSearch.toLowerCase()));
+    let f = keyedSales;
+    const q = saleSearch.trim().toLowerCase();
+    if (q) {
+      f = f.filter((s) => String(s.name || "").toLowerCase().includes(q));
+    }
     if (saleCat !== "All") f = f.filter((s) => s.category === saleCat);
     if (salePlat !== "All") f = f.filter((s) => s.platform === salePlat);
     if (salePayment !== "All") f = f.filter((s) => recordPaymentMethod(s) === salePayment);
@@ -1738,7 +1777,7 @@ export default function App({ onLogout, userEmail }) {
       case "profit_asc": sorted.sort((a, b) => a.profit - b.profit); break;
     }
     return sorted;
-  }, [sales, saleSearch, saleCat, salePlat, salePayment, saleSort]);
+  }, [keyedSales, saleSearch, saleCat, salePlat, salePayment, saleSort]);
 
   const customerRows = useMemo(() => {
     const platformGroup = (platform = "") => {
@@ -1916,13 +1955,13 @@ export default function App({ onLogout, userEmail }) {
     setConfirmDel({ type: "multi-exp", name: `${selectedExp.size} expenses` });
   };
 
-  const selectedSalesProfit = useMemo(() => sales.filter((s) => selectedSales.has(s.id)).reduce((a, s) => a + saleProfit(s), 0), [sales, selectedSales]);
-  const selectedSalesRevenue = useMemo(() => sales.filter((s) => selectedSales.has(s.id)).reduce((a, s) => a + s.salePrice, 0), [sales, selectedSales]);
-  const toggleSelSale = (id) => setSelectedSales((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
-  const toggleAllSales = () => { if (selectedSales.size === filteredSales.length) setSelectedSales(new Set()); else setSelectedSales(new Set(filteredSales.map((s) => s.id))); };
+  const selectedSalesProfit = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + saleProfit(s), 0), [keyedSales, selectedSales]);
+  const selectedSalesRevenue = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + s.salePrice, 0), [keyedSales, selectedSales]);
+  const toggleSelSale = (key) => setSelectedSales((p) => { const n = new Set(p); n.has(key)?n.delete(key):n.add(key); return n; });
+  const toggleAllSales = () => { if (filteredSales.length > 0 && filteredSales.every((s) => selectedSales.has(s._saleKey))) setSelectedSales(new Set()); else setSelectedSales(new Set(filteredSales.map((s) => s._saleKey))); };
   const handleBulkEditSale = async (updates) => {
     const ids = selectedSales;
-    await persistSales(sales.map((s) => ids.has(s.id) ? { ...s, ...updates } : s));
+    await persistSales(keyedSales.map((s) => stripSaleKey(ids.has(s._saleKey) ? { ...s, ...updates } : s)));
     setBulkEditSaleOpen(false); setSelectedSales(new Set());
   };
   const deleteSelectedSales = () => {
@@ -2191,10 +2230,13 @@ export default function App({ onLogout, userEmail }) {
 
   // ─── Sales row (mobile + desktop) ───
   const saleRow = (s, index = 0) => {
+    const saleKey = s._saleKey || s.id;
+    const saleSelected = selectedSales.has(saleKey);
+    const saleBackground = saleSelected ? "#24324a" : rowBg(index, false);
     if (isMobile) {
       return (
-        <div key={s.id} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start" }}>
-          <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={{ ...cb, width: 20, height: 20 }} /></div>
+        <div key={saleKey} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c22", background: saleBackground, cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...selectedAccent(saleSelected) }}>
+          <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}{sampleTag(s)}</span>
@@ -2207,7 +2249,7 @@ export default function App({ onLogout, userEmail }) {
               <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
                 <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, marginRight: 2 }}>{currency(s.profit)}</span>
                 <button onClick={() => setEditSaleOpen(s)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
-                <button aria-label={`Delete ${s.name}`} title="Delete" onClick={() => setConfirmDel({ type: "sale", id: s.id, name: s.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
+                <button aria-label={`Delete ${s.name}`} title="Delete" onClick={() => setConfirmDel({ type: "sale", id: s.id, saleKey, name: s.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -2215,8 +2257,8 @@ export default function App({ onLogout, userEmail }) {
       );
     }
     return (
-      <div key={s.id} className="archive-data-row" data-selected={selectedSales.has(s.id)} onClick={(e) => rowClick(e, toggleSelSale, s.id)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedSales.has(s.id)), cursor: "pointer", ...selectedAccent(selectedSales.has(s.id)), zIndex: rowMenuOpen === `sale:${s.id}` ? 4 : undefined }}>
-        <input type="checkbox" checked={selectedSales.has(s.id)} onChange={() => toggleSelSale(s.id)} style={cb} />
+      <div key={saleKey} className="archive-data-row" data-selected={saleSelected} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: saleBackground, cursor: "pointer", ...selectedAccent(saleSelected), zIndex: rowMenuOpen === `sale:${saleKey}` ? 4 : undefined }}>
+        <input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={cb} />
         <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category} · {recordPaymentMethod(s)}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left" }}><PlatformBadge platform={s.platform} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "left" }}>{s.size||"OS"}</span>
@@ -2227,9 +2269,9 @@ export default function App({ onLogout, userEmail }) {
         <div className="archive-row-actions">
           <button onClick={() => setEditSaleOpen(s)} style={rowActionButton}>Edit</button>
           <div className="archive-row-action-wrap">
-            <button aria-label={`More actions for ${s.name}`} aria-expanded={rowMenuOpen === `sale:${s.id}`} onClick={() => setRowMenuOpen((open) => open === `sale:${s.id}` ? null : `sale:${s.id}`)} style={moreActionButton}>...</button>
-            {rowMenuOpen === `sale:${s.id}` && <div className="archive-row-menu">
-              <button onClick={() => { setConfirmDel({ type: "sale", id: s.id, name: s.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
+            <button aria-label={`More actions for ${s.name}`} aria-expanded={rowMenuOpen === `sale:${saleKey}`} onClick={() => setRowMenuOpen((open) => open === `sale:${saleKey}` ? null : `sale:${saleKey}`)} style={moreActionButton}>...</button>
+            {rowMenuOpen === `sale:${saleKey}` && <div className="archive-row-menu">
+              <button onClick={() => { setConfirmDel({ type: "sale", id: s.id, saleKey, name: s.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
             </div>}
           </div>
         </div>
@@ -2646,14 +2688,14 @@ export default function App({ onLogout, userEmail }) {
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} paymentMethods={PAYMETHODS} />}
       {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
       {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
-      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(sales.map((s) => s.id===editSaleOpen.id?u:s)); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(keyedSales.map((s) => stripSaleKey(s._saleKey===editSaleOpen._saleKey ? u : s))); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
       {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
       {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}
       {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       {bulkEditExpOpen && <BulkEditExpModal items={expenses.filter((e) => selectedExp.has(e.id))} onSave={handleBulkEditExp} onClose={() => setBulkEditExpOpen(false)} paymentMethods={PAYMETHODS} />}
-      {bulkEditSaleOpen && <BulkEditSaleModal items={sales.filter((s) => selectedSales.has(s.id))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} paymentMethods={PAYMETHODS} />}
+      {bulkEditSaleOpen && <BulkEditSaleModal items={keyedSales.filter((s) => selectedSales.has(s._saleKey))} onSave={handleBulkEditSale} onClose={() => setBulkEditSaleOpen(false)} platforms={PLATS} paymentMethods={PAYMETHODS} />}
       <ConfirmDialog open={!!confirmDel} msg={confirmDel?.type==="multi"||confirmDel?.type==="multi-exp"||confirmDel?.type==="multi-sale"?`Delete ${confirmDel.name}?`:`Delete "${confirmDel?.name}"?`} onConfirm={handleDelete} onCancel={() => setConfirmDel(null)} />
       <DangerConfirmDialog
         open={!!dangerAction}
