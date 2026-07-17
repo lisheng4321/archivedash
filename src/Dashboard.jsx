@@ -755,8 +755,9 @@ export default function App({ onLogout, userEmail }) {
     for (const item of items) {
       const r = rows.find((x) => x.id === item.id);
       if (!r) continue;
-      const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      if (sp <= 0) continue;
+      const rawSalePrice = String(r.salePrice ?? "").trim();
+      const sp = parseFloat(rawSalePrice), ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
+      if (!rawSalePrice || !Number.isFinite(sp) || sp < 0) continue;
       newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
       soldIds.add(item.id);
     }

@@ -36,6 +36,12 @@ const paymentForPlatform = (platform = "", methods = []) => {
 
 const methodOptions = (methods = [], current = "") => [...new Set([...methods, current || "Other"].filter(Boolean))];
 
+const hasValidSalePrice = (value) => {
+  if (String(value ?? "").trim() === "") return false;
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0;
+};
+
 function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMethods = [] }) {
   const [ef, setEf] = useState({ name: sale.name, category: sale.category, costPrice: sale.costPrice, salePrice: sale.salePrice, shippingPrice: sale.shippingPrice, platformFees: sale.platformFees, platform: sale.platform, paymentMethod: sale.paymentMethod || "Other", saleDate: sale.saleDate, tags: sale.tags || "", brand: sale.brand || "", customer: sale.customer || "" });
   const [showU, setShowU] = useState(false);
@@ -43,10 +49,11 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMet
   const gc = () => { setShowU(true); };
   const sp = parseFloat(ef.salePrice)||0, ship = parseFloat(ef.shippingPrice)||0, fees = parseFloat(ef.platformFees)||0, cost = parseFloat(ef.costPrice)||0;
   const preview = computeProfit({ salePrice: sp, cost, shipping: ship, fees });
+  const salePriceValid = hasValidSalePrice(ef.salePrice);
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit sale">
     <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>{ef.category} · {sale.size || "OS"}{sale.brand ? ` · ${sale.brand}` : ""}</div></div>
     <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value })} style={inp} /></Field></Row>
-    <Row><Field label="Sale price (AU$)" req><input type="number" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
+    <Row><Field label="Sale price (AU$)" req><input type="number" min="0" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} /></Field><Field label="Fees"><input type="number" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Payment method"><select value={ef.paymentMethod} onChange={(e) => up({ paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, ef.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field></Row>
     <Field label="Customer"><input list="cust-list2" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} /><datalist id="cust-list2">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field>
@@ -56,7 +63,7 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMet
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </ResponsiveGrid>
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => onSave({ ...sale, ...ef, costPrice: cost, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: preview })} style={primaryBtn}>Save</button></ModalActions>
+    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!salePriceValid) return; onSave({ ...sale, ...ef, costPrice: cost, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: preview }); }} style={{ ...primaryBtn, opacity: salePriceValid ? 1 : 0.5 }}>Save</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
@@ -70,18 +77,19 @@ function SellModal({ item, onSell, onClose, platforms, customers, paymentMethods
   const gc = () => { if (dirty) setShowU(true); else onClose(); };
   const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
   const preview = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
+  const salePriceValid = hasValidSalePrice(sf.salePrice);
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Create a new sale">
     <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{item.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>Cost: {currency(item.price)} · {item.category} · {item.size||"OS"}{item.brand ? ` · ${item.brand}` : ""}</div></div>
-    <Row><Field label="Sale price" req><input type="number" step="0.01" value={sf.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} placeholder="0" autoFocus /></Field><Field label="Sale date"><input type="date" value={sf.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
+    <Row><Field label="Sale price" req><input type="number" min="0" step="0.01" value={sf.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} placeholder="0" autoFocus /></Field><Field label="Sale date"><input type="date" value={sf.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={sf.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Fees"><input type="number" step="0.01" value={sf.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} placeholder="0" /></Field><Field label="Platform" req><select value={sf.platform} onChange={(e) => { const platform = e.target.value; up({ platform, paymentMethod: paymentForPlatform(platform, paymentMethods) }); }} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row cols={3}><Field label="Payment method"><select value={sf.paymentMethod} onChange={(e) => up({ paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, sf.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Customer"><input list="cust-sell" value={sf.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-sell">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field><Field label="Tags"><input value={sf.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
-    {sp > 0 && <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 4, fontSize: 12 }}>
+    {salePriceValid && <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 4, fontSize: 12 }}>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Cost</div><div style={{ color: "#9ca3af", fontWeight: 600 }}>{currency(item.price)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Fees+Ship</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(fees+ship)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </ResponsiveGrid>}
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!sf.salePrice) return; onSell(sf); }} style={primaryBtn}>Create sale</button></ModalActions>
+    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!salePriceValid) return; onSell(sf); }} style={{ ...primaryBtn, opacity: salePriceValid ? 1 : 0.5 }}>Create sale</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
@@ -123,7 +131,7 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers, paymentMe
   });
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
-  const allPriced = previews.every((p) => p.sp > 0);
+  const allPriced = rows.every((row) => hasValidSalePrice(row.salePrice));
 
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title={`Sell ${items.length} items`}>
     <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12 }}>
@@ -146,10 +154,10 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers, paymentMe
             </div>
           </div>
           <ResponsiveGrid columns="1fr 1fr 1fr 80px" mobileColumns="1fr 1fr" gap={6} style={{ alignItems: "center" }}>
-            <input type="number" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
+            <input type="number" min="0" step="0.01" placeholder="Sale $" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
             <input type="number" step="0.01" placeholder="Ship $" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
             <input type="number" step="0.01" placeholder="Fees $" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right" }}>{sp>0?currency(profit):"—"}</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: hasValidSalePrice(r.salePrice)?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right" }}>{hasValidSalePrice(r.salePrice)?currency(profit):"—"}</span>
           </ResponsiveGrid>
         </div>);
       })}
@@ -192,7 +200,7 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers, pay
   });
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
   const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
-  const allPriced = selectedItems.length > 0 && previews.every((p) => p.sp > 0);
+  const allPriced = selectedItems.length > 0 && preparedRows.every((row) => hasValidSalePrice(row.salePrice));
 
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
     <Row cols={4}><Field label="Platform" req><select value={shared.platform} onChange={(e) => { const platform = e.target.value; setShared({ ...shared, platform, paymentMethod: paymentForPlatform(platform, paymentMethods) }); }} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Payment method"><select value={shared.paymentMethod} onChange={(e) => setShared({ ...shared, paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, shared.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
@@ -232,10 +240,10 @@ function ManualSaleModal({ inventory, onSell, onClose, platforms, customers, pay
                 <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>Remove</button>
               </div>
               <ResponsiveGrid columns="repeat(3, minmax(120px, 1fr)) 92px" mobileColumns="1fr 1fr" gap={8} style={{ alignItems: "end" }}>
-                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" step="0.01" placeholder="Sale price" value={r.salePrice || ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
+                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" min="0" step="0.01" placeholder="Sale price" value={r.salePrice ?? ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
                 <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Shipping</div><input type="number" step="0.01" placeholder="Shipping" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
                 <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Fees</div><input type="number" step="0.01" placeholder="Fees" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: sp>0?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{sp>0?currency(profit):"—"}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: hasValidSalePrice(r.salePrice)?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{hasValidSalePrice(r.salePrice)?currency(profit):"—"}</span>
               </ResponsiveGrid>
             </div>
           );
@@ -275,7 +283,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose, paymentMethods =
   const totalShip = previews.reduce((a, p) => a + p.ship, 0);
   const totalFees = previews.reduce((a, p) => a + p.fees, 0);
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
-  const allPriced = previews.every((p) => p.sp > 0);
+  const allPriced = rows.every((row) => hasValidSalePrice(row.salePrice));
 
   return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
@@ -302,7 +310,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose, paymentMethods =
           </div>
           <div style={{ marginBottom: 7 }}><SaleItemIdentity item={item} /></div>
           <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="1fr" gap={6}>
-            <Field label="Sale price"><input type="number" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
+            <Field label="Sale price"><input type="number" min="0" step="0.01" value={r.salePrice} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
             <Field label="Shipping"><input type="number" step="0.01" value={r.shippingPrice} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
             <Field label="Fees"><input type="number" step="0.01" value={r.platformFees} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "6px 8px" }} /></Field>
           </ResponsiveGrid>
