@@ -90,16 +90,16 @@ export default function SubscriptionsPage({ ctx }) {
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <input type="search" aria-label="Search subscriptions" placeholder="Search subscriptions..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 210 }} />
-        <select aria-label="Filter by category" value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: 170, flex: isMobile ? "1 1 120px" : undefined }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-        {isMobile && <select aria-label="Sort subscriptions" value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: 150, flex: "1 1 110px" }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="amount_desc">Amount ↓</option><option value="amount_asc">Amount ↑</option><option value="frequency_asc">Frequency A-Z</option><option value="frequency_desc">Frequency Z-A</option><option value="category_asc">Category A-Z</option><option value="category_desc">Category Z-A</option><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option></select>}
+        <input type="search" aria-label="Search subscriptions" placeholder="Search subscriptions..." value={subSearch} onChange={(e) => setSubSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 210, flex: isMobile ? "1 1 100%" : undefined }} />
+        <select aria-label="Filter by category" value={subCatFilter} onChange={(e) => setSubCatFilter(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All categories</option>{SUB_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+        {isMobile && <select aria-label="Sort subscriptions" value={subSort} onChange={(e) => setSubSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}><option value="nextDue_asc">Next due ↑</option><option value="nextDue_desc">Next due ↓</option><option value="monthly_desc">Monthly ↓</option><option value="monthly_asc">Monthly ↑</option><option value="amount_desc">Amount ↓</option><option value="amount_asc">Amount ↑</option><option value="frequency_asc">Frequency A-Z</option><option value="frequency_desc">Frequency Z-A</option><option value="category_asc">Category A-Z</option><option value="category_desc">Category Z-A</option><option value="name_asc">Name A-Z</option><option value="name_desc">Name Z-A</option></select>}
         {filtersActive && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
+        <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{sortedSubs.length} shown · {currency(sortedSubs.reduce((a, s) => a + subMonthlyAud(s, fxRates), 0))}/mo</span>
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600 }}>
-            <SortHeader field="name" label="Name" sort={subSort} setSort={setSubSort} /><SortHeader field="category" label="Category" sort={subSort} setSort={setSubSort} /><SortHeader field="amount" label="Amount" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="frequency" label="Frequency" sort={subSort} setSort={setSubSort} /><SortHeader field="monthly" label="Monthly" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="nextDue" label="Next due" sort={subSort} setSort={setSubSort} /><span>Actions</span>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center" }}>
+            <SortHeader field="name" label="Item" sort={subSort} setSort={setSubSort} /><SortHeader field="category" label="Category" sort={subSort} setSort={setSubSort} align="center" /><SortHeader field="amount" label="Amount" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="frequency" label="Frequency" sort={subSort} setSort={setSubSort} align="center" /><SortHeader field="monthly" label="Monthly" sort={subSort} setSort={setSubSort} align="right" /><SortHeader field="nextDue" label="Next due" sort={subSort} setSort={setSubSort} align="center" /><span style={{ textAlign: "center" }}>Actions</span>
           </div>
         )}
         {sortedSubs.length === 0 && (subsCount > 0 ? (
@@ -121,13 +121,13 @@ export default function SubscriptionsPage({ ctx }) {
           const category = subCategory(s);
           if (isMobile) {
             return (
-              <div key={s.id} style={{ padding: "10px 14px", borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <div style={{ fontSize: 13, color: "#e5e7eb", fontWeight: 500 }}>{s.name}{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
-                  <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 600 }}>{amountLabel}</div>
+              <div key={s.id} className="archive-mobile-row" style={{ padding: "12px 14px", borderBottom: "1px solid #232c3c", opacity: s.active ? 1 : 0.5 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 7 }}>
+                  <div style={{ minWidth: 0, fontSize: 13, color: "#e5e7eb", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}</div>
+                  <div style={{ fontSize: 13, color: "#f3f6fb", fontWeight: 700, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{amountLabel}</div>
                 </div>
-                <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 6, flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#7c8aa0" }}>{freqText} · {currency(me)}/mo · <span style={{ color: isOverdue ? "#f87171" : undefined, fontWeight: isOverdue ? 600 : undefined }}>{s.nextDue ? `due ${s.nextDue}` : "no due date"}</span></span></div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>{subCatChip(category)}<span style={{ fontSize: 11, color: "#7c8aa0", lineHeight: 1.4 }}>{freqText} · {currency(me)}/mo · <span style={{ color: isOverdue ? "#f87171" : undefined, fontWeight: isOverdue ? 600 : undefined }}>{s.nextDue ? `due ${s.nextDue}` : "no due date"}</span></span></div>
+                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
                   {s.active && <button onClick={() => logSub(s)} style={rowBtn({ background: "#2563eb", color: "#fff" })}>Log</button>}
                   <button onClick={() => setSubModalOpen(s)} style={rowBtn()}>Edit</button>
                   <button onClick={() => toggleSubActive(s)} style={rowBtn({ color: s.active ? "#fbbf24" : "#34d399" })}>{s.active ? "Pause" : "Resume"}</button>
@@ -139,12 +139,12 @@ export default function SubscriptionsPage({ ctx }) {
           return (
             <div key={s.id} style={{ display: "grid", gridTemplateColumns: "2fr 120px 150px 125px 100px 100px 180px", gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c11", opacity: s.active ? 1 : 0.5 }}>
               <div><span style={{ color: "#e5e7eb" }}>{s.name}</span>{!s.active && <span style={badge("#232c3c","#7c8aa0")}>PAUSED</span>}{isOverdue && <span style={badge("#3b1f1f","#f87171")}>OVERDUE</span>}{s.tags && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{s.tags}</div>}</div>
-              <span>{subCatChip(category)}</span>
+              <span style={{ display: "flex", justifyContent: "center" }}>{subCatChip(category)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{amountLabel}</span>
-              <span style={{ color: "#9ca3af", fontSize: 12 }}>{freqText}</span>
+              <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}>{freqText}</span>
               <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "right" }}>{currency(me)}</span>
-              <span style={{ color: isOverdue ? "#f87171" : "#7c8aa0", fontSize: 12 }}>{s.nextDue || "—"}</span>
-              <div style={{ display: "flex", gap: 3 }}>
+              <span style={{ color: isOverdue ? "#f87171" : "#7c8aa0", fontSize: 12, textAlign: "center" }}>{s.nextDue || "—"}</span>
+              <div style={{ display: "flex", gap: 3, justifyContent: "center" }}>
                 {s.active && <button onClick={() => logSub(s)} title="Log charge and advance due date" style={rowBtn({ background: "#2563eb", color: "#fff", fontWeight: 500 })}>Log</button>}
                 <button onClick={() => setSubModalOpen(s)} style={rowBtn()}>Edit</button>
                 <button onClick={() => toggleSubActive(s)} title={s.active ? "Pause" : "Resume"} aria-label={`${s.active ? "Pause" : "Resume"} ${s.name}`} style={rowBtn({ color: s.active ? "#fbbf24" : "#34d399" })}>{s.active ? "⏸" : "▶"}</button>

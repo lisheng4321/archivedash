@@ -72,6 +72,7 @@ export default function InventoryPage({ ctx }) {
         cursor: "pointer",
         fontFamily: "inherit",
         whiteSpace: "nowrap",
+        flex: isMobile ? 1 : undefined,
       },
       children: `${label} ${count}`,
     };
@@ -111,20 +112,20 @@ export default function InventoryPage({ ctx }) {
       {gmailQueueOpen && gmailQueuePanel()}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: 200 }} />
-        <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
-        <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: 140 }}>
+        <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 200, flex: isMobile ? "1 1 100%" : undefined }} />
+        <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+        <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}>
           <option value="All">All Listings</option>
           <option value="Listed">Listed</option>
           <option value="Unlisted">Unlisted</option>
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("ebay")) && <option value="eBay">eBay</option>}
         </select>
-        <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3 }}>
+        <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3, width: isMobile ? "100%" : undefined }}>
           <button {...viewButton("available", "Available", availableInvCount)} />
           <button {...viewButton("preorders", "Preorders", preorderInvCount)} />
         </div>
-        {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: 150 }}>
+        {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
           <option value="preorder_asc">Preorder date up</option>
@@ -136,7 +137,7 @@ export default function InventoryPage({ ctx }) {
         </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
         {(invSearch || invCat !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
+        <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
       </div>
 
       {inventory.length === 0 ? (
@@ -151,8 +152,8 @@ export default function InventoryPage({ ctx }) {
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
-            <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={cb} />
-            <SortHeader field="name" label="Name" sort={invSort} setSort={setInvSort} /><span style={tableHead()}>Listed</span><span style={tableHead()}>Category</span><span style={tableHead()}>Size</span><SortHeader field="price" label="Price" sort={invSort} setSort={setInvSort} align="right" /><SortHeader field="date" label="Date" sort={invSort} setSort={setInvSort} align="center" /><span style={tableHead("right")}>Qty</span><span style={tableHead("center")}>Actions</span>
+            <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={{ ...cb, justifySelf: "center" }} />
+            <SortHeader field="name" label="Item" sort={invSort} setSort={setInvSort} /><span style={tableHead("center")}>Listed</span><span style={tableHead("center")}>Category</span><span style={tableHead("center")}>Size</span><SortHeader field="price" label="Price" sort={invSort} setSort={setInvSort} align="right" /><SortHeader field="date" label="Date" sort={invSort} setSort={setInvSort} align="center" /><span style={tableHead("center")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}

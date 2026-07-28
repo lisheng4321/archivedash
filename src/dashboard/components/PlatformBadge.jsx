@@ -1,7 +1,12 @@
+import whatnotLogo from "../../assets/whatnot-logo.png";
+import discordLogo from "../../assets/discord-logo.webp";
+
 const platformKind = (platform = "") => {
   const value = String(platform).toLowerCase();
   if (value.includes("ebay")) return "ebay";
   if (value.includes("facebook")) return "facebook";
+  if (value.includes("whatnot")) return "whatnot";
+  if (value.includes("discord")) return "discord";
   return "other";
 };
 
@@ -46,6 +51,14 @@ function FacebookLogo() {
   );
 }
 
+function WhatnotLogo() {
+  return <img src={whatnotLogo} alt="" aria-hidden="true" style={{ display: "block", width: 15, height: 15 }} />;
+}
+
+function DiscordLogo() {
+  return <img src={discordLogo} alt="" aria-hidden="true" style={{ display: "block", width: 15, height: 15, borderRadius: 4, objectFit: "contain" }} />;
+}
+
 export default function PlatformBadge({ platform, compact = false, style }) {
   const kind = platformKind(platform);
   const label = String(platform || "Platform");
@@ -60,6 +73,20 @@ export default function PlatformBadge({ platform, compact = false, style }) {
     return (
       <span title={label} aria-label={label} style={{ ...badgeBase, padding: compact ? "0 5px" : "0 6px", background: "#10203a", borderColor: "#1d4ed866", ...style }}>
         <FacebookLogo />
+      </span>
+    );
+  }
+  if (kind === "whatnot") {
+    return (
+      <span title={label} aria-label={label} style={{ ...badgeBase, padding: compact ? "0 5px" : "0 6px", background: "#151515", borderColor: "#f6d80055", ...style }}>
+        <WhatnotLogo />
+      </span>
+    );
+  }
+  if (kind === "discord") {
+    return (
+      <span title={label} aria-label={label} style={{ ...badgeBase, padding: compact ? "0 5px" : "0 6px", background: "#111827", borderColor: "#5865f266", ...style }}>
+        <DiscordLogo />
       </span>
     );
   }

@@ -109,11 +109,12 @@ export default function ReportsPage({ ctx }) {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10, marginBottom: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: 10, marginBottom: 14 }}>
         <KPI label="Revenue" value={currency(reportStats.revenue)} />
         <KPI label="Gross profit" value={currency(reportStats.grossProfit)} accent={reportStats.grossProfit >= 0 ? "#34d399" : "#f87171"} />
-        <KPI label="Net profit" value={currency(reportStats.netProfit)} accent={reportStats.netProfit >= 0 ? "#34d399" : "#f87171"} />
-        <KPI label="Sold 30d" value={velocityStats.sold30.length} />
+        <KPI label="Gross margin" value={`${(reportStats.grossMargin * 100).toFixed(1)}%`} accent={reportStats.grossProfit >= 0 ? "#34d399" : "#f87171"} />
+        <KPI label="Realized profit" value={currency(reportStats.netProfit)} accent={reportStats.netProfit >= 0 ? "#34d399" : "#f87171"} />
+        <KPI label="Units sold 30d" value={velocityStats.sold30Units} />
         <KPI label="90+ day stock" value={agingStats.aged90.length} accent={agingStats.aged90.length ? "#f59e0b" : undefined} />
       </div>
 
@@ -122,11 +123,12 @@ export default function ReportsPage({ ctx }) {
           <div style={{ fontSize: 14, fontWeight: 700, color: "#f3f6fb", marginBottom: 10 }}>Profit & Loss</div>
           <Row label="Revenue" value={currency(reportStats.revenue)} strong />
           <Row label="Cost of goods sold" value={currency(reportStats.cogs)} />
+          <Row label="Gross profit" value={currency(reportStats.grossProfit)} accent={reportStats.grossProfit >= 0 ? "#34d399" : "#f87171"} strong />
           <Row label="Shipping paid" value={currency(reportStats.shipping)} />
           <Row label="Platform fees" value={currency(reportStats.fees)} />
-          <Row label="Gross profit" value={currency(reportStats.grossProfit)} accent={reportStats.grossProfit >= 0 ? "#34d399" : "#f87171"} strong />
+          <Row label="Contribution profit" value={currency(reportStats.contributionProfit)} accent={reportStats.contributionProfit >= 0 ? "#34d399" : "#f87171"} strong />
           <Row label="Operating expenses" value={currency(reportStats.operatingExpenses)} />
-          <Row label="Net profit" value={currency(reportStats.netProfit)} accent={reportStats.netProfit >= 0 ? "#34d399" : "#f87171"} strong />
+          <Row label="Realized profit" value={currency(reportStats.netProfit)} accent={reportStats.netProfit >= 0 ? "#34d399" : "#f87171"} strong />
         </div>
 
         <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 16 }}>

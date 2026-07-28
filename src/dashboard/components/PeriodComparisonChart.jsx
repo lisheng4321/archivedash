@@ -55,7 +55,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
 
   return (
     <div style={{ position: "relative", height, width: "100%" }}>
-      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="group" aria-label="Interactive net profit chart comparing the current and previous periods" style={{ display: "block", overflow: "visible" }}>
+      <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" width="100%" height={height} role="group" aria-label="Interactive realized profit chart comparing the current and previous periods" style={{ display: "block", overflow: "visible" }}>
         {tickValues.map((value) => (
           <g key={value}>
             <line x1={pad.left} x2={width - pad.right} y1={yFor(value)} y2={yFor(value)} stroke={value === 0 ? "#334155" : "#232c3c"} strokeWidth={value === 0 ? "1.2" : "1"} />

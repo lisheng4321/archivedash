@@ -16,7 +16,7 @@ import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
 import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
-import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
+import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
 import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
@@ -57,6 +57,7 @@ const saleProfit = (sale = {}) => computeProfit({
   shipping: sale.shippingPrice,
   fees: sale.platformFees,
 });
+const saleUnits = (sale = {}) => Math.max(1, Number(sale.quantity) || 1);
 const withComputedSaleProfit = (sale) => ({ ...sale, profit: saleProfit(sale) });
 
 const buildSampleInventory = (over) => ({
@@ -190,44 +191,25 @@ export default function App({ onLogout, userEmail }) {
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0], paymentMethod: PAYMETHODS.includes("Card") ? "Card" : paymentMethodForPlatform("", PAYMETHODS) };
   const [expForm, setExpForm] = useState(emptyExp);
-  const dashboardCardDefaults = {
-    actionStrip: true,
-    preorderAlerts: true,
-    netProfitGraph: true,
-    salesIncome: true,
-    netProfit: true,
-    grossProfit: true,
-    inventorySpend: true,
-    inventoryValue: false,
-    salesCount: true,
-    avgOrderValue: false,
-    netMargin: true,
-    grossMargin: true,
-    totalExpenses: true,
-    platformFees: true,
-    monthlySubs: false,
-    aging: true,
-    velocity: true,
-    recentSales: true,
-    recentInventory: true,
-  };
+  const dashboardCardDefaults = RESELLER_DASHBOARD_CARDS;
   const dashboardCardLabels = [
     ["actionStrip", "Action strip"],
     ["preorderAlerts", "Preorder alerts"],
-    ["netProfitGraph", "Net profit graph"],
-    ["salesIncome", "Sales income"],
-    ["netProfit", "Net profit"],
+    ["netProfitGraph", "Realized profit graph"],
+    ["salesIncome", "Sales"],
+    ["netProfit", "Realized profit"],
     ["grossProfit", "Gross profit"],
-    ["inventorySpend", "Inventory spend"],
-    ["salesCount", "Sales count"],
-    ["netMargin", "Net margin"],
+    ["inventorySpend", "Cash deployed"],
+    ["salesCount", "Units sold"],
+    ["netMargin", "Realized margin"],
     ["grossMargin", "Gross margin"],
+    ["profitRoi", "Profit ROI"],
+    ["costBreakdown", "Cost breakdown"],
     ["totalExpenses", "Total expenses"],
     ["platformFees", "Platform fees"],
     ["aging", "Aging"],
     ["velocity", "Velocity"],
     ["recentSales", "Recent sales"],
-    ["recentInventory", "Recent inventory"],
   ];
 
   useEffect(() => {
@@ -361,7 +343,7 @@ export default function App({ onLogout, userEmail }) {
       setRetryingSaves(false);
     }
   }, [failedSaves, persist]);
-  const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}), inventoryValue: false, avgOrderValue: false, monthlySubs: false };
+  const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
   const backupSettings = { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
   const customerProfiles = settings.customerProfiles || {};
@@ -1341,15 +1323,30 @@ export default function App({ onLogout, userEmail }) {
     d.setDate(d.getDate() + days);
     return dateKey(d);
   };
+  const addMonthsToKey = (dateStr, months) => {
+    const d = dateObj(dateStr);
+    const day = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + months);
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    d.setDate(Math.min(day, lastDay));
+    return dateKey(d);
+  };
   const daysInclusive = (from, to) => Math.max(1, Math.round((dateObj(to) - dateObj(from)) / 86400000) + 1);
   const activePeriod = useMemo(() => {
     const fallbackDates = [...sales.map((s) => s.saleDate), ...expenses.map((e) => e.purchaseDate)].filter(Boolean).sort();
     const currentEnd = range === "Custom" ? customTo : today();
     const currentStart = range === "Custom" ? customFrom : range === "ALL" ? fallbackDates[0] || today() : getFilterDate(range);
     const periodDays = daysInclusive(currentStart, currentEnd);
-    const previousEnd = addDaysToKey(currentStart, -1);
-    const previousStart = addDaysToKey(previousEnd, -(periodDays - 1));
-    return { currentStart, currentEnd, previousStart, previousEnd, periodDays };
+    const calendarComparisonMonths = range === "MTD" ? -1 : range === "YTD" ? -12 : null;
+    const previousEnd = calendarComparisonMonths === null
+      ? addDaysToKey(currentStart, -1)
+      : addMonthsToKey(currentEnd, calendarComparisonMonths);
+    const previousStart = calendarComparisonMonths === null
+      ? addDaysToKey(previousEnd, -(periodDays - 1))
+      : addMonthsToKey(currentStart, calendarComparisonMonths);
+    const previousPeriodDays = daysInclusive(previousStart, previousEnd);
+    return { currentStart, currentEnd, previousStart, previousEnd, periodDays, previousPeriodDays };
   }, [range, customFrom, customTo, sales, expenses]);
 
   // ─── Dashboard Stats ───
@@ -1363,14 +1360,42 @@ export default function App({ onLogout, userEmail }) {
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
     if (dashCat !== "All") fi = fi.filter((i) => i.category === dashCat);
     if (dashPlat !== "All") fi = fi.filter((i) => listedPlatformsFor(i).includes(dashPlat));
-    const salesIncome = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0), grossProfit = fs.reduce((a, s) => a + saleProfit(s), 0);
-    const totalExpenses = fe.reduce((a, e) => a + e.amount, 0), netProfit = grossProfit - totalExpenses;
+    const salesIncome = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
+    const salesCost = fs.reduce((a, s) => a + (Number(s.costPrice) || 0), 0);
+    const salesUnits = fs.reduce((a, s) => a + saleUnits(s), 0);
+    const grossProfit = salesIncome - salesCost;
+    const contributionProfit = fs.reduce((a, s) => a + saleProfit(s), 0);
+    const totalExpenses = fe.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+    const totalShipping = fs.reduce((a, s) => a + (Number(s.shippingPrice) || 0), 0);
+    const totalFees = fs.reduce((a, s) => a + (Number(s.platformFees) || 0), 0);
+    const netProfit = contributionProfit - totalExpenses;
     const inventorySpend = fi.reduce((a, i) => a + (Number(i.price) || 0), 0);
-    const invValue = inventory.reduce((a, i) => a + i.price, 0), cnt = fs.length, aov = cnt > 0 ? salesIncome / cnt : 0;
-    const sellThrough = (inventory.length + cnt) > 0 ? cnt / (inventory.length + cnt) : 0;
-    const totalFees = fs.reduce((a, s) => a + (s.platformFees||0), 0);
+    const acquiredUnits = fi.length;
+    const averageAcquisitionCost = acquiredUnits > 0 ? inventorySpend / acquiredUnits : 0;
+    const todayKey = today();
+    const onHandInventory = inventory.filter((item) => !item.preorderDate || item.preorderDate <= todayKey);
+    const preorderInventory = inventory.filter((item) => item.preorderDate && item.preorderDate > todayKey);
+    const invValue = onHandInventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
+    const preorderValue = preorderInventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
+    const onHandProductCount = new Set(onHandInventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
+    const preorderProductCount = new Set(preorderInventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
+    const cnt = fs.length, aov = cnt > 0 ? salesIncome / cnt : 0;
+    const sellThrough = (onHandInventory.length + salesUnits) > 0 ? salesUnits / (onHandInventory.length + salesUnits) : 0;
     const grossMargin = salesIncome > 0 ? grossProfit / salesIncome : 0;
+    const contributionMargin = salesIncome > 0 ? contributionProfit / salesIncome : 0;
     const netMargin = salesIncome > 0 ? netProfit / salesIncome : 0;
+    const profitRoi = salesCost > 0 ? netProfit / salesCost : 0;
+    const costLeakage = totalShipping + totalFees + totalExpenses;
+    const costLeakageRate = salesIncome > 0 ? costLeakage / salesIncome : 0;
+    const holdDays = fs
+      .filter((sale) => sale.purchaseDate && sale.saleDate)
+      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(sale.purchaseDate)) / 86400000)))
+      .sort((a, b) => a - b);
+    const medianDaysToSell = holdDays.length
+      ? holdDays.length % 2
+        ? holdDays[Math.floor(holdDays.length / 2)]
+        : Math.round((holdDays[holdDays.length / 2 - 1] + holdDays[holdDays.length / 2]) / 2)
+      : null;
     const pbd = {};
     fs.forEach((s) => { pbd[s.saleDate] = (pbd[s.saleDate] || 0) + saleProfit(s); });
     fe.forEach((e) => { pbd[e.purchaseDate] = (pbd[e.purchaseDate] || 0) - (Number(e.amount) || 0); });
@@ -1381,7 +1406,12 @@ export default function App({ onLogout, userEmail }) {
     let cum = 0; const spark = dates.map((d) => { cum += pbd[d] || 0; return cum; });
     const ri = [...inventory].sort((a, b) => (b.addedAt||0) - (a.addedAt||0)).slice(0, 7);
     const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7).map(withComputedSaleProfit);
-    return { salesIncome, grossProfit, totalExpenses, netProfit, inventorySpend, invValue, cnt, aov, sellThrough, totalFees, grossMargin, netMargin, spark, ri, rs };
+    return {
+      salesIncome, salesCost, salesUnits, grossProfit, contributionProfit, totalExpenses, totalShipping, totalFees, netProfit,
+      inventorySpend, acquiredUnits, averageAcquisitionCost, invValue, onHandUnits: onHandInventory.length, onHandProductCount, preorderValue,
+      preorderUnits: preorderInventory.length, preorderProductCount, cnt, aov, sellThrough, grossMargin,
+      contributionMargin, netMargin, profitRoi, costLeakage, costLeakageRate, medianDaysToSell, spark, ri, rs,
+    };
   }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat]);
 
   const periodComparison = useMemo(() => {
@@ -1397,15 +1427,16 @@ export default function App({ onLogout, userEmail }) {
     const previous = previousSalesProfit - previousExpenses;
     const delta = current - previous;
     const pct = previous !== 0 ? (delta / Math.abs(previous)) * 100 : null;
-    const salesDelta = currentSales.length - previousSales.length;
-    const salesPct = previousSales.length ? (salesDelta / previousSales.length) * 100 : null;
-    return { current, previous, delta, pct, currentStart, currentEnd, previousStart, previousEnd, salesCount: currentSales.length, previousSalesCount: previousSales.length, salesDelta, salesPct };
+    const salesCount = currentSales.reduce((sum, sale) => sum + saleUnits(sale), 0);
+    const previousSalesCount = previousSales.reduce((sum, sale) => sum + saleUnits(sale), 0);
+    const salesDelta = salesCount - previousSalesCount;
+    const salesPct = previousSalesCount ? (salesDelta / previousSalesCount) * 100 : null;
+    return { current, previous, delta, pct, currentStart, currentEnd, previousStart, previousEnd, salesCount, previousSalesCount, salesDelta, salesPct };
   }, [sales, expenses, dashCat, dashPlat, activePeriod]);
 
   const periodTrend = useMemo(() => {
-    const { currentStart, currentEnd, previousStart, previousEnd, periodDays } = activePeriod;
+    const { currentStart, currentEnd, previousStart, previousEnd, periodDays, previousPeriodDays } = activePeriod;
     const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
-    const saleUnits = (s) => Math.max(1, Number(s.quantity) || 1);
     const salesMap = (from, to) => {
       const map = new Map();
       sales.filter((s) => s.saleDate >= from && s.saleDate <= to && matchesFilters(s)).forEach((s) => {
@@ -1440,17 +1471,19 @@ export default function App({ onLogout, userEmail }) {
     const points = offsets.map((offset) => {
       for (let step = lastOffset + 1; step <= offset; step += 1) {
         const currentDate = addDaysToKey(currentStart, step);
-        const previousDate = addDaysToKey(previousStart, step);
+        const previousDate = addDaysToKey(previousStart, Math.min(step, previousPeriodDays - 1));
         const currentSale = currentSalesByDate.get(currentDate) || { profit: 0, units: 0 };
-        const previousSale = previousSalesByDate.get(previousDate) || { profit: 0, units: 0 };
+        const previousSale = step < previousPeriodDays
+          ? (previousSalesByDate.get(previousDate) || { profit: 0, units: 0 })
+          : { profit: 0, units: 0 };
         currentProfit += currentSale.profit - (currentExpensesByDate.get(currentDate) || 0);
-        previousProfit += previousSale.profit - (previousExpensesByDate.get(previousDate) || 0);
+        if (step < previousPeriodDays) previousProfit += previousSale.profit - (previousExpensesByDate.get(previousDate) || 0);
         currentUnits += currentSale.units;
-        previousUnits += previousSale.units;
+        if (step < previousPeriodDays) previousUnits += previousSale.units;
       }
       lastOffset = offset;
       const currentDate = addDaysToKey(currentStart, offset);
-      const previousDate = addDaysToKey(previousStart, offset);
+      const previousDate = addDaysToKey(previousStart, Math.min(offset, previousPeriodDays - 1));
       return {
         key: `${currentDate}-${previousDate}`,
         label: shortDateLabel(currentDate),
@@ -1472,37 +1505,63 @@ export default function App({ onLogout, userEmail }) {
   }, [sales, expenses, dashCat, dashPlat, activePeriod]);
 
   const agingStats = useMemo(() => {
-    const aged90 = inventory.filter((i) => daysHeld(i.purchaseDate) >= 90);
-    const aged180 = inventory.filter((i) => daysHeld(i.purchaseDate) >= 180);
-    const oldest = [...inventory]
-      .map((i) => ({ ...i, _daysHeld: daysHeld(i.purchaseDate) }))
+    const todayKey = today();
+    const onHandInventory = inventory
+      .filter((item) => !item.preorderDate || item.preorderDate <= todayKey)
+      .map((item) => {
+        const ageStart = item.preorderDate && item.preorderDate > (item.purchaseDate || "") ? item.preorderDate : item.purchaseDate;
+        return { ...item, _ageStart: ageStart, _ageLabel: item.preorderDate ? "available" : "bought", _daysHeld: daysHeld(ageStart) };
+      });
+    const aged90 = onHandInventory.filter((item) => item._daysHeld >= 90);
+    const aged180 = onHandInventory.filter((item) => item._daysHeld >= 180);
+    const grouped = new Map();
+    onHandInventory.forEach((item) => {
+      const key = `${String(item.name || "").trim().toLowerCase()}|${item.category || ""}|${item._ageStart || ""}`;
+      const current = grouped.get(key) || { ...item, _count: 0, _totalValue: 0 };
+      current._count += 1;
+      current._totalValue += Number(item.price) || 0;
+      current._daysHeld = Math.max(current._daysHeld, item._daysHeld);
+      grouped.set(key, current);
+    });
+    const oldest = [...grouped.values()]
       .sort((a, b) => b._daysHeld - a._daysHeld)
       .slice(0, 6);
-    const avgDays = inventory.length ? Math.round(inventory.reduce((a, i) => a + daysHeld(i.purchaseDate), 0) / inventory.length) : 0;
+    const avgDays = onHandInventory.length ? Math.round(onHandInventory.reduce((a, item) => a + item._daysHeld, 0) / onHandInventory.length) : 0;
     const agedValue = aged90.reduce((a, i) => a + (Number(i.price) || 0), 0);
-    return { aged90, aged180, oldest, avgDays, agedValue };
+    return { aged90, aged180, oldest, avgDays, agedValue, onHandUnits: onHandInventory.length };
   }, [inventory]);
-
   const velocityStats = useMemo(() => {
     const since30 = daysAgo(30);
     const since90 = daysAgo(90);
     const sold30 = sales.filter((s) => s.saleDate >= since30);
     const sold90 = sales.filter((s) => s.saleDate >= since90);
-    const monthlySellThrough = (inventory.length + sold30.length) > 0 ? sold30.length / (inventory.length + sold30.length) : 0;
-    const dailyRate = sold30.length / 30;
-    const daysCover = dailyRate > 0 ? Math.round(inventory.length / dailyRate) : null;
+    const sold30Units = sold30.reduce((sum, sale) => sum + saleUnits(sale), 0);
+    const todayKey = today();
+    const availableUnits = inventory.filter((item) => !item.preorderDate || item.preorderDate <= todayKey).length;
+    const monthlySellThrough = (availableUnits + sold30Units) > 0 ? sold30Units / (availableUnits + sold30Units) : 0;
+    const dailyRate = sold30Units / 30;
+    const daysCover = dailyRate > 0 ? Math.round(availableUnits / dailyRate) : null;
+    const holdDays30 = sold30
+      .filter((sale) => sale.purchaseDate && sale.saleDate)
+      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(sale.purchaseDate)) / 86400000)))
+      .sort((a, b) => a - b);
+    const medianDaysToSell = holdDays30.length
+      ? holdDays30.length % 2
+        ? holdDays30[Math.floor(holdDays30.length / 2)]
+        : Math.round((holdDays30[holdDays30.length / 2 - 1] + holdDays30[holdDays30.length / 2]) / 2)
+      : null;
     const categoryMap = new Map();
-    sold90.forEach((s) => {
+    sold30.forEach((s) => {
       const key = s.category || "Other";
       const prev = categoryMap.get(key) || { category: key, count: 0, revenue: 0, profit: 0 };
-      prev.count += 1;
+      prev.count += saleUnits(s);
       prev.revenue += Number(s.salePrice) || 0;
       prev.profit += saleProfit(s);
       categoryMap.set(key, prev);
     });
     const topCategories = [...categoryMap.values()].sort((a, b) => b.count - a.count || b.profit - a.profit).slice(0, 5);
-    return { sold30, sold90, monthlySellThrough, daysCover, topCategories };
-  }, [inventory.length, sales]);
+    return { sold30, sold30Units, sold90, monthlySellThrough, daysCover, medianDaysToSell, topCategories };
+  }, [inventory, sales]);
 
   const reportStats = useMemo(() => {
     const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
@@ -1522,9 +1581,11 @@ export default function App({ onLogout, userEmail }) {
     const cogs = fs.reduce((a, s) => a + (Number(s.costPrice) || 0), 0);
     const shipping = fs.reduce((a, s) => a + (Number(s.shippingPrice) || 0), 0);
     const fees = fs.reduce((a, s) => a + (Number(s.platformFees) || 0), 0);
-    const grossProfit = revenue - cogs - shipping - fees;
+    const grossProfit = revenue - cogs;
+    const grossMargin = revenue > 0 ? grossProfit / revenue : 0;
+    const contributionProfit = grossProfit - shipping - fees;
     const operatingExpenses = fe.reduce((a, e) => a + (Number(e.amount) || 0), 0);
-    const netProfit = grossProfit - operatingExpenses;
+    const netProfit = contributionProfit - operatingExpenses;
     const group = (items, keyFn, amountFn) => {
       const map = new Map();
       items.forEach((item) => {
@@ -1546,6 +1607,8 @@ export default function App({ onLogout, userEmail }) {
       shipping,
       fees,
       grossProfit,
+      grossMargin,
+      contributionProfit,
       operatingExpenses,
       netProfit,
       platformRows: group(fs, (s) => s.platform, (s) => Number(s.salePrice) || 0),
@@ -1561,9 +1624,10 @@ export default function App({ onLogout, userEmail }) {
     const rows = [
       ["P&L", "Revenue", reportStats.sales.length, reportStats.revenue],
       ["P&L", "Cost of goods", reportStats.sales.length, reportStats.cogs],
+      ["P&L", "Gross profit", reportStats.sales.length, reportStats.grossProfit],
       ["P&L", "Shipping", reportStats.sales.length, reportStats.shipping],
       ["P&L", "Platform fees", reportStats.sales.length, reportStats.fees],
-      ["P&L", "Gross profit", reportStats.sales.length, reportStats.grossProfit],
+      ["P&L", "Contribution profit", reportStats.sales.length, reportStats.contributionProfit],
       ["P&L", "Operating expenses", reportStats.expenses.length, reportStats.operatingExpenses],
       ["P&L", "Net profit", reportStats.sales.length, reportStats.netProfit],
       ...reportStats.platformRows.map((r) => ["Platform revenue", r.name, r.count, r.amount]),
@@ -1606,6 +1670,10 @@ export default function App({ onLogout, userEmail }) {
     });
     return [...groups.values()].sort((a, b) => a._bdays - b._bdays || a.name.localeCompare(b.name));
   }, [upcomingPreorders]);
+  const upcomingPreorderCommitted = useMemo(
+    () => upcomingPreorders.reduce((sum, item) => sum + (Number(item.price) || 0), 0),
+    [upcomingPreorders],
+  );
 
   // ─── Subscription stats ───
   const subStats = useMemo(() => {
@@ -1981,7 +2049,6 @@ export default function App({ onLogout, userEmail }) {
     return [...f].sort((a, b) => ((b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)) || ((a.order ?? 0) - (b.order ?? 0)) || ((b.updatedAt || 0) - (a.updatedAt || 0)));
   }, [notes, noteSearch]);
 
-  const inventoryProductCount = useMemo(() => new Set(inventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size, [inventory]);
   const expenseMonthSummary = useMemo(() => {
     const monthStart = today().slice(0, 7);
     const rows = expenses.filter((expense) => String(expense.purchaseDate || "").startsWith(monthStart));
@@ -2138,27 +2205,25 @@ export default function App({ onLogout, userEmail }) {
     const buyerMatchCount = buyerMatchesByInventoryId.get(item.id)?.length || 0;
     if (isMobile) {
       return (
-        <div key={item.id} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "10px 12px 10px 28px" : "10px 12px", borderBottom: "1px solid #232c3c22", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...(isGroupChild ? childAccent : {}) }}>
+        <div key={item.id} className="archive-mobile-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "12px 12px 12px 28px" : "12px", borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null) }}>
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
-              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(item.price)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{currency(item.price)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
                 {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
-                </div>
-                {sortedListedPlatformsFor(item).length > 0 && (
-                  <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginTop: 4 }}>{renderListingBadges(item)}</div>
-                )}
               </div>
-              <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                <button onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 38, padding: "9px 14px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
-                <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
-                <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
-              </div>
+              {sortedListedPlatformsFor(item).length > 0 && (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>{renderListingBadges(item)}</div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
+              <button onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 34, padding: "7px 12px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
+              <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
+              <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
             </div>
           </div>
         </div>
@@ -2166,14 +2231,14 @@ export default function App({ onLogout, userEmail }) {
     }
     return (
       <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
-        <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={cb} />
+        <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, justifySelf: "center" }} />
         <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{item.brand && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-start" }}>{renderListingBadges(item)}</div>
-        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
-        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "left" }}>{item.size||"OS"}</span>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item.price)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>1</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
           <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
           <div className="archive-row-actions">
@@ -2213,17 +2278,17 @@ export default function App({ onLogout, userEmail }) {
     }
     return (
       <div className="archive-data-row" data-selected={groupChecked} onClick={() => toggleGroup(key)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", cursor: "pointer", background: rowBg(index, groupChecked), ...selectedAccent(groupChecked, groupAccent) }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}>
           <input ref={(node) => { if (node) node.indeterminate = groupIndeterminate; }} type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#7c8aa0", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
         <div><span style={{ color: "#e5e7eb" }}>{item.name}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
-        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "flex-start" }}>{renderListingBadges(item)}</div>
-        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
-        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "left", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
+        <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{groupDateLabel(item._items || [])}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "right" }}>{item._count}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item._count}</span>
         <span aria-hidden="true" />
       </div>
     );
@@ -2236,21 +2301,21 @@ export default function App({ onLogout, userEmail }) {
     const saleBackground = saleSelected ? "#24324a" : rowBg(index, false);
     if (isMobile) {
       return (
-        <div key={saleKey} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c22", background: saleBackground, cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...selectedAccent(saleSelected) }}>
+        <div key={saleKey} className="archive-mobile-row" data-selected={saleSelected} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ padding: 12, borderBottom: "1px solid #232c3c", background: saleBackground, cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...selectedAccent(saleSelected) }}>
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 3, alignItems: "baseline" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "baseline" }}>
               <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}{sampleTag(s)}</span>
-              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap" }}>{currency(s.salePrice)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{currency(s.salePrice)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-              <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                <PlatformBadge platform={s.platform} compact style={{ marginRight: 5 }} /> {recordPaymentMethod(s)} · {s.category} · {s.saleDate}
-              </div>
-              <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
-                <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, marginRight: 2 }}>{currency(s.profit)}</span>
-                <button onClick={() => setEditSaleOpen(s)} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
-                <button aria-label={`Delete ${s.name}`} title="Delete" onClick={() => setConfirmDel({ type: "sale", id: s.id, saleKey, name: s.name })} style={{ minHeight: 38, padding: "9px 14px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
+            <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+              <PlatformBadge platform={s.platform} compact style={{ marginRight: 5 }} /> {recordPaymentMethod(s)} · {s.category} · {s.saleDate}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
+              <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 12, fontVariantNumeric: "tabular-nums" }}>Profit {currency(s.profit)}</span>
+              <div style={{ display: "flex", gap: 5, alignItems: "center", flexShrink: 0 }}>
+                <button onClick={() => setEditSaleOpen(s)} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
+                <button aria-label={`Delete ${s.name}`} title="Delete" onClick={() => setConfirmDel({ type: "sale", id: s.id, saleKey, name: s.name })} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
               </div>
             </div>
           </div>
@@ -2259,10 +2324,10 @@ export default function App({ onLogout, userEmail }) {
     }
     return (
       <div key={saleKey} className="archive-data-row" data-selected={saleSelected} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: saleBackground, cursor: "pointer", ...selectedAccent(saleSelected), zIndex: rowMenuOpen === `sale:${saleKey}` ? 4 : undefined }}>
-        <input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={cb} />
+        <input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={{ ...cb, justifySelf: "center" }} />
         <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category} · {recordPaymentMethod(s)}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
-        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "left" }}><PlatformBadge platform={s.platform} /></span>
-        <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "left" }}>{s.size||"OS"}</span>
+        <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}><PlatformBadge platform={s.platform} style={{ margin: "0 auto" }} /></span>
+        <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "center" }}>{s.size||"OS"}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
         <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "right" }}>{currency(s.costPrice)}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, fontSize: 12, textAlign: "right" }}>{currency(s.salePrice)}</span>
@@ -2498,7 +2563,7 @@ export default function App({ onLogout, userEmail }) {
         )}
 
         {/* DASHBOARD */}
-        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, inventory, stats, velocityStats, inventoryProductCount, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorders, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, renderPreBadge }} />}
+        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend }} />}
         {/* INVENTORY */}
         {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 

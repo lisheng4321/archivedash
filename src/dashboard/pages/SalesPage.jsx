@@ -78,11 +78,11 @@ export default function SalesPage({ ctx }) {
       {ebayQueueOpen && ebayQueuePanel()}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <input placeholder="Search item title..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: 190 }} />
-        <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: 140 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
-        <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: 160 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
-        <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
-        {isMobile && <select aria-label="Sort sales" value={saleSort} onChange={(e) => setSaleSort(e.target.value)} style={{ ...sel, maxWidth: 130 }}>
+        <input placeholder="Search item title..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 190, flex: isMobile ? "1 1 100%" : undefined }} />
+        <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+        <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 160, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
+        <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
+        {isMobile && <select aria-label="Sort sales" value={saleSort} onChange={(e) => setSaleSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
           <option value="date_desc">Newest</option>
           <option value="date_asc">Oldest</option>
           <option value="name_asc">Name A-Z</option>
@@ -108,8 +108,8 @@ export default function SalesPage({ ctx }) {
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
-            <input type="checkbox" checked={allVisibleSalesSelected} onChange={toggleAllSales} style={cb} />
-            <span style={tableHead()}>Item</span><span style={tableHead()}>Platform</span><span style={tableHead()}>Size</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Cost</span><span style={tableHead("right")}>Sale</span><span style={tableHead("right")}>Profit</span><span style={tableHead("center")}>Actions</span>
+            <input type="checkbox" checked={allVisibleSalesSelected} onChange={toggleAllSales} style={{ ...cb, justifySelf: "center" }} />
+            <span style={tableHead()}>Item</span><span style={tableHead("center")}>Platform</span><span style={tableHead("center")}>Size</span><span style={tableHead("center")}>Date</span><span style={tableHead("right")}>Cost</span><span style={tableHead("right")}>Sale</span><span style={tableHead("right")}>Profit</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
         {mobileSelectAll(allVisibleSalesSelected, toggleAllSales, visibleSales.length)}
