@@ -1,5 +1,67 @@
 import { getSizes } from "./shared.jsx";
 
+const PURCHASE_SOURCES = [
+  "EB Games",
+  "JB Hi-Fi",
+  "Kmart",
+  "BIG W",
+  "Target",
+  "Pokémon Center",
+  "Premium Bandai Australia",
+  "Premium Bandai Singapore",
+  "Mattel Creations",
+  "OzWheels",
+  "Gamersroom",
+  "Finalmouse",
+  "Nike",
+  "Ultra Football",
+  "Amazon US",
+  "Amazon Japan",
+  "Kinokuniya",
+];
+
+const PURCHASE_SOURCE_ALIASES = new Map([
+  ["eb games", "EB Games"],
+  ["ebgames", "EB Games"],
+  ["jb hi-fi", "JB Hi-Fi"],
+  ["jb hifi", "JB Hi-Fi"],
+  ["jbhifi", "JB Hi-Fi"],
+  ["big w", "BIG W"],
+  ["bigw", "BIG W"],
+  ["pokemon center", "Pokémon Center"],
+  ["pokémon center", "Pokémon Center"],
+  ["premium bandai au", "Premium Bandai Australia"],
+  ["premium bandai australia", "Premium Bandai Australia"],
+  ["premium bandai sg", "Premium Bandai Singapore"],
+  ["premium bandai singapore", "Premium Bandai Singapore"],
+  ["amazon au", "Amazon AU"],
+  ["amazon us", "Amazon US"],
+  ["amazon japan", "Amazon Japan"],
+]);
+
+const canonicalPurchaseSource = (value = "") => {
+  const source = String(value || "").trim();
+  if (!source) return "";
+  return PURCHASE_SOURCE_ALIASES.get(source.toLowerCase()) || source;
+};
+
+const purchaseSourceFor = (record = {}) => canonicalPurchaseSource(record.purchaseSource) || "Unknown";
+const releaseExpectedDateFor = (record = {}) => record.releaseExpectedDate || record.preorderDate || "";
+const explicitAvailabilityFor = (record = {}) => ["preorder", "available"].includes(record.availability) ? record.availability : "";
+const isPreorderOrigin = (record = {}) => Boolean(record.preorderOrigin || record.preorderDate || explicitAvailabilityFor(record) === "preorder");
+const isInventoryAvailable = (record = {}, todayKey = "") => {
+  const availability = explicitAvailabilityFor(record);
+  if (availability === "available") return true;
+  const releaseDate = releaseExpectedDateFor(record);
+  if (availability === "preorder") return Boolean(releaseDate && releaseDate <= todayKey);
+  return !releaseDate || releaseDate <= todayKey;
+};
+const isUnreleasedPreorder = (record = {}, todayKey = "") => !isInventoryAvailable(record, todayKey);
+const inventoryAgeStart = (record = {}) => {
+  const releaseDate = releaseExpectedDateFor(record);
+  return isPreorderOrigin(record) && releaseDate ? releaseDate : (record.purchaseDate || "");
+};
+
 const customerKey = (name = "") => String(name || "").trim().toLowerCase().replace(/\s+/g, " ") || "unknown";
 
 const listedPlatformsFor = (item = {}) => Array.isArray(item.listedPlatforms) ? item.listedPlatforms.filter(Boolean) : [];
@@ -81,11 +143,20 @@ const compareInventorySize = (a = {}, b = {}) => (
 );
 
 export {
+  PURCHASE_SOURCES,
+  canonicalPurchaseSource,
   compareInventorySize,
   compareSizeValues,
   customerKey,
+  explicitAvailabilityFor,
+  inventoryAgeStart,
+  isInventoryAvailable,
+  isPreorderOrigin,
+  isUnreleasedPreorder,
   listedPlatformsFor,
   orderKeyForSale,
   platformShortName,
+  purchaseSourceFor,
+  releaseExpectedDateFor,
   sortedListedPlatformsFor,
 };
