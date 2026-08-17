@@ -15,13 +15,13 @@ import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
-import { compareInventorySize, compareSizeValues, customerKey, listedPlatformsFor, orderKeyForSale, platformShortName, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { PURCHASE_SOURCES, canonicalPurchaseSource, compareInventorySize, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
 import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
 
-import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
+import { PurchaseSourceField, EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
 
 // ═══ SAMPLE / DEMO DATA ═══
 // First-run "Explore with sample data" seeds these records. Every demo record is
@@ -30,6 +30,7 @@ import { EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, Bu
 // clearing sample data reuses the existing persistence keys; nothing is renamed.
 const SAMPLE_TAG = "sample";
 const FIRST_RUN_DISMISS_KEY = "archivedash-firstrun-dismissed-v1";
+const MONTHLY_REALIZED_PROFIT_TARGET = 3000;
 const isDemoRecord = (record) => Boolean(record && record.demo);
 
 const buildSampleSale = ({ name, category, size = "OS", brand = "", costPrice, salePrice, shippingPrice = 0, platform, saleDate, customer = "" }) => {
@@ -59,9 +60,18 @@ const saleProfit = (sale = {}) => computeProfit({
 });
 const saleUnits = (sale = {}) => Math.max(1, Number(sale.quantity) || 1);
 const withComputedSaleProfit = (sale) => ({ ...sale, profit: saleProfit(sale) });
+const inventoryPurchaseFields = (item = {}) => ({
+  purchaseDate: item.purchaseDate || "",
+  releaseExpectedDate: releaseExpectedDateFor(item),
+  preorderDate: releaseExpectedDateFor(item),
+  purchaseSource: canonicalPurchaseSource(item.purchaseSource),
+  purchasedBy: item.purchasedBy || "",
+  availability: explicitAvailabilityFor(item),
+  preorderOrigin: isPreorderOrigin(item),
+});
 
 const buildSampleInventory = (over) => ({
-  id: genId(), size: "OS", brand: "", preorderDate: "", listedPlatforms: [], customer: "",
+  id: genId(), size: "OS", brand: "", preorderDate: "", releaseExpectedDate: "", purchaseSource: "", purchasedBy: "", availability: "available", listedPlatforms: [], customer: "",
   tags: SAMPLE_TAG, addedAt: Date.now(), demo: true, ...over,
 });
 
@@ -70,7 +80,7 @@ const buildSampleData = () => ({
     buildSampleInventory({ name: "Nike Dunk Low Panda", category: "Sneakers", size: "US 9", price: 130, ebayListedPrice: 210, brand: "Nike", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(38) }),
     buildSampleInventory({ name: "Jordan 4 Black Cat", category: "Sneakers", size: "US 10", price: 320, ebayListedPrice: 470, brand: "Jordan", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(96) }),
     buildSampleInventory({ name: "Supreme Box Logo Hoodie", category: "Apparel", size: "L", price: 240, brand: "Supreme", listedPlatforms: ["Facebook Marketplace"], purchaseDate: daysAgo(21) }),
-    buildSampleInventory({ name: "Pokemon 151 Booster Box", category: "TCG", size: "OS", price: 180, brand: "Pokemon", purchaseDate: daysAgo(9), preorderDate: daysAgo(-7) }),
+    buildSampleInventory({ name: "Pokemon 151 Booster Box", category: "TCG", size: "OS", price: 180, brand: "Pokemon", purchaseDate: daysAgo(9), preorderDate: daysAgo(-7), releaseExpectedDate: daysAgo(-7), availability: "preorder", preorderOrigin: true }),
     buildSampleInventory({ name: "Louis Vuitton Card Holder", category: "Accessories", size: "OS", price: 350, brand: "Louis Vuitton", listedPlatforms: ["eBay AU"], purchaseDate: daysAgo(63) }),
   ],
   sales: [
@@ -102,6 +112,7 @@ export default function App({ onLogout, userEmail }) {
   const [customTo, setCustomTo] = useState(today());
   const [dashCat, setDashCat] = useState("All");
   const [dashPlat, setDashPlat] = useState("All");
+  const [dashSource, setDashSource] = useState("All");
   const [reportPaymentMode, setReportPaymentMode] = useState("all");
   const [reportPaymentMethods, setReportPaymentMethods] = useState([]);
   const [saveStatus, setSaveStatus] = useState("");
@@ -152,7 +163,7 @@ export default function App({ onLogout, userEmail }) {
   const [buyerNotifyStatus, setBuyerNotifyStatus] = useState("");
 
   // Filters
-  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invPreorderView, setInvPreorderView] = useState("available"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
+  const [invSearch, setInvSearch] = useState(""); const [invCat, setInvCat] = useState("All"); const [invSource, setInvSource] = useState("All"); const [invPreorderView, setInvPreorderView] = useState("available"); const [invStatus, setInvStatus] = useState("All"); const [invSort, setInvSort] = useState("name_asc"); const [invCollapse, setInvCollapse] = useState(true);
   const [saleSearch, setSaleSearch] = useState(""); const [saleCat, setSaleCat] = useState("All"); const [salePlat, setSalePlat] = useState("All"); const [salePayment, setSalePayment] = useState("All"); const [saleSort, setSaleSort] = useState("date_desc");
   const [customerSearch, setCustomerSearch] = useState(""); const [customerPlatform, setCustomerPlatform] = useState("All"); const [customerSort, setCustomerSort] = useState("profit_desc"); const [activeCustomerKey, setActiveCustomerKey] = useState(null);
   const [expSearch, setExpSearch] = useState(""); const [expFrom, setExpFrom] = useState(""); const [expTo, setExpTo] = useState(""); const [expCatFilter, setExpCatFilter] = useState("All"); const [expPayment, setExpPayment] = useState("All"); const [expSort, setExpSort] = useState("date_desc");
@@ -186,8 +197,14 @@ export default function App({ onLogout, userEmail }) {
   }, []);
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers; const PAYMETHODS = settings.paymentMethods;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
+  const purchaseSources = useMemo(() => [...new Set([
+    ...PURCHASE_SOURCES,
+    ...inventory.map((item) => canonicalPurchaseSource(item.purchaseSource)).filter(Boolean),
+    ...sales.map((sale) => canonicalPurchaseSource(sale.purchaseSource)).filter(Boolean),
+  ])], [inventory, sales]);
 
-  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), preorderDate: "", brand: "", listedPlatforms: [], tags: "", customer: "" };
+  const lastInventoryEntryRef = useRef({ purchaseSource: "", purchasedBy: "", availability: "available" });
+  const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), releaseExpectedDate: "", purchaseSource: "", purchasedBy: "", availability: "available", brand: "", listedPlatforms: [], tags: "", customer: "" };
   const [invForm, setInvForm] = useState(emptyInv);
   const emptyExp = { name: "", amount: "", purchaseDate: today(), tags: "", expCategory: EXP_CATEGORIES[0], paymentMethod: PAYMETHODS.includes("Card") ? "Card" : paymentMethodForPlatform("", PAYMETHODS) };
   const [expForm, setExpForm] = useState(emptyExp);
@@ -199,7 +216,7 @@ export default function App({ onLogout, userEmail }) {
     ["salesIncome", "Sales"],
     ["netProfit", "Realized profit"],
     ["grossProfit", "Gross profit"],
-    ["inventorySpend", "Cash deployed"],
+    ["inventorySpend", "Inventory Spend"],
     ["salesCount", "Units sold"],
     ["netMargin", "Realized margin"],
     ["grossMargin", "Gross margin"],
@@ -622,7 +639,7 @@ export default function App({ onLogout, userEmail }) {
 
   const openAddInventory = () => {
     setInvQueue([]);
-    setInvForm({ ...emptyInv, category: CATS[0] || "Other", size: getDefaultSize(CATS[0] || ""), listedPlatforms: [] });
+    setInvForm({ ...emptyInv, ...lastInventoryEntryRef.current, category: CATS[0] || "Other", size: getDefaultSize(CATS[0] || ""), listedPlatforms: [] });
     setAddDirty(false);
     setAddInvOpen(true);
   };
@@ -651,7 +668,12 @@ export default function App({ onLogout, userEmail }) {
       price,
       ebayListedPrice: draft.ebayListedPrice ? parseFloat(draft.ebayListedPrice) : undefined,
       purchaseDate: draft.purchaseDate,
-      preorderDate: draft.preorderDate,
+      releaseExpectedDate: draft.releaseExpectedDate || "",
+      preorderDate: draft.releaseExpectedDate || "",
+      purchaseSource: canonicalPurchaseSource(draft.purchaseSource),
+      purchasedBy: String(draft.purchasedBy || "").trim(),
+      availability: draft.availability === "preorder" ? "preorder" : "available",
+      preorderOrigin: draft.availability === "preorder",
       brand: draft.brand,
       listedPlatforms: listedPlatformsFor(draft),
       tags: draft.tags,
@@ -659,9 +681,17 @@ export default function App({ onLogout, userEmail }) {
       addedAt: Date.now(),
     }));
   };
+  const rememberInventoryEntry = (draft) => {
+    lastInventoryEntryRef.current = {
+      purchaseSource: canonicalPurchaseSource(draft.purchaseSource),
+      purchasedBy: String(draft.purchasedBy || "").trim(),
+      availability: draft.availability === "preorder" ? "preorder" : "available",
+    };
+  };
   const queueInventoryDraft = () => {
     const items = inventoryItemsFromDraft(invForm);
     if (!items.length) return;
+    rememberInventoryEntry(invForm);
     setInvQueue((prev) => [...prev, ...items]);
     setInvForm((prev) => ({ ...prev, size: nextSizeFor(prev.category, prev.size), quantity: "1" }));
     setAddDirty(true);
@@ -671,13 +701,14 @@ export default function App({ onLogout, userEmail }) {
     setAddDirty(true);
   };
   const clearInventoryDraft = () => {
-    setInvForm({ ...emptyInv, category: invForm.category || CATS[0] || "Other", size: getDefaultSize(invForm.category || CATS[0] || ""), purchaseDate: invForm.purchaseDate || today(), listedPlatforms: [] });
+    setInvForm({ ...emptyInv, ...lastInventoryEntryRef.current, category: invForm.category || CATS[0] || "Other", size: getDefaultSize(invForm.category || CATS[0] || ""), purchaseDate: invForm.purchaseDate || today(), listedPlatforms: [] });
     setAddDirty(true);
   };
 
   const addInventory = async () => {
     const items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
     if (!items.length) return;
+    if (!invQueue.length) rememberInventoryEntry(invForm);
     await persistInv([...items, ...inventory]);
     closeAddInventory();
   };
@@ -705,7 +736,7 @@ export default function App({ onLogout, userEmail }) {
 
   const handleSell = async (item, sf) => {
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
-    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: sf.customer||"" };
+    const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, ...inventoryPurchaseFields(item), customer: sf.customer||"" };
     const salesResult = await persistSales([sale, ...sales]);
     if (salesResult?.ok === false) return;
     await persistInv(inventory.filter((i) => i.id !== item.id));
@@ -720,7 +751,7 @@ export default function App({ onLogout, userEmail }) {
       const r = rows.find((x) => x.id === item.id);
       if (!r) continue;
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     const salesResult = await persistSales([...newSales, ...sales]);
@@ -740,7 +771,7 @@ export default function App({ onLogout, userEmail }) {
       const rawSalePrice = String(r.salePrice ?? "").trim();
       const sp = parseFloat(rawSalePrice), ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
       if (!rawSalePrice || !Number.isFinite(sp) || sp < 0) continue;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", purchaseDate: item.purchaseDate, preorderDate: item.preorderDate||"", customer: shared.customer||"" });
+      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     if (!newSales.length) return;
@@ -803,7 +834,7 @@ export default function App({ onLogout, userEmail }) {
     const newSales = matches.map((item) => {
       const r = rows.find((x) => x.id === item.id) || {};
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", paymentMethod: shared.paymentMethod || "eBay Payout", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, purchaseDate: item.purchaseDate, preorderDate: item.preorderDate || "", customer: shared.customer || "" };
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", paymentMethod: shared.paymentMethod || "eBay Payout", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, ...inventoryPurchaseFields(item), customer: shared.customer || "" };
     });
     const soldIds = new Set(matches.map((i) => i.id));
     const salesResult = await persistSales([...newSales, ...sales]);
@@ -855,7 +886,12 @@ export default function App({ onLogout, userEmail }) {
       size: form.size,
       price,
       purchaseDate: form.purchaseDate,
-      preorderDate: form.preorderDate || "",
+      releaseExpectedDate: form.releaseExpectedDate || "",
+      preorderDate: form.releaseExpectedDate || "",
+      purchaseSource: canonicalPurchaseSource(form.purchaseSource),
+      purchasedBy: String(form.purchasedBy || "").trim(),
+      availability: form.availability === "preorder" ? "preorder" : "available",
+      preorderOrigin: form.availability === "preorder",
       brand: form.brand || "",
       tags: form.tags || "",
       customer: form.customer || "",
@@ -1233,7 +1269,7 @@ export default function App({ onLogout, userEmail }) {
   }, [loading, backupSettings.autoWeekly, backupSettings.lastRunAt, createSupabaseBackup]);
 
   const exportJSON = () => {
-    const data = JSON.stringify({ inventory, sales, expenses, subs, notes, settings, exportedAt: new Date().toISOString(), version: 5, appVersion: VERSION }, null, 2);
+    const data = JSON.stringify({ inventory, sales, expenses, subs, notes, settings, exportedAt: new Date().toISOString(), version: 6, appVersion: VERSION }, null, 2);
     const blob = new Blob([data], { type: "application/json" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-backup-${today()}.json`; a.click(); URL.revokeObjectURL(url);
     setBackupStatus("JSON backup downloaded!"); setTimeout(() => setBackupStatus(""), 3000);
@@ -1244,8 +1280,8 @@ export default function App({ onLogout, userEmail }) {
     return `"${safe.replace(/"/g, '""')}"`;
   };
   const exportCSV = () => {
-    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Customer","Tags"];
-    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,saleProfit(s),s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",s.customer||"",s.tags||""].map(csvCell).join(","));
+    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Release / Expected Date","Purchase Source","Purchased By","Customer","Tags"];
+    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,saleProfit(s),s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",releaseExpectedDateFor(s),canonicalPurchaseSource(s.purchaseSource),s.purchasedBy||"",s.customer||"",s.tags||""].map(csvCell).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-sales-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -1358,8 +1394,10 @@ export default function App({ onLogout, userEmail }) {
     let fi = inventory.filter((i) => (i.purchaseDate || "") >= cutFrom && (i.purchaseDate || "") <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
+    if (dashSource !== "All") fs = fs.filter((s) => purchaseSourceFor(s) === dashSource);
     if (dashCat !== "All") fi = fi.filter((i) => i.category === dashCat);
     if (dashPlat !== "All") fi = fi.filter((i) => listedPlatformsFor(i).includes(dashPlat));
+    if (dashSource !== "All") fi = fi.filter((i) => purchaseSourceFor(i) === dashSource);
     const salesIncome = fs.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
     const salesCost = fs.reduce((a, s) => a + (Number(s.costPrice) || 0), 0);
     const salesUnits = fs.reduce((a, s) => a + saleUnits(s), 0);
@@ -1373,8 +1411,11 @@ export default function App({ onLogout, userEmail }) {
     const acquiredUnits = fi.length;
     const averageAcquisitionCost = acquiredUnits > 0 ? inventorySpend / acquiredUnits : 0;
     const todayKey = today();
-    const onHandInventory = inventory.filter((item) => !item.preorderDate || item.preorderDate <= todayKey);
-    const preorderInventory = inventory.filter((item) => item.preorderDate && item.preorderDate > todayKey);
+    let sourceInventory = inventory;
+    if (dashCat !== "All") sourceInventory = sourceInventory.filter((item) => item.category === dashCat);
+    if (dashSource !== "All") sourceInventory = sourceInventory.filter((item) => purchaseSourceFor(item) === dashSource);
+    const onHandInventory = sourceInventory.filter((item) => isInventoryAvailable(item, todayKey));
+    const preorderInventory = sourceInventory.filter((item) => isUnreleasedPreorder(item, todayKey));
     const invValue = onHandInventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
     const preorderValue = preorderInventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
     const onHandProductCount = new Set(onHandInventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
@@ -1388,8 +1429,8 @@ export default function App({ onLogout, userEmail }) {
     const costLeakage = totalShipping + totalFees + totalExpenses;
     const costLeakageRate = salesIncome > 0 ? costLeakage / salesIncome : 0;
     const holdDays = fs
-      .filter((sale) => sale.purchaseDate && sale.saleDate)
-      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(sale.purchaseDate)) / 86400000)))
+      .filter((sale) => inventoryAgeStart(sale) && sale.saleDate)
+      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(inventoryAgeStart(sale))) / 86400000)))
       .sort((a, b) => a - b);
     const medianDaysToSell = holdDays.length
       ? holdDays.length % 2
@@ -1412,11 +1453,11 @@ export default function App({ onLogout, userEmail }) {
       preorderUnits: preorderInventory.length, preorderProductCount, cnt, aov, sellThrough, grossMargin,
       contributionMargin, netMargin, profitRoi, costLeakage, costLeakageRate, medianDaysToSell, spark, ri, rs,
     };
-  }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat]);
+  }, [inventory, sales, expenses, activePeriod, dashCat, dashPlat, dashSource]);
 
   const periodComparison = useMemo(() => {
     const { currentStart, currentEnd, previousStart, previousEnd } = activePeriod;
-    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
+    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat) && (dashSource === "All" || purchaseSourceFor(s) === dashSource);
     const currentSales = sales.filter((s) => s.saleDate >= currentStart && s.saleDate <= currentEnd && matchesFilters(s));
     const previousSales = sales.filter((s) => s.saleDate >= previousStart && s.saleDate <= previousEnd && matchesFilters(s));
     const currentSalesProfit = currentSales.reduce((a, s) => a + saleProfit(s), 0);
@@ -1432,11 +1473,33 @@ export default function App({ onLogout, userEmail }) {
     const salesDelta = salesCount - previousSalesCount;
     const salesPct = previousSalesCount ? (salesDelta / previousSalesCount) * 100 : null;
     return { current, previous, delta, pct, currentStart, currentEnd, previousStart, previousEnd, salesCount, previousSalesCount, salesDelta, salesPct };
-  }, [sales, expenses, dashCat, dashPlat, activePeriod]);
+  }, [sales, expenses, dashCat, dashPlat, dashSource, activePeriod]);
+
+  const profitTarget = useMemo(() => {
+    const todayKey = today();
+    const monthStart = `${todayKey.slice(0, 7)}-01`;
+    const currentDate = dateObj(todayKey);
+    const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+    const elapsedDays = currentDate.getDate();
+    const realized = sales.filter((sale) => sale.saleDate >= monthStart && sale.saleDate <= todayKey).reduce((sum, sale) => sum + saleProfit(sale), 0)
+      - expenses.filter((expense) => expense.purchaseDate >= monthStart && expense.purchaseDate <= todayKey).reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+    const paceTarget = MONTHLY_REALIZED_PROFIT_TARGET * (elapsedDays / daysInMonth);
+    return {
+      monthly: MONTHLY_REALIZED_PROFIT_TARGET,
+      realized,
+      paceTarget,
+      aheadBehind: realized - paceTarget,
+      progress: MONTHLY_REALIZED_PROFIT_TARGET > 0 ? realized / MONTHLY_REALIZED_PROFIT_TARGET : 0,
+      dailyPace: MONTHLY_REALIZED_PROFIT_TARGET / daysInMonth,
+      projected: elapsedDays > 0 ? (realized / elapsedDays) * daysInMonth : 0,
+      elapsedDays,
+      daysInMonth,
+    };
+  }, [sales, expenses]);
 
   const periodTrend = useMemo(() => {
     const { currentStart, currentEnd, previousStart, previousEnd, periodDays, previousPeriodDays } = activePeriod;
-    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat);
+    const matchesFilters = (s) => (dashCat === "All" || s.category === dashCat) && (dashPlat === "All" || s.platform === dashPlat) && (dashSource === "All" || purchaseSourceFor(s) === dashSource);
     const salesMap = (from, to) => {
       const map = new Map();
       sales.filter((s) => s.saleDate >= from && s.saleDate <= to && matchesFilters(s)).forEach((s) => {
@@ -1465,6 +1528,7 @@ export default function App({ onLogout, userEmail }) {
     });
     let currentProfit = 0;
     let previousProfit = 0;
+    let targetProfit = 0;
     let currentUnits = 0;
     let previousUnits = 0;
     let lastOffset = -1;
@@ -1477,6 +1541,9 @@ export default function App({ onLogout, userEmail }) {
           ? (previousSalesByDate.get(previousDate) || { profit: 0, units: 0 })
           : { profit: 0, units: 0 };
         currentProfit += currentSale.profit - (currentExpensesByDate.get(currentDate) || 0);
+        const targetDate = dateObj(currentDate);
+        const targetMonthDays = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+        targetProfit += MONTHLY_REALIZED_PROFIT_TARGET / targetMonthDays;
         if (step < previousPeriodDays) previousProfit += previousSale.profit - (previousExpensesByDate.get(previousDate) || 0);
         currentUnits += currentSale.units;
         if (step < previousPeriodDays) previousUnits += previousSale.units;
@@ -1491,26 +1558,29 @@ export default function App({ onLogout, userEmail }) {
         previousDate,
         current: currentProfit,
         previous: previousProfit,
+        target: targetProfit,
         currentSales: currentUnits,
         previousSales: previousUnits,
       };
     });
     if (periodDays === 1) {
       return [
-        { key: "baseline", label: "Start", currentDate: currentStart, previousDate: previousStart, current: 0, previous: 0, currentSales: 0, previousSales: 0 },
+        { key: "baseline", label: "Start", currentDate: currentStart, previousDate: previousStart, current: 0, previous: 0, target: 0, currentSales: 0, previousSales: 0 },
         ...points,
       ];
     }
     return points;
-  }, [sales, expenses, dashCat, dashPlat, activePeriod]);
+  }, [sales, expenses, dashCat, dashPlat, dashSource, activePeriod]);
 
   const agingStats = useMemo(() => {
     const todayKey = today();
     const onHandInventory = inventory
-      .filter((item) => !item.preorderDate || item.preorderDate <= todayKey)
+      .filter((item) => dashSource === "All" || purchaseSourceFor(item) === dashSource)
+      .filter((item) => dashCat === "All" || item.category === dashCat)
+      .filter((item) => isInventoryAvailable(item, todayKey))
       .map((item) => {
-        const ageStart = item.preorderDate && item.preorderDate > (item.purchaseDate || "") ? item.preorderDate : item.purchaseDate;
-        return { ...item, _ageStart: ageStart, _ageLabel: item.preorderDate ? "available" : "bought", _daysHeld: daysHeld(ageStart) };
+        const ageStart = inventoryAgeStart(item);
+        return { ...item, _ageStart: ageStart, _ageLabel: isPreorderOrigin(item) ? "released" : "bought", _daysHeld: daysHeld(ageStart) };
       });
     const aged90 = onHandInventory.filter((item) => item._daysHeld >= 90);
     const aged180 = onHandInventory.filter((item) => item._daysHeld >= 180);
@@ -1529,21 +1599,23 @@ export default function App({ onLogout, userEmail }) {
     const avgDays = onHandInventory.length ? Math.round(onHandInventory.reduce((a, item) => a + item._daysHeld, 0) / onHandInventory.length) : 0;
     const agedValue = aged90.reduce((a, i) => a + (Number(i.price) || 0), 0);
     return { aged90, aged180, oldest, avgDays, agedValue, onHandUnits: onHandInventory.length };
-  }, [inventory]);
+  }, [inventory, dashCat, dashSource]);
   const velocityStats = useMemo(() => {
     const since30 = daysAgo(30);
     const since90 = daysAgo(90);
-    const sold30 = sales.filter((s) => s.saleDate >= since30);
-    const sold90 = sales.filter((s) => s.saleDate >= since90);
+    const matchesSource = (record) => dashSource === "All" || purchaseSourceFor(record) === dashSource;
+    const matchesCategory = (record) => dashCat === "All" || record.category === dashCat;
+    const sold30 = sales.filter((s) => s.saleDate >= since30 && matchesSource(s) && matchesCategory(s));
+    const sold90 = sales.filter((s) => s.saleDate >= since90 && matchesSource(s) && matchesCategory(s));
     const sold30Units = sold30.reduce((sum, sale) => sum + saleUnits(sale), 0);
     const todayKey = today();
-    const availableUnits = inventory.filter((item) => !item.preorderDate || item.preorderDate <= todayKey).length;
+    const availableUnits = inventory.filter((item) => matchesSource(item) && matchesCategory(item) && isInventoryAvailable(item, todayKey)).length;
     const monthlySellThrough = (availableUnits + sold30Units) > 0 ? sold30Units / (availableUnits + sold30Units) : 0;
     const dailyRate = sold30Units / 30;
     const daysCover = dailyRate > 0 ? Math.round(availableUnits / dailyRate) : null;
     const holdDays30 = sold30
-      .filter((sale) => sale.purchaseDate && sale.saleDate)
-      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(sale.purchaseDate)) / 86400000)))
+      .filter((sale) => inventoryAgeStart(sale) && sale.saleDate)
+      .map((sale) => Math.max(0, Math.round((dateObj(sale.saleDate) - dateObj(inventoryAgeStart(sale))) / 86400000)))
       .sort((a, b) => a - b);
     const medianDaysToSell = holdDays30.length
       ? holdDays30.length % 2
@@ -1561,7 +1633,7 @@ export default function App({ onLogout, userEmail }) {
     });
     const topCategories = [...categoryMap.values()].sort((a, b) => b.count - a.count || b.profit - a.profit).slice(0, 5);
     return { sold30, sold30Units, sold90, monthlySellThrough, daysCover, medianDaysToSell, topCategories };
-  }, [inventory, sales]);
+  }, [inventory, sales, dashCat, dashSource]);
 
   const reportStats = useMemo(() => {
     const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
@@ -1570,6 +1642,7 @@ export default function App({ onLogout, userEmail }) {
     let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
     if (dashPlat !== "All") fs = fs.filter((s) => s.platform === dashPlat);
+    if (dashSource !== "All") fs = fs.filter((s) => purchaseSourceFor(s) === dashSource);
     const selectedPaymentSet = new Set(reportPaymentMethods);
     const paymentFilterActive = reportPaymentMode !== "all" && selectedPaymentSet.size > 0;
     if (paymentFilterActive) {
@@ -1617,7 +1690,40 @@ export default function App({ onLogout, userEmail }) {
       expenseRows: group(fe, (e) => e.expCategory, (e) => Number(e.amount) || 0),
       expensePaymentRows: group(fe, recordPaymentMethod, (e) => Number(e.amount) || 0),
     };
-  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat, reportPaymentMode, reportPaymentMethods]);
+  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat, dashSource, reportPaymentMode, reportPaymentMethods]);
+
+  const sourcePerformanceRows = useMemo(() => {
+    const todayKey = today();
+    const since30 = daysAgo(30);
+    const filteredInventory = inventory.filter((item) =>
+      (dashCat === "All" || item.category === dashCat) &&
+      (dashSource === "All" || purchaseSourceFor(item) === dashSource)
+    );
+    const sourceNames = [...new Set([
+      ...reportStats.sales.map(purchaseSourceFor),
+      ...filteredInventory.map(purchaseSourceFor),
+    ])];
+    return sourceNames.map((name) => {
+      const sourceSales = reportStats.sales.filter((sale) => purchaseSourceFor(sale) === name);
+      const sourceInventory = filteredInventory.filter((item) => purchaseSourceFor(item) === name && isInventoryAvailable(item, todayKey));
+      const recentSales = sales.filter((sale) => sale.saleDate >= since30 && purchaseSourceFor(sale) === name && (dashCat === "All" || sale.category === dashCat) && (dashPlat === "All" || sale.platform === dashPlat));
+      const soldUnits = sourceSales.reduce((sum, sale) => sum + saleUnits(sale), 0);
+      const sold30Units = recentSales.reduce((sum, sale) => sum + saleUnits(sale), 0);
+      const cost = sourceSales.reduce((sum, sale) => sum + (Number(sale.costPrice) || 0), 0);
+      const profit = sourceSales.reduce((sum, sale) => sum + saleProfit(sale), 0);
+      const ages = sourceInventory.map((item) => daysHeld(inventoryAgeStart(item)));
+      return {
+        name,
+        soldUnits,
+        revenue: sourceSales.reduce((sum, sale) => sum + (Number(sale.salePrice) || 0), 0),
+        profit,
+        roi: cost > 0 ? profit / cost : null,
+        sellThrough: (sourceInventory.length + sold30Units) > 0 ? sold30Units / (sourceInventory.length + sold30Units) : 0,
+        avgAge: ages.length ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length) : null,
+        aged90: ages.filter((age) => age >= 90).length,
+      };
+    }).sort((a, b) => b.profit - a.profit || b.revenue - a.revenue || a.name.localeCompare(b.name));
+  }, [inventory, sales, reportStats.sales, dashCat, dashPlat, dashSource]);
 
   const exportReportCSV = () => {
     const headers = ["Section", "Name", "Count", "Amount"];
@@ -1633,6 +1739,7 @@ export default function App({ onLogout, userEmail }) {
       ...reportStats.platformRows.map((r) => ["Platform revenue", r.name, r.count, r.amount]),
       ...reportStats.paymentRows.map((r) => ["Payment method revenue", r.name, r.count, r.amount]),
       ...reportStats.categoryRows.map((r) => ["Category profit", r.name, r.count, r.amount]),
+      ...sourcePerformanceRows.map((r) => ["Purchase source profit", r.name, r.soldUnits, r.profit]),
       ...reportStats.expenseRows.map((r) => ["Expense category", r.name, r.count, r.amount]),
       ...reportStats.expensePaymentRows.map((r) => ["Expense payment method", r.name, r.count, r.amount]),
     ];
@@ -1653,14 +1760,15 @@ export default function App({ onLogout, userEmail }) {
   // ─── Preorders within the reminder window ───
   const upcomingPreorders = useMemo(() => {
     return inventory
-      .map((i) => ({ ...i, _bdays: businessDaysUntil(i.preorderDate) }))
+      .filter((item) => isUnreleasedPreorder(item, today()))
+      .map((i) => ({ ...i, _releaseExpectedDate: releaseExpectedDateFor(i), _bdays: businessDaysUntil(releaseExpectedDateFor(i)) }))
       .filter((i) => i._bdays !== null && i._bdays >= 0 && i._bdays <= PREORDER_THRESHOLD)
       .sort((a, b) => a._bdays - b._bdays);
   }, [inventory]);
   const upcomingPreorderGroups = useMemo(() => {
     const groups = new Map();
     upcomingPreorders.forEach((item) => {
-      const key = `${item.name}|${item.preorderDate || ""}`;
+      const key = `${item.name}|${item._releaseExpectedDate || ""}`;
       const existing = groups.get(key) || { ...item, _items: [], _count: 0, _totalValue: 0 };
       existing._items.push(item);
       existing._count += 1;
@@ -1694,8 +1802,9 @@ export default function App({ onLogout, userEmail }) {
 
   const health = useMemo(() => {
     const releasedPreorders = inventory.filter((i) => {
-      const bdays = businessDaysUntil(i.preorderDate);
-      return bdays !== null && bdays < 0;
+      const releaseDate = releaseExpectedDateFor(i);
+      const bdays = businessDaysUntil(releaseDate);
+      return isPreorderOrigin(i) && explicitAvailabilityFor(i) === "preorder" && bdays !== null && bdays < 0;
     }).length;
     const emptyCategories = CATS.length === 0;
     const emptyPlatforms = PLATS.length === 0;
@@ -1744,8 +1853,9 @@ export default function App({ onLogout, userEmail }) {
       f = f.filter((i) => [i.name, i.brand, i.tags, ...listedPlatformsFor(i)].some((v) => String(v || "").toLowerCase().includes(q)));
     }
     if (invCat !== "All") f = f.filter((i) => i.category === invCat);
-    if (invPreorderView === "available") f = f.filter((i) => !i.preorderDate);
-    if (invPreorderView === "preorders") f = f.filter((i) => Boolean(i.preorderDate));
+    if (invSource !== "All") f = f.filter((i) => purchaseSourceFor(i) === invSource);
+    if (invPreorderView === "available") f = f.filter((i) => isInventoryAvailable(i, today()));
+    if (invPreorderView === "preorders") f = f.filter((i) => isUnreleasedPreorder(i, today()));
     if (invStatus !== "All") {
       f = f.filter((i) => {
         const listed = listedPlatformsFor(i);
@@ -1764,11 +1874,11 @@ export default function App({ onLogout, userEmail }) {
       case "price_asc": sorted.sort((a, b) => a.price - b.price || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
       case "date_desc": sorted.sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
       case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "preorder_asc": sorted.sort((a, b) => (a.preorderDate || "9999-12-31").localeCompare(b.preorderDate || "9999-12-31") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "preorder_desc": sorted.sort((a, b) => (b.preorderDate || "").localeCompare(a.preorderDate || "") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "preorder_asc": sorted.sort((a, b) => (releaseExpectedDateFor(a) || "9999-12-31").localeCompare(releaseExpectedDateFor(b) || "9999-12-31") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
+      case "preorder_desc": sorted.sort((a, b) => (releaseExpectedDateFor(b) || "").localeCompare(releaseExpectedDateFor(a) || "") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
     }
     return sorted;
-  }, [inventory, invSearch, invCat, invPreorderView, invStatus, invSort]);
+  }, [inventory, invSearch, invCat, invSource, invPreorderView, invStatus, invSort]);
 
   const groupedInv = useMemo(() => {
     if (!invCollapse) return filteredInv.map((i) => ({ ...i, _group: false }));
@@ -1783,8 +1893,8 @@ export default function App({ onLogout, userEmail }) {
       const sortedItems = [...items].sort(compareInventorySize);
       if (sortedItems.length > 1) {
         const totalValue = sortedItems.reduce((a, x) => a + x.price, 0);
-        const preorderDates = sortedItems.map((x) => x.preorderDate).filter(Boolean).sort();
-        result.push({ ...sortedItems[0], preorderDate: preorderDates[0] || sortedItems[0].preorderDate || "", _group: true, _items: sortedItems, _count: sortedItems.length, _totalValue: totalValue });
+        const releaseDates = sortedItems.map(releaseExpectedDateFor).filter(Boolean).sort();
+        result.push({ ...sortedItems[0], releaseExpectedDate: releaseDates[0] || releaseExpectedDateFor(sortedItems[0]), preorderDate: releaseDates[0] || releaseExpectedDateFor(sortedItems[0]), _group: true, _items: sortedItems, _count: sortedItems.length, _totalValue: totalValue });
       } else result.push({ ...sortedItems[0], _group: false });
     });
     return result;
@@ -1998,8 +2108,8 @@ export default function App({ onLogout, userEmail }) {
     });
     return keys.size;
   }, [inventory, selectedInv, buyerMatchesByInventoryId]);
-  const preorderInvCount = useMemo(() => inventory.filter((i) => i.preorderDate).length, [inventory]);
-  const availableInvCount = useMemo(() => inventory.filter((i) => !i.preorderDate).length, [inventory]);
+  const preorderInvCount = useMemo(() => inventory.filter((i) => isUnreleasedPreorder(i, today())).length, [inventory]);
+  const availableInvCount = useMemo(() => inventory.filter((i) => isInventoryAvailable(i, today())).length, [inventory]);
   const listedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).length > 0).length, [inventory]);
   const facebookListedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).some((p) => String(p).toLowerCase().includes("facebook"))).length, [inventory]);
   const toggleSel = (id) => setSelectedInv((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -2145,8 +2255,9 @@ export default function App({ onLogout, userEmail }) {
   );
 
   const renderPreBadge = (item) => {
-    if (!item.preorderDate) return null;
-    const bd = businessDaysUntil(item.preorderDate);
+    const releaseDate = releaseExpectedDateFor(item);
+    if (!releaseDate || !isPreorderOrigin(item)) return null;
+    const bd = businessDaysUntil(releaseDate);
     const b = preorderBadge(bd);
     if (!b) return null;
     return <span style={badge(b.bg, b.fg)}>{b.text}</span>;
@@ -2214,7 +2325,7 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
-                {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""} · {item.purchaseDate}
+                {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""}{item.purchaseSource?` · ${item.purchaseSource}`:""}{item.purchasedBy?` · ${item.purchasedBy}`:""} · {item.purchaseDate}
               </div>
               {sortedListedPlatformsFor(item).length > 0 && (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>{renderListingBadges(item)}</div>
@@ -2232,7 +2343,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, justifySelf: "center" }} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{item.brand && <div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{(item.brand || item.purchaseSource || item.purchasedBy) && <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[item.brand, item.purchaseSource, item.purchasedBy].filter(Boolean).join(" · ")}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
@@ -2563,9 +2674,9 @@ export default function App({ onLogout, userEmail }) {
         )}
 
         {/* DASHBOARD */}
-        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend }} />}
+        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, profitTarget }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, purchaseSources, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSource, setInvSource, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
@@ -2577,7 +2688,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen, settings, persistSettings }} />}
 
         {/* REPORTS */}
-        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, velocityStats, agingStats, exportReportCSV }} />}
+        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, sourcePerformanceRows, velocityStats, agingStats, exportReportCSV }} />}
 
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
@@ -2702,7 +2813,8 @@ export default function App({ onLogout, userEmail }) {
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
         <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Cost (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
-        <Row><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Preorder date"><input type="date" value={invForm.preorderDate} onChange={(e) => updateInvForm({ preorderDate: e.target.value })} style={inp} /></Field></Row>
+        <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={invForm.availability} onChange={(e) => updateInvForm({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="available">Available</option></select></Field><Field label="Release / Expected Date"><input type="date" value={invForm.releaseExpectedDate} onChange={(e) => updateInvForm({ releaseExpectedDate: e.target.value })} style={inp} /></Field></Row>
+        <Row><PurchaseSourceField value={invForm.purchaseSource} onChange={(purchaseSource) => updateInvForm({ purchaseSource })} /><Field label="Purchased by"><input value={invForm.purchasedBy} onChange={(e) => updateInvForm({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
         <Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field>
@@ -2728,7 +2840,7 @@ export default function App({ onLogout, userEmail }) {
                 <ResponsiveGrid key={item.id} columns="minmax(0,1fr) 76px 78px 54px" mobileColumns="minmax(0, 1fr) auto" gap={8} style={{ alignItems: "center", padding: "8px 11px", borderTop: "1px solid #232c3c22", fontSize: 12 }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                    <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
+                    <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{item.purchaseSource ? ` - ${item.purchaseSource}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
                   </div>
                   <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{item.size || "OS"}</span>
                   <span style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>

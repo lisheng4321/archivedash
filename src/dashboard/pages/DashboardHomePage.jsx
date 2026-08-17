@@ -51,6 +51,9 @@ export default function DashboardHomePage({ ctx }) {
     setDashCat,
     dashPlat,
     setDashPlat,
+    dashSource,
+    setDashSource,
+    purchaseSources,
     CATS,
     PLATS,
     dashboardCards,
@@ -70,6 +73,7 @@ export default function DashboardHomePage({ ctx }) {
     logAllOverdue,
     periodComparison,
     periodTrend,
+    profitTarget,
   } = ctx;
 
   const rangeButtonStyle = (r) => ({
@@ -134,6 +138,7 @@ export default function DashboardHomePage({ ctx }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 150, flex: isMobile ? "1 1 140px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 140px" : undefined }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
+        <select value={dashSource} onChange={(e) => setDashSource(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 190, flex: isMobile ? "1 1 150px" : undefined }}><option value="All">All Purchase Sources</option><option value="Unknown">Unknown</option>{purchaseSources.map((source) => <option key={source} value={source}>{source}</option>)}</select>
       </div>
 
       {dashboardCards.actionStrip && (
@@ -168,11 +173,11 @@ export default function DashboardHomePage({ ctx }) {
             {upcomingPreorderGroups.slice(0, isMobile ? 4 : 6).map((i) => {
               const b = preorderBadge(i._bdays);
               return (
-                <div key={`${i.id}-${i.preorderDate}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #232c3c66" }}>
+                <div key={`${i.id}-${i._releaseExpectedDate}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 12px", background: "#0d1117", borderRadius: 6, border: "1px solid #232c3c66" }}>
                   <span style={{ fontSize: 13, color: "#e5e7eb", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{i.name}</span>
                   {i._count > 1 && <span style={{ fontSize: 11, color: "#93c5fd", background: "#1e3a5f", borderRadius: 999, padding: "2px 7px", fontWeight: 700, flexShrink: 0 }}>{i._count} units</span>}
                   {!isMobile && <span style={{ fontSize: 11, color: "#cbd5e1", flexShrink: 0 }}>{currency(i._totalValue)}</span>}
-                  {!isMobile && <span style={{ fontSize: 11, color: "#7c8aa0", flexShrink: 0 }}>{i.preorderDate}</span>}
+                  {!isMobile && <span style={{ fontSize: 11, color: "#7c8aa0", flexShrink: 0 }}>{i._releaseExpectedDate}</span>}
                   <span style={{ fontSize: 11, padding: "2px 7px", borderRadius: 4, background: b.bg, color: b.fg, fontWeight: 600, flexShrink: 0 }}>{b.text}</span>
                 </div>
               );
@@ -209,6 +214,16 @@ export default function DashboardHomePage({ ctx }) {
             <div title={`Previous period ${periodComparison.previousStart} to ${periodComparison.previousEnd}: ${periodComparison.previousSalesCount} units`} style={{ gridColumn: isMobile ? "1 / -1" : undefined, fontSize: 11, color: periodComparison.salesDelta >= 0 ? "#34d399" : "#f87171", marginTop: isMobile ? 0 : 2, lineHeight: 1.25 }}>{periodComparison.salesPct === null ? "new vs previous" : `${periodComparison.salesDelta >= 0 ? "+" : ""}${periodComparison.salesPct.toFixed(1)}% vs previous`}</div>
           </div>
         </div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) auto", gap: 10, alignItems: "center", margin: "4px 0 10px", padding: "9px 11px", borderRadius: 8, background: "#0d1422", border: "1px solid #232c3c" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6, fontSize: 11 }}>
+              <span style={{ color: "#cbd5e1", fontWeight: 700 }}>Monthly target {currency(profitTarget.monthly)}</span>
+              <span style={{ color: profitTarget.aheadBehind >= 0 ? "#34d399" : "#f59e0b", fontWeight: 800 }}>{currency(Math.abs(profitTarget.aheadBehind))} {profitTarget.aheadBehind >= 0 ? "ahead" : "behind"} pace</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 999, background: "#1e293b", overflow: "hidden" }}><div style={{ width: `${Math.max(0, Math.min(100, profitTarget.progress * 100))}%`, height: "100%", borderRadius: 999, background: profitTarget.aheadBehind >= 0 ? "#34d399" : "#3b82f6" }} /></div>
+          </div>
+          <div title={`Derived daily pace: ${currency(profitTarget.dailyPace)} across ${profitTarget.daysInMonth} days`} style={{ color: "#8b97ad", fontSize: 11, textAlign: isMobile ? "left" : "right", whiteSpace: "nowrap" }}>{currency(profitTarget.realized)} realized · {(profitTarget.progress * 100).toFixed(0)}% of month</div>
+        </div>
         <PeriodComparisonChart points={periodTrend} isMobile={isMobile} />
       </div>}
 
@@ -216,7 +231,7 @@ export default function DashboardHomePage({ ctx }) {
         {dashboardCards.salesIncome && <DetailKPI label="Sales" value={currency(stats.salesIncome)} detailLabel="Units sold" detailValue={stats.salesUnits} />}
         <ProfitMarginKPI profitLabel="Realized profit" profitValue={currency(stats.netProfit)} profitVisible={dashboardCards.netProfit && !dashboardCards.netProfitGraph} marginLabel="Realized margin" marginValue={(stats.netMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.netMargin && !dashboardCards.netProfitGraph} accent={stats.netProfit>=0?"#34d399":"#f87171"} />
         <ProfitMarginKPI profitLabel="Gross profit" profitValue={currency(stats.grossProfit)} profitVisible={dashboardCards.grossProfit} marginLabel="Gross margin" marginValue={(stats.grossMargin * 100).toFixed(1) + "%"} marginVisible={dashboardCards.grossMargin} accent={stats.grossProfit>=0?"#34d399":"#f87171"} />
-        {dashboardCards.inventorySpend && <DetailKPI label="Cash deployed" value={currency(stats.inventorySpend)} detailLabel="Avg. cost / unit" detailValue={stats.acquiredUnits ? currency(stats.averageAcquisitionCost) : "n/a"} />}
+        {dashboardCards.inventorySpend && <DetailKPI label="Inventory Spend" value={currency(stats.inventorySpend)} detailLabel="Acquired / committed cost" detailValue={stats.acquiredUnits ? `${stats.acquiredUnits} units · ${currency(stats.averageAcquisitionCost)} avg.` : "n/a"} />}
         {dashboardCards.profitRoi && <DetailKPI label="Profit ROI" value={`${(stats.profitRoi * 100).toFixed(1)}%`} detailLabel="Cost basis" detailValue={currency(stats.salesCost)} accent={stats.profitRoi >= 0 ? "#34d399" : "#f87171"} />}
         {dashboardCards.inventoryValue && <KPI label="Inventory value" value={currency(stats.invValue)} />}
         {dashboardCards.salesCount && <KPI label="Units sold" value={stats.salesUnits} />}

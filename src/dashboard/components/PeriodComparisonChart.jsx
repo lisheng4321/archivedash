@@ -12,15 +12,15 @@ export { shortDateLabel };
 export default function PeriodComparisonChart({ points = [], isMobile }) {
   const [hoverIndex, setHoverIndex] = useState(null);
   const chartPoints = points.length ? points : [
-    { key: "empty-1", label: "Start", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
-    { key: "empty-2", label: "End", currentDate: "", previousDate: "", current: 0, previous: 0, currentSales: 0, previousSales: 0 },
+    { key: "empty-1", label: "Start", currentDate: "", previousDate: "", current: 0, previous: 0, target: 0, currentSales: 0, previousSales: 0 },
+    { key: "empty-2", label: "End", currentDate: "", previousDate: "", current: 0, previous: 0, target: 0, currentSales: 0, previousSales: 0 },
   ];
   const width = 1000;
   const height = isMobile ? 188 : 168;
   const pad = { top: 10, right: isMobile ? 10 : 22, bottom: 28, left: isMobile ? 62 : 76 };
   const plotW = width - pad.left - pad.right;
   const plotH = height - pad.top - pad.bottom;
-  const values = chartPoints.flatMap((p) => [Number(p.current) || 0, Number(p.previous) || 0, 0]);
+  const values = chartPoints.flatMap((p) => [Number(p.current) || 0, Number(p.previous) || 0, Number(p.target) || 0, 0]);
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   const rawSpan = Math.max(1, rawMax - rawMin);
@@ -49,7 +49,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
   const labelIndexes = [...new Set([0, Math.floor((chartPoints.length - 1) / 2), chartPoints.length - 1])];
   const hoverPoint = hoverIndex === null ? chartPoints[chartPoints.length - 1] : chartPoints[hoverIndex];
   const hoverX = xFor(hoverIndex === null ? chartPoints.length - 1 : hoverIndex);
-  const hoverY = yFor(Math.max(Number(hoverPoint.current) || 0, Number(hoverPoint.previous) || 0));
+  const hoverY = yFor(Math.max(Number(hoverPoint.current) || 0, Number(hoverPoint.previous) || 0, Number(hoverPoint.target) || 0));
   const tooltipLeft = hoverX < 120 ? "110px" : hoverX > width - 120 ? "calc(100% - 110px)" : `${(hoverX / width) * 100}%`;
   const hoverBand = chartPoints.length <= 1 ? plotW : plotW / Math.max(1, chartPoints.length - 1);
 
@@ -61,6 +61,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
             <line x1={pad.left} x2={width - pad.right} y1={yFor(value)} y2={yFor(value)} stroke={value === 0 ? "#334155" : "#232c3c"} strokeWidth={value === 0 ? "1.2" : "1"} />
           </g>
         ))}
+        <path d={pathFor("target")} fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="3 6" />
         <path d={pathFor("previous")} fill="none" stroke="#64748b" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="7 7" />
         <path d={pathFor("current")} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         {chartPoints.map((p, i) => (
@@ -73,7 +74,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
               fill="transparent"
               role="button"
               tabIndex="0"
-              aria-label={`${p.label || shortDateLabel(p.currentDate)}: current ${currency(p.current || 0)}, previous ${currency(p.previous || 0)}, ${p.currentSales || 0} ${(p.currentSales || 0) === 1 ? "unit" : "units"} sold versus ${p.previousSales || 0} ${(p.previousSales || 0) === 1 ? "unit" : "units"}`}
+              aria-label={`${p.label || shortDateLabel(p.currentDate)}: current ${currency(p.current || 0)}, target pace ${currency(p.target || 0)}, previous ${currency(p.previous || 0)}, ${p.currentSales || 0} ${(p.currentSales || 0) === 1 ? "unit" : "units"} sold versus ${p.previousSales || 0} ${(p.previousSales || 0) === 1 ? "unit" : "units"}`}
               onMouseEnter={() => setHoverIndex(i)}
               onMouseLeave={() => { if (!isMobile) setHoverIndex(null); }}
               onFocus={() => setHoverIndex(i)}
@@ -87,6 +88,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
           <line x1={hoverX} x2={hoverX} y1={pad.top} y2={pad.top + plotH} stroke="#2563eb" strokeWidth="1" opacity="0.7" />
           <circle cx={hoverX} cy={yFor(Number(hoverPoint.current) || 0)} r="4" fill="#3b82f6" stroke="#0f172a" strokeWidth="2" />
           <circle cx={hoverX} cy={yFor(Number(hoverPoint.previous) || 0)} r="4" fill="#64748b" stroke="#0f172a" strokeWidth="2" />
+          <circle cx={hoverX} cy={yFor(Number(hoverPoint.target) || 0)} r="3.5" fill="#f59e0b" stroke="#0f172a" strokeWidth="2" />
         </>}
       </svg>
       {labeledTicks.map((value) => (
@@ -99,7 +101,7 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
           <div key={`${point?.key || index}-label`} style={{ position: "absolute", left: `${(xFor(index) / width) * 100}%`, bottom: 18, transform, color: "#64748b", fontSize: 11, whiteSpace: "nowrap", pointerEvents: "none" }}>{point?.label}</div>
         );
       })}
-      {hoverIndex !== null && <div style={{ position: "absolute", top: Math.max(8, Math.min(height - 88, hoverY - 64)), left: tooltipLeft, transform: "translateX(-50%)", width: 210, padding: "8px 10px", borderRadius: 8, background: "#0b1220", border: "1px solid #232c3c", boxShadow: "0 12px 28px rgba(0,0,0,.35)", pointerEvents: "none" }}>
+      {hoverIndex !== null && <div style={{ position: "absolute", top: Math.max(8, Math.min(height - 108, hoverY - 64)), left: tooltipLeft, transform: "translateX(-50%)", width: 210, padding: "8px 10px", borderRadius: 8, background: "#0b1220", border: "1px solid #232c3c", boxShadow: "0 12px 28px rgba(0,0,0,.35)", pointerEvents: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 4 }}>
           <span style={{ color: "#93c5fd", fontSize: 11, fontWeight: 700 }}>{hoverPoint.currentDate || "Current"}</span>
           <span style={{ color: "#bfdbfe", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.current || 0)}</span>
@@ -108,11 +110,16 @@ export default function PeriodComparisonChart({ points = [], isMobile }) {
           <span style={{ color: "#94a3b8", fontSize: 11, fontWeight: 700 }}>{hoverPoint.previousDate || "Previous"}</span>
           <span style={{ color: "#cbd5e1", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.previous || 0)}</span>
         </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6 }}>
+          <span style={{ color: "#fbbf24", fontSize: 11, fontWeight: 700 }}>Target pace</span>
+          <span style={{ color: "#fde68a", fontSize: 11, fontWeight: 700 }}>{currency(hoverPoint.target || 0)}</span>
+        </div>
         <div style={{ color: "#64748b", fontSize: 11 }}>Units sold: <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.currentSales || 0}</span> vs <span style={{ color: "#e5e7eb", fontWeight: 700 }}>{hoverPoint.previousSales || 0}</span></div>
       </div>}
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: -10, fontSize: 11, color: "#94a3b8" }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: "6px 16px", flexWrap: "wrap", marginTop: -10, fontSize: 11, color: "#94a3b8" }}>
         <span><span style={{ display: "inline-block", width: 18, height: 3, background: "#3b82f6", borderRadius: 999, marginRight: 6, verticalAlign: "middle" }} />Current period</span>
         <span><span style={{ display: "inline-block", width: 18, height: 0, borderTop: "3px dashed #64748b", marginRight: 6, verticalAlign: "middle" }} />Previous period</span>
+        <span><span style={{ display: "inline-block", width: 18, height: 0, borderTop: "2px dotted #f59e0b", marginRight: 6, verticalAlign: "middle" }} />Monthly target pace</span>
       </div>
     </div>
   );

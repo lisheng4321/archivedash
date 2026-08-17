@@ -14,6 +14,9 @@ export default function ReportsPage({ ctx }) {
     setDashCat,
     dashPlat,
     setDashPlat,
+    dashSource,
+    setDashSource,
+    purchaseSources,
     reportPaymentMode,
     setReportPaymentMode,
     reportPaymentMethods,
@@ -23,6 +26,7 @@ export default function ReportsPage({ ctx }) {
     PLATS,
     PAYMETHODS,
     reportStats,
+    sourcePerformanceRows,
     velocityStats,
     agingStats,
     exportReportCSV,
@@ -68,6 +72,30 @@ export default function ReportsPage({ ctx }) {
     </div>
   );
 
+  const SourcePerformanceTable = () => (
+    <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 16, marginBottom: 14, overflowX: "auto" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#f3f6fb", marginBottom: 3 }}>Purchase Source Performance</div>
+      <div style={{ fontSize: 11, color: "#8b97ad", marginBottom: 10 }}>Profit and ROI use sales in the selected period. Sell-through uses the last 30 days; aging uses currently available inventory.</div>
+      {sourcePerformanceRows.length === 0 ? <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: 18 }}>No source data in this view.</div> : (
+        <div style={{ minWidth: 680 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1.4fr) 70px 100px 80px 100px 105px", gap: 10, paddingBottom: 8, color: "#8b97ad", fontSize: 11, textTransform: "uppercase", fontWeight: 700 }}>
+            <span>Source</span><span style={{ textAlign: "right" }}>Sold</span><span style={{ textAlign: "right" }}>Profit</span><span style={{ textAlign: "right" }}>ROI</span><span style={{ textAlign: "right" }}>Sell-through</span><span style={{ textAlign: "right" }}>Aging</span>
+          </div>
+          {sourcePerformanceRows.map((row) => (
+            <div key={row.name} style={{ display: "grid", gridTemplateColumns: "minmax(150px, 1.4fr) 70px 100px 80px 100px 105px", gap: 10, padding: "8px 0", borderTop: "1px solid #232c3c22", fontSize: 12, alignItems: "center" }}>
+              <span style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.name}</span>
+              <span style={{ color: "#9ca3af", textAlign: "right" }}>{row.soldUnits}</span>
+              <span style={{ color: row.profit >= 0 ? "#34d399" : "#f87171", textAlign: "right", fontWeight: 700 }}>{currency(row.profit)}</span>
+              <span style={{ color: "#cbd5e1", textAlign: "right" }}>{row.roi === null ? "n/a" : `${(row.roi * 100).toFixed(1)}%`}</span>
+              <span style={{ color: "#93c5fd", textAlign: "right" }}>{(row.sellThrough * 100).toFixed(1)}%</span>
+              <span style={{ color: row.aged90 ? "#f59e0b" : "#9ca3af", textAlign: "right" }}>{row.avgAge === null ? "n/a" : `${row.avgAge}d`}{row.aged90 ? ` · ${row.aged90} aged` : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -82,6 +110,7 @@ export default function ReportsPage({ ctx }) {
         <div style={{ display: "flex", gap: 3, background: "#121a2b", borderRadius: 8, padding: 3, border: "1px solid #232c3c", flexWrap: "wrap" }}>{TIME_RANGES.map((r) => <button key={r} style={rb(r)} onClick={() => setRange(r)}>{r}</button>)}</div>
         <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: 160 }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: 170 }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
+        <select value={dashSource} onChange={(e) => setDashSource(e.target.value)} style={{ ...sel, maxWidth: 190 }}><option value="All">All Purchase Sources</option><option value="Unknown">Unknown</option>{purchaseSources.map((source) => <option key={source} value={source}>{source}</option>)}</select>
         <select value={reportPaymentMode} onChange={(e) => setReportPaymentMode(e.target.value)} style={{ ...sel, maxWidth: 180 }}>
           <option value="all">All Payments</option>
           <option value="include">Only selected</option>
@@ -93,7 +122,7 @@ export default function ReportsPage({ ctx }) {
             <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 150 }} />
           </>
         )}
-        {(dashCat !== "All" || dashPlat !== "All" || reportPaymentMode !== "all" || reportPaymentMethods.length > 0) && <button onClick={() => { setDashCat("All"); setDashPlat("All"); setReportPaymentMode("all"); setReportPaymentMethods([]); }} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Clear</button>}
+        {(dashCat !== "All" || dashPlat !== "All" || dashSource !== "All" || reportPaymentMode !== "all" || reportPaymentMethods.length > 0) && <button onClick={() => { setDashCat("All"); setDashPlat("All"); setDashSource("All"); setReportPaymentMode("all"); setReportPaymentMethods([]); }} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Clear</button>}
         {reportPaymentMode !== "all" && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", width: "100%" }}>
             {PAYMETHODS.map((method) => {
@@ -141,6 +170,8 @@ export default function ReportsPage({ ctx }) {
           <p style={{ margin: "12px 0 0", color: "#7c8aa0", fontSize: 11, lineHeight: 1.45 }}>Use this as a working reseller summary, not tax advice. It only reflects what has been recorded in ArchiveDash.</p>
         </div>
       </div>
+
+      <SourcePerformanceTable />
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 14 }}>
         <MiniTable title="Platform Revenue" rows={reportStats.platformRows} empty="No platform sales in this range." amountLabel="Revenue" />

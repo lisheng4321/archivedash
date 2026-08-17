@@ -16,6 +16,7 @@ export default function InventoryPage({ ctx }) {
     handleBuyerNotifyExport,
     selectedBuyerNotifyCount,
     CATS = [],
+    purchaseSources = [],
     listingPlatforms = [],
     openAddInventory,
     gmailQueueOpen,
@@ -24,6 +25,8 @@ export default function InventoryPage({ ctx }) {
     setInvSearch,
     invCat,
     setInvCat,
+    invSource,
+    setInvSource,
     invPreorderView,
     setInvPreorderView,
     invStatus,
@@ -77,7 +80,7 @@ export default function InventoryPage({ ctx }) {
       children: `${label} ${count}`,
     };
   };
-  const clearFilters = () => { setInvSearch(""); setInvCat("All"); setInvPreorderView("available"); setInvStatus("All"); setInvSort("name_asc"); };
+  const clearFilters = () => { setInvSearch(""); setInvCat("All"); setInvSource("All"); setInvPreorderView("available"); setInvStatus("All"); setInvSort("name_asc"); };
 
   return (
     <div style={{ padding: pagePad }}>
@@ -114,6 +117,7 @@ export default function InventoryPage({ ctx }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 200, flex: isMobile ? "1 1 100%" : undefined }} />
         <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+        <select value={invSource} onChange={(e) => setInvSource(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 180, flex: isMobile ? "1 1 145px" : undefined }}><option value="All">All Purchase Sources</option><option value="Unknown">Unknown</option>{purchaseSources.map((source) => <option key={source} value={source}>{source}</option>)}</select>
         <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}>
           <option value="All">All Listings</option>
           <option value="Listed">Listed</option>
@@ -128,15 +132,15 @@ export default function InventoryPage({ ctx }) {
         {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
-          <option value="preorder_asc">Preorder date up</option>
-          <option value="preorder_desc">Preorder date down</option>
+          <option value="preorder_asc">Release date up</option>
+          <option value="preorder_desc">Release date down</option>
           <option value="price_desc">Price down</option>
           <option value="price_asc">Price up</option>
           <option value="date_desc">Newest</option>
           <option value="date_asc">Oldest</option>
         </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
-        {(invSearch || invCat !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+        {(invSearch || invCat !== "All" || invSource !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
       </div>
 
