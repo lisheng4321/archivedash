@@ -1,23 +1,18 @@
 import { FREQ_LABEL, PREORDER_THRESHOLD } from "./constants.js";
 
-const businessDaysUntil = (dateStr) => {
+const calendarDaysUntil = (dateStr) => {
   if (!dateStr) return null;
   const target = new Date(dateStr + "T00:00:00");
   if (isNaN(target.getTime())) return null;
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  const sign = target >= start ? 1 : -1;
-  let count = 0;
-  const cur = new Date(start);
-  const end = new Date(target);
-  if (sign < 0) { cur.setTime(target.getTime()); end.setTime(start.getTime()); }
-  while (cur < end) {
-    cur.setDate(cur.getDate() + 1);
-    const d = cur.getDay();
-    if (d !== 0 && d !== 6) count++;
-  }
-  return sign * count;
+  return Math.round((target.getTime() - start.getTime()) / 86400000);
 };
+
+// Compatibility export for existing preorder callers. Countdown semantics are
+// calendar days now; keeping the old name avoids coupling this UI change to a
+// broader import cleanup.
+const businessDaysUntil = calendarDaysUntil;
 
 const frequencyDays = (freq, customDays) => {
   if (freq === "weekly") return 7;
@@ -82,13 +77,13 @@ const monthlyEquiv = (amount, freq, customDays) => {
   return a;
 };
 
-const preorderBadge = (bdays) => {
-  if (bdays === null || bdays === undefined) return null;
-  if (bdays < 0) return { bg: "#3b1f2b", fg: "#f472b6", text: "RELEASED" };
-  if (bdays <= 5) return { bg: "#3b1f1f", fg: "#f87171", text: `${bdays}bd` };
-  if (bdays <= 15) return { bg: "#3b2f1f", fg: "#fbbf24", text: `${bdays}bd` };
-  if (bdays <= PREORDER_THRESHOLD) return { bg: "#1e3a5f", fg: "#60a5fa", text: `${bdays}bd` };
-  return { bg: "#232c3c", fg: "#9ca3af", text: `${bdays}bd` };
+const preorderBadge = (daysAway) => {
+  if (daysAway === null || daysAway === undefined) return null;
+  if (daysAway < 0) return { bg: "#3b1f2b", fg: "#f472b6", text: "RELEASED" };
+  if (daysAway <= 5) return { bg: "#3b1f1f", fg: "#f87171", text: `${daysAway}d` };
+  if (daysAway <= 15) return { bg: "#3b2f1f", fg: "#fbbf24", text: `${daysAway}d` };
+  if (daysAway <= PREORDER_THRESHOLD) return { bg: "#1e3a5f", fg: "#60a5fa", text: `${daysAway}d` };
+  return { bg: "#232c3c", fg: "#9ca3af", text: `${daysAway}d` };
 };
 
 const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return sydneyDate(d); };
@@ -106,6 +101,7 @@ const getFilterDate = (range) => {
 };
 
 export {
+  calendarDaysUntil,
   businessDaysUntil,
   frequencyDays,
   frequencyLabel,
