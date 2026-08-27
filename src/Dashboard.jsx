@@ -1138,7 +1138,7 @@ export default function App({ onLogout, userEmail }) {
     data: { inventory, sales, expenses, subs, notes, settings, templates: userTemplates || [] },
   });
 
-  const createSupabaseBackup = useCallback(async (reason = "manual") => {
+  const createSupabaseBackup = useCallback(async (reason = "manual", { preserveSnapshotId = null } = {}) => {
     if (!supabase) {
       setBackupStatus("Supabase backups need Supabase to be configured.");
       setTimeout(() => setBackupStatus(""), 4000);
@@ -1146,7 +1146,17 @@ export default function App({ onLogout, userEmail }) {
     }
     const snapshot = buildBackupSnapshot(reason);
     const retention = Math.max(1, Number(backupSettings.retention) || DEFAULT_BACKUP_SETTINGS.retention);
-    const nextBackups = [snapshot, ...backups].slice(0, retention);
+    const backupCandidates = [snapshot, ...backups];
+    let nextBackups = backupCandidates.slice(0, retention);
+    const preservedSnapshot = preserveSnapshotId
+      ? backupCandidates.find((backup) => backup.id === preserveSnapshotId)
+      : null;
+    if (preservedSnapshot && !nextBackups.some((backup) => backup.id === preserveSnapshotId)) {
+      // A pre-action snapshot must not evict the older snapshot that is about
+      // to be restored, even when retention is configured to keep only one.
+      const retainedBeforeSource = nextBackups.slice(0, Math.max(1, retention - 1));
+      nextBackups = [...retainedBeforeSource, preservedSnapshot];
+    }
     setSaveStatus("saving");
     const backupResult = await save("arch-backups", nextBackups);
     trackSaveResult("arch-backups", backupResult, nextBackups, setBackups);
@@ -1201,7 +1211,63 @@ export default function App({ onLogout, userEmail }) {
       confirmLabel: "Restore",
       snapshot: true,
       snapshotReason: "pre-restore",
+      preserveSnapshotId: snapshot.id,
       run: () => applySupabaseBackup(snapshot),
+    });
+  };
+
+  const applyNotesFromBackup = async (snapshot) => {
+    const snapshotNotes = snapshot?.data?.notes;
+    if (!Array.isArray(snapshotNotes)) {
+      setBackupStatus("This snapshot does not contain notes.");
+      setTimeout(() => setBackupStatus(""), 4000);
+      return;
+    }
+
+    // Snapshot versions win for matching IDs, while notes created after the
+    // snapshot are retained. No other ArchiveDash dataset is written here.
+    const snapshotNoteIds = new Set(snapshotNotes.map((note) => note.id));
+    const recoveredNotes = [
+      ...snapshotNotes,
+      ...notes.filter((note) => !snapshotNoteIds.has(note.id)),
+    ];
+    if (noteSaveTimer.current) {
+      clearTimeout(noteSaveTimer.current);
+      noteSaveTimer.current = null;
+    }
+    setSaveStatus("saving");
+    const result = await save("arch-notes", recoveredNotes);
+    trackSaveResult("arch-notes", result, recoveredNotes, setNotes);
+    showSaveResult(result);
+    if (result?.ok === false) {
+      setBackupStatus("Notes recovery failed. Retry from the save warning.");
+      setTimeout(() => setBackupStatus(""), 5000);
+      return;
+    }
+
+    setNotes(recoveredNotes);
+    setActiveNoteId(snapshotNotes[0]?.id || recoveredNotes[0]?.id || null);
+    setBackupStatus(`${snapshotNotes.length} note${snapshotNotes.length === 1 ? "" : "s"} recovered. Inventory, sales, expenses, and subscriptions were not changed.`);
+    setTimeout(() => setBackupStatus(""), 6000);
+  };
+
+  const recoverNotesFromBackup = (snapshot) => {
+    if (!snapshot) return;
+    const snapshotNoteCount = Array.isArray(snapshot.data?.notes) ? snapshot.data.notes.length : 0;
+    setDangerAction({
+      title: "Recover notes only",
+      intro: `Recover notes from ${new Date(snapshot.createdAt).toLocaleString()}. Snapshot versions replace notes with the same ID, and notes created since are kept. No inventory, sales, expenses, subscriptions, settings, or templates will be restored from the old snapshot.`,
+      counts: [
+        { label: "Notes in snapshot", value: snapshotNoteCount },
+        { label: "Notes now", value: notes.length },
+        { label: "Other data", value: "Not changed" },
+      ],
+      keyword: "RECOVER",
+      confirmLabel: "Recover notes",
+      snapshot: true,
+      snapshotReason: "pre-notes-recovery",
+      preserveSnapshotId: snapshot.id,
+      run: () => applyNotesFromBackup(snapshot),
     });
   };
 
@@ -1247,7 +1313,10 @@ export default function App({ onLogout, userEmail }) {
     setDangerBusy(true);
     try {
       if (action.snapshot && supabase) {
-        const backedUp = await createSupabaseBackup(action.snapshotReason || "pre-action");
+        const backedUp = await createSupabaseBackup(
+          action.snapshotReason || "pre-action",
+          { preserveSnapshotId: action.preserveSnapshotId || null },
+        );
         if (!backedUp) return;
       }
       await action.run();
@@ -2754,7 +2823,7 @@ export default function App({ onLogout, userEmail }) {
             <button onClick={() => setPage("health")} style={ghostBtn}>System Health</button>
             <button onClick={() => setPage("backup")} style={{ ...ghostBtn, background: "#1e293b", color: "#93c5fd" }}>Backup & Restore</button>
           </div>
-          <BackupPage ctx={{ isMobile, backupStatus, backupSettings, updateBackupSettings, backups, createSupabaseBackup, supabase, inventory, sales, expenses, subs, notes, exportJSON, exportCSV, importBackup, restoreSupabaseBackup, requestReplaceImport, requestClearAll }} />
+          <BackupPage ctx={{ isMobile, backupStatus, backupSettings, updateBackupSettings, backups, createSupabaseBackup, supabase, inventory, sales, expenses, subs, notes, exportJSON, exportCSV, importBackup, restoreSupabaseBackup, recoverNotesFromBackup, requestReplaceImport, requestClearAll }} />
         </div>)}
 
         {/* SETTINGS */}

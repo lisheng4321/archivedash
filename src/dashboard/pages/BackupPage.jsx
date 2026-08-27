@@ -19,6 +19,7 @@ export default function BackupPage({ ctx }) {
     exportCSV,
     importBackup,
     restoreSupabaseBackup,
+    recoverNotesFromBackup,
     requestReplaceImport,
     requestClearAll,
   } = ctx;
@@ -77,7 +78,15 @@ export default function BackupPage({ ctx }) {
                   <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700 }}>{new Date(snapshot.createdAt).toLocaleString()}</div>
                   <div style={{ color: "#7c8aa0", fontSize: 11 }}>{snapshot.counts?.inventory || 0} items - {snapshot.counts?.sales || 0} sales - {snapshot.counts?.notes || 0} notes</div>
                 </div>
-                <button onClick={() => restoreSupabaseBackup(snapshot)} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Restore</button>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => recoverNotesFromBackup(snapshot)}
+                    disabled={!Array.isArray(snapshot.data?.notes)}
+                    title="Recover notes from this snapshot without changing other data"
+                    style={{ ...primaryBtn, padding: "6px 10px", fontSize: 12 }}
+                  >Recover notes</button>
+                  <button onClick={() => restoreSupabaseBackup(snapshot)} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12 }}>Restore all</button>
+                </div>
               </div>
             ))}
           </div>
