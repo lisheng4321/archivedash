@@ -1,4 +1,5 @@
-import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader } from "../shared.jsx";
+import { isInventoryAvailable } from "../inventory.js";
+import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader, today } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
 
@@ -49,7 +50,13 @@ export default function InventoryPage({ ctx }) {
   } = ctx;
 
   const productCount = new Set(inventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
-  const inventoryValue = inventory.reduce((a, i) => a + (Number(i.price) || 0), 0);
+  const todayKey = today();
+  const availableInventoryValue = inventory
+    .filter((item) => isInventoryAvailable(item, todayKey))
+    .reduce((total, item) => total + (Number(item.price) || 0), 0);
+  const preorderInventoryValue = inventory
+    .filter((item) => !isInventoryAvailable(item, todayKey))
+    .reduce((total, item) => total + (Number(item.price) || 0), 0);
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
@@ -87,7 +94,7 @@ export default function InventoryPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Inventory</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(inventoryValue)}</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(preorderInventoryValue)} preorder</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
