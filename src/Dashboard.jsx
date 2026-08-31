@@ -2340,7 +2340,7 @@ export default function App({ onLogout, userEmail }) {
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
-  const inventoryGridColumns = "48px minmax(220px, 1.45fr) minmax(90px, 0.6fr) minmax(100px, 0.7fr) 64px 92px 104px 44px 112px";
+  const inventoryGridColumns = "44px minmax(180px, 1.45fr) minmax(76px, 0.55fr) minmax(86px, 0.65fr) 56px 82px 88px 96px 40px 104px";
   const salesGridColumns = "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px";
   const expenseGridColumns = "48px minmax(220px, 1.35fr) minmax(130px, 0.75fr) minmax(130px, 0.75fr) 100px 112px 104px";
   const rowBg = (_index, selected = false) => selected ? "#1e293b" : "#121a2b";
@@ -2354,6 +2354,12 @@ export default function App({ onLogout, userEmail }) {
   const groupDateLabel = (items = []) => {
     const dates = [...new Set(items.map((i) => i.purchaseDate).filter(Boolean))].sort();
     if (dates.length <= 1) return dates[0] || "";
+    return `${dates[0]} - ${dates[dates.length - 1]}`;
+  };
+  const releaseDateLabel = (item) => isPreorderOrigin(item) ? (releaseExpectedDateFor(item) || "—") : "—";
+  const groupReleaseDateLabel = (items = []) => {
+    const dates = [...new Set(items.filter(isPreorderOrigin).map(releaseExpectedDateFor).filter(Boolean))].sort();
+    if (dates.length <= 1) return dates[0] || "—";
     return `${dates[0]} - ${dates[dates.length - 1]}`;
   };
   const sizeLabel = (item) => item.size || "OS";
@@ -2394,7 +2400,7 @@ export default function App({ onLogout, userEmail }) {
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
-                {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""}{item.purchaseSource?` · ${item.purchaseSource}`:""}{item.purchasedBy?` · ${item.purchasedBy}`:""} · {item.purchaseDate}
+                {item.category} · {item.size||"OS"}{item.brand?` · ${item.brand}`:""}{item.purchaseSource?` · ${item.purchaseSource}`:""}{item.purchasedBy?` · ${item.purchasedBy}`:""} · {item.purchaseDate}{isPreorderOrigin(item) ? ` · releases ${releaseDateLabel(item)}` : ""}
               </div>
               {sortedListedPlatformsFor(item).length > 0 && (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 5 }}>{renderListingBadges(item)}</div>
@@ -2418,6 +2424,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item.price)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
+        <span style={{ color: isPreorderOrigin(item) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: isPreorderOrigin(item) ? 600 : 400, textAlign: "center" }}>{releaseDateLabel(item)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
           <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
@@ -2451,7 +2458,7 @@ export default function App({ onLogout, userEmail }) {
               <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}{renderPreBadge(item)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
             </div>
-            <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units</div>
+            <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units{item._items?.some(isPreorderOrigin) ? ` · releases ${groupReleaseDateLabel(item._items)}` : ""}</div>
           </div>
         </div>
       );
@@ -2468,6 +2475,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{groupDateLabel(item._items || [])}</span>
+        <span style={{ color: item._items?.some(isPreorderOrigin) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: item._items?.some(isPreorderOrigin) ? 600 : 400, textAlign: "center" }}>{groupReleaseDateLabel(item._items || [])}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item._count}</span>
         <span aria-hidden="true" />
       </div>
