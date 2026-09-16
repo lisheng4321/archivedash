@@ -1,4 +1,4 @@
-import { getSizes } from "./shared.jsx";
+import { getSizes } from "./shared/constants.js";
 
 const PURCHASE_SOURCES = [
   "EB Games",

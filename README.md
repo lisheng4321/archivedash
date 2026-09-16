@@ -51,6 +51,8 @@ When Supabase backups are configured, destructive restore/replace/clear flows sa
 
 ## Local Development
 
+Use Node.js 22.12+ (or Node.js 20.19+). The Vite 8 build tools require these minimum versions; configure Vercel with a supported Node.js version as well.
+
 ```bash
 cp .env.example .env
 npm install

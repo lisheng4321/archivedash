@@ -1,14 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes } from "./supabase.js";
 import { validateBackup, requireSaved } from "./dashboard/backupValidation.js";
 import Calculator from "./Calculator";
-import CustomersPage from "./dashboard/pages/CustomersPage.jsx";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
 import BackupPage from "./dashboard/pages/BackupPage.jsx";
 import NotepadPage from "./dashboard/pages/NotepadPage.jsx";
 import InventoryPage from "./dashboard/pages/InventoryPage.jsx";
-import PricingPage from "./dashboard/pages/PricingPage.jsx";
-import ReportsPage from "./dashboard/pages/ReportsPage.jsx";
 import SalesPage from "./dashboard/pages/SalesPage.jsx";
 import SettingsPage from "./dashboard/pages/SettingsPage.jsx";
 import SubscriptionsPage from "./dashboard/pages/SubscriptionsPage.jsx";
@@ -16,13 +13,18 @@ import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
-import { PURCHASE_SOURCES, canonicalPurchaseSource, compareInventorySize, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { groupInventory, inventoryPreorderBadge, sortInventory } from "./dashboard/inventoryView.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
-import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, preorderBadge, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
+import { DEF_CATEGORIES, DEF_PLATFORMS, DEF_SIZE_MAP, getDefaultSize, getSizes, EXP_CATEGORIES, SUB_CATEGORIES, VERSION, PREORDER_THRESHOLD, FREQ_OPTIONS, FREQ_LABEL, FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, businessDaysUntil, advanceDate, monthlyEquiv, frequencyLabel, formatMoney, subAmountAud, subMonthlyAud, genId, currency, computeProfit, estimateEbayFee, sydneyDate, today, daysAgo, getFilterDate, useIsMobile, inp, sel, primaryBtn, ghostBtn, cb, badge, ConfirmDialog, DangerConfirmDialog, UnsavedDialog, Modal, Field, Row, ModalActions, ResponsiveGrid, KPI, TopBar, EmptyState } from "./dashboard/shared.jsx";
 
 import { PurchaseSourceField, EditInvModal, EditSaleModal, SellModal, BulkEditModal, EditExpModal, BulkEditExpModal, BulkEditSaleModal, BulkSellModal, ManualSaleModal, EbaySaleReviewModal, GmailInventoryReviewModal, NotepadEditor, SubModal, TemplateManagerModal } from "./dashboard/modals.jsx";
+
+const CustomersPage = lazy(() => import("./dashboard/pages/CustomersPage.jsx"));
+const PricingPage = lazy(() => import("./dashboard/pages/PricingPage.jsx"));
+const ReportsPage = lazy(() => import("./dashboard/pages/ReportsPage.jsx"));
 
 // ═══ SAMPLE / DEMO DATA ═══
 // First-run "Explore with sample data" seeds these records. Every demo record is
@@ -1969,39 +1971,10 @@ export default function App({ onLogout, userEmail }) {
         return true;
       });
     }
-    const sorted = [...f];
-    switch (invSort) {
-      case "name_asc": sorted.sort((a, b) => a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "name_desc": sorted.sort((a, b) => b.name.localeCompare(a.name) || compareInventorySize(a, b)); break;
-      case "price_desc": sorted.sort((a, b) => b.price - a.price || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "price_asc": sorted.sort((a, b) => a.price - b.price || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "date_desc": sorted.sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "date_asc": sorted.sort((a, b) => (a.purchaseDate||"").localeCompare(b.purchaseDate||"") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "preorder_asc": sorted.sort((a, b) => (releaseExpectedDateFor(a) || "9999-12-31").localeCompare(releaseExpectedDateFor(b) || "9999-12-31") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-      case "preorder_desc": sorted.sort((a, b) => (releaseExpectedDateFor(b) || "").localeCompare(releaseExpectedDateFor(a) || "") || a.name.localeCompare(b.name) || compareInventorySize(a, b)); break;
-    }
-    return sorted;
+    return sortInventory(f, invSort, invPreorderView);
   }, [inventory, invSearch, invCat, invSource, invPreorderView, invStatus, invSort]);
 
-  const groupedInv = useMemo(() => {
-    if (!invCollapse) return filteredInv.map((i) => ({ ...i, _group: false }));
-    const groups = new Map();
-    filteredInv.forEach((i) => {
-      const key = i.name;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(i);
-    });
-    const result = [];
-    groups.forEach((items, key) => {
-      const sortedItems = [...items].sort(compareInventorySize);
-      if (sortedItems.length > 1) {
-        const totalValue = sortedItems.reduce((a, x) => a + x.price, 0);
-        const releaseDates = sortedItems.map(releaseExpectedDateFor).filter(Boolean).sort();
-        result.push({ ...sortedItems[0], releaseExpectedDate: releaseDates[0] || releaseExpectedDateFor(sortedItems[0]), preorderDate: releaseDates[0] || releaseExpectedDateFor(sortedItems[0]), _group: true, _items: sortedItems, _count: sortedItems.length, _totalValue: totalValue });
-      } else result.push({ ...sortedItems[0], _group: false });
-    });
-    return result;
-  }, [filteredInv, invCollapse]);
+  const groupedInv = useMemo(() => groupInventory(filteredInv, invCollapse, invPreorderView), [filteredInv, invCollapse, invPreorderView]);
 
   const [expandedGroups, setExpandedGroups] = useState(new Set());
   const toggleGroup = (key) => setExpandedGroups((p) => { const n = new Set(p); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -2365,10 +2338,7 @@ export default function App({ onLogout, userEmail }) {
   );
 
   const renderPreBadge = (item) => {
-    const releaseDate = releaseExpectedDateFor(item);
-    if (!releaseDate || !isPreorderOrigin(item)) return null;
-    const bd = businessDaysUntil(releaseDate);
-    const b = preorderBadge(bd);
+    const b = inventoryPreorderBadge(item);
     if (!b) return null;
     return <span style={badge(b.bg, b.fg)}>{b.text}</span>;
   };
@@ -2780,6 +2750,7 @@ export default function App({ onLogout, userEmail }) {
           </div>
         )}
 
+        <Suspense fallback={<div role="status" style={{ padding: pagePad, color: "#8b97ad" }}>Loading page...</div>}>
         {/* FIRST-RUN / EMPTY INSTALL */}
         {page === "dashboard" && isFirstRun && (
           <div style={{ padding: pagePad, paddingBottom: 0 }}>
@@ -2880,6 +2851,7 @@ export default function App({ onLogout, userEmail }) {
 
         {/* SETTINGS */}
         {page === "settings" && <SettingsPage ctx={{ pagePad, CATS, PLATS, PAYMETHODS, CUSTS, settings, persistSettings, setPage, navSettingsItems, supabase, connectEbay, ebayBusy, ebayStatus, ebayImports, setEbayQueueOpen, loadEbayImports, syncEbayOrders, connectGmail, gmailBusy, gmailStatus, gmailImports, setGmailQueueOpen, loadGmailImports, syncGmailInventory, onLogout, userEmail }} />}
+        </Suspense>
       </div>
 
       {/* ══ NOTEPAD PANEL ══ */}

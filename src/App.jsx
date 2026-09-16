@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import { isSupabaseConfigured, supabase, hasPendingSaves } from "./supabase.js";
 import "./dashboard/shared/appStyles.js";
 
-import Dashboard from "./Dashboard.jsx";
+const Dashboard = lazy(() => import("./Dashboard.jsx"));
 
 const cardSurface = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" };
 const inp = { width: "100%", padding: "12px 14px", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, color: "#e5e7eb", fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", transition: "border-color 120ms ease, box-shadow 120ms ease" };
@@ -122,5 +122,5 @@ export default function App() {
     );
   }
 
-  return <Dashboard key={session.user.id} onLogout={handleLogout} userEmail={session.user.email} />;
+  return <Suspense fallback={<div role="status" style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b97ad" }}>Loading dashboard...</div>}><Dashboard key={session.user.id} onLogout={handleLogout} userEmail={session.user.email} /></Suspense>;
 }

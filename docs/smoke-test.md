@@ -26,6 +26,9 @@ Run the relevant parts of this checklist before trusting changes. For app-code e
 - Bulk edit selected inventory.
 - Sell a selected item.
 - Confirm preorder badges and listed-platform labels still render.
+- Confirm preorders without either release date show "In transit" and stay above dated preorders when changing sort order.
+- Check grouped and ungrouped preorders; expand a group containing both dated and undated units and confirm transit units appear first with their own badges.
+- Confirm available items without release dates do not get an "In transit" badge.
 
 ## Sales
 
