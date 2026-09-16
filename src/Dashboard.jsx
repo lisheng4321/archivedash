@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { load, save, supabase, isSupabaseConfigured } from "./supabase.js";
+import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes } from "./supabase.js";
+import { validateBackup, requireSaved } from "./dashboard/backupValidation.js";
 import Calculator from "./Calculator";
 import CustomersPage from "./dashboard/pages/CustomersPage.jsx";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
@@ -106,6 +107,8 @@ export default function App({ onLogout, userEmail }) {
   const [subModalOpen, setSubModalOpen] = useState(null); // null | "new" | sub object
   const [settings, setSettings] = useState(defaultSettings());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [page, setPage] = useState("dashboard");
   const [range, setRange] = useState("MTD");
   const [customFrom, setCustomFrom] = useState(daysAgo(30));
@@ -137,7 +140,12 @@ export default function App({ onLogout, userEmail }) {
   const [invQueue, setInvQueue] = useState([]);
   const [editExpOpen, setEditExpOpen] = useState(null);
   const [notepadOpen, setNotepadOpen] = useState(false);
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotesState] = useState([]);
+  const notesRef = useRef([]);
+  const setNotes = useCallback((next) => {
+    notesRef.current = next;
+    setNotesState(next);
+  }, []);
   const [activeNoteId, setActiveNoteId] = useState(null);
   const [noteSearch, setNoteSearch] = useState("");
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
@@ -230,6 +238,8 @@ export default function App({ onLogout, userEmail }) {
   ];
 
   useEffect(() => {
+    let cancelled = false;
+    setLoadError("");
     (async () => {
       const [i, s, e, sb, st, existingNotes, oldNotepad, savedActiveId, existingTpls, existingBackups] = await Promise.all([
         load("arch-inv2", []),
@@ -243,6 +253,10 @@ export default function App({ onLogout, userEmail }) {
         load("arch-templates", null),
         load("arch-backups", []),
       ]);
+
+      if (cancelled) return;
+      validateBackup({ inventory: i, sales: s, expenses: e, subs: sb, settings: st, ...(existingNotes !== null ? { notes: existingNotes } : {}), ...(existingTpls !== null ? { templates: existingTpls } : {}) });
+      if (!Array.isArray(existingBackups) || existingBackups.some((backup) => !backup || typeof backup !== "object")) throw new Error("Invalid backup history. Loading stopped to protect your records.");
 
       // Migrate old single-notepad → first note in multi-note model
       let initialNotes = existingNotes;
@@ -260,18 +274,26 @@ export default function App({ onLogout, userEmail }) {
         } else {
           initialNotes = [];
         }
-        await save("arch-notes", initialNotes);
+        // Missing data is safe to display as empty; never write an empty list
+        // during startup. Legacy content is migrated only after successful reads.
+        if (initialNotes.length) {
+          const result = await save("arch-notes", initialNotes);
+          if (!result.ok) throw new Error(result.error);
+        }
       }
 
+      if (cancelled) return;
       setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings(normalizeSettings(st));
       setNotes(initialNotes);
+      if (hasNotesDraft()) {
+        setFailedSaves(new Map([["arch-notes", { data: initialNotes, setter: setNotes, label: "Notes", error: "Unsynced notes restored from this tab. Retry saving; if there is a conflict, export your notes before reconciling." }]]));
+      }
       setBackups(Array.isArray(existingBackups) ? existingBackups : []);
 
       // Templates: seed from defaults on first run, otherwise use what's in storage
       let initialTpls = existingTpls;
       if (!Array.isArray(initialTpls)) {
         initialTpls = TEMPLATES.map((t) => ({ id: genId(), name: t.name, body: t.body, builtIn: true }));
-        await save("arch-templates", initialTpls);
       }
       setUserTemplates(initialTpls);
 
@@ -283,8 +305,21 @@ export default function App({ onLogout, userEmail }) {
         setActiveNoteId(sorted[0].id);
       }
 
-      setLoading(false);
-    })();
+      if (!cancelled) setLoading(false);
+    })().catch((error) => {
+      if (!cancelled) setLoadError(error?.message || "Could not load your dashboard.");
+    });
+    return () => { cancelled = true; };
+  }, [loadAttempt, setNotes]);
+
+  useEffect(() => {
+    const protectUnsaved = (event) => {
+      if (!hasPendingSaves()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", protectUnsaved);
+    return () => window.removeEventListener("beforeunload", protectUnsaved);
   }, []);
 
   useEffect(() => {
@@ -309,6 +344,7 @@ export default function App({ onLogout, userEmail }) {
   }, [subs]);
 
   const trackSaveResult = useCallback((key, result, data, setter, label) => {
+    if (result?.superseded) return;
     setFailedSaves((prev) => {
       const next = new Map(prev);
       if (result?.ok === false) {
@@ -320,18 +356,19 @@ export default function App({ onLogout, userEmail }) {
     });
   }, []);
   const showSaveResult = useCallback((result) => {
+    if (result?.superseded) return false;
     if (result?.ok === false) {
       setSaveStatus("error");
       return false;
     }
     setSaveStatus("saved");
-    setTimeout(() => setSaveStatus(""), 1500);
+    setTimeout(() => { if (!hasPendingSaves()) setSaveStatus(""); }, 1500);
     return true;
   }, []);
   const persist = useCallback(async (key, data, setter, label) => {
     setSaveStatus("saving");
-    const result = await save(key, data);
     setter(data);
+    const result = await save(key, data);
     trackSaveResult(key, result, data, setter, label);
     showSaveResult(result);
     return result;
@@ -342,8 +379,8 @@ export default function App({ onLogout, userEmail }) {
   const persistSubs = useCallback(async (d) => persist("arch-subs", d, setSubs), [persist]);
   const persistSettings = useCallback(async (d) => {
     setSaveStatus("saving");
-    const result = await save("arch-settings", d);
     setSettings(d);
+    const result = await save("arch-settings", d);
     trackSaveResult("arch-settings", result, d, setSettings);
     showSaveResult(result);
     return result;
@@ -354,12 +391,24 @@ export default function App({ onLogout, userEmail }) {
     setRetryingSaves(true);
     try {
       for (const [key, failure] of entries) {
-        await persist(key, failure.data, failure.setter, failure.label);
+        await persist(key, key === "arch-notes" ? notesRef.current : failure.data, failure.setter, failure.label);
       }
     } finally {
       setRetryingSaves(false);
     }
   }, [failedSaves, persist]);
+
+  const reloadSavedNotes = async () => {
+    if (!window.confirm("Replace the notes in this tab with the saved cloud notes? Export your current notes first if you want to keep unsaved edits.")) return;
+    try {
+      const saved = await loadCloudNotes();
+      setNotes(saved);
+      setActiveNoteId(saved[0]?.id || null);
+      trackSaveResult("arch-notes", { ok: true });
+    } catch (error) {
+      trackSaveResult("arch-notes", { ok: false, error: error.message }, notesRef.current, setNotes);
+    }
+  };
   const dashboardCards = { ...dashboardCardDefaults, ...(settings.dashboardCards || {}) };
   const backupSettings = { ...DEFAULT_BACKUP_SETTINGS, ...(settings.backup || {}) };
   const setDashboardCard = (key, enabled) => persistSettings({ ...settings, dashboardCards: { ...(settings.dashboardCards || {}), [key]: enabled } });
@@ -499,33 +548,24 @@ export default function App({ onLogout, userEmail }) {
   // Persist active note id
   useEffect(() => { if (activeNoteId) save("arch-notes-active", activeNoteId); }, [activeNoteId]);
 
-  // Notes CRUD with debounced save (800ms)
-  const noteSaveTimer = useRef(null);
-  const persistNotes = useCallback(async (next, immediate = false) => {
+  // Journal edits immediately; the data layer serializes writes per dataset.
+  const persistNotes = useCallback(async (next) => {
     setNotes(next);
-    if (noteSaveTimer.current) clearTimeout(noteSaveTimer.current);
-    if (immediate) {
-      setSaveStatus("saving");
-      const result = await save("arch-notes", next);
-      trackSaveResult("arch-notes", result, next, setNotes);
-      showSaveResult(result);
-    } else {
-      noteSaveTimer.current = setTimeout(async () => {
-        setSaveStatus("saving");
-        const result = await save("arch-notes", next);
-        trackSaveResult("arch-notes", result, next, setNotes);
-        showSaveResult(result);
-      }, 800);
-    }
-  }, [showSaveResult, trackSaveResult]);
+    setSaveStatus("saving");
+    const result = await save("arch-notes", next);
+    trackSaveResult("arch-notes", result, next, setNotes);
+    showSaveResult(result);
+    return result;
+  }, [showSaveResult, trackSaveResult, setNotes]);
 
   const updateNote = useCallback((id, changes) => {
-    const current = notes.find((n) => n.id === id);
+    const current = notesRef.current.find((n) => n.id === id);
+    if (!current) return;
     const lockedFields = ["title", "content", "fontSize"];
     if (current?.locked && lockedFields.some((field) => Object.prototype.hasOwnProperty.call(changes, field))) return;
-    const next = notes.map((n) => n.id === id ? { ...n, ...changes, updatedAt: Date.now() } : n);
+    const next = notesRef.current.map((n) => n.id === id ? { ...n, ...changes, updatedAt: Date.now() } : n);
     persistNotes(next);
-  }, [notes, persistNotes]);
+  }, [persistNotes]);
 
   const createNote = useCallback(async (seed = {}) => {
     const newNote = {
@@ -535,11 +575,11 @@ export default function App({ onLogout, userEmail }) {
       fontSize: seed.fontSize || 14,
       pinned: false,
       locked: false,
-      order: Math.min(0, ...notes.map((n) => n.order ?? 0)) - 1,
+      order: Math.min(0, ...notesRef.current.map((n) => n.order ?? 0)) - 1,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    const next = [newNote, ...notes];
+    const next = [newNote, ...notesRef.current];
     setNotes(next);
     setActiveNoteId(newNote.id);
     setSaveStatus("saving");
@@ -550,7 +590,7 @@ export default function App({ onLogout, userEmail }) {
   }, [notes, showSaveResult, trackSaveResult]);
 
   const deleteNote = useCallback(async (id) => {
-    const next = notes.filter((n) => n.id !== id);
+    const next = notesRef.current.filter((n) => n.id !== id);
     setNotes(next);
     if (activeNoteId === id) {
       const fallback = next.length ? next[0].id : null;
@@ -563,20 +603,20 @@ export default function App({ onLogout, userEmail }) {
   }, [notes, activeNoteId, showSaveResult, trackSaveResult]);
 
   const togglePinNote = useCallback((id) => {
-    const note = notes.find((n) => n.id === id);
+    const note = notesRef.current.find((n) => n.id === id);
     if (!note) return;
     updateNote(id, { pinned: !note.pinned });
   }, [notes, updateNote]);
 
   const toggleLockNote = useCallback((id) => {
-    const note = notes.find((n) => n.id === id);
+    const note = notesRef.current.find((n) => n.id === id);
     if (!note) return;
-    const next = notes.map((n) => n.id === id ? { ...n, locked: !note.locked, updatedAt: Date.now() } : n);
-    persistNotes(next, true);
+    const next = notesRef.current.map((n) => n.id === id ? { ...n, locked: !note.locked, updatedAt: Date.now() } : n);
+    persistNotes(next);
   }, [notes, persistNotes]);
 
   const moveNote = useCallback((id, dir) => {
-    const ordered = notes.map((n, idx) => ({ ...n, order: n.order ?? idx }));
+    const ordered = notesRef.current.map((n, idx) => ({ ...n, order: n.order ?? idx }));
     const note = ordered.find((n) => n.id === id);
     if (!note) return;
     const samePinned = ordered
@@ -591,7 +631,7 @@ export default function App({ onLogout, userEmail }) {
       if (n.id === target.id) return { ...n, order: note.order, updatedAt: Date.now() };
       return n;
     });
-    persistNotes(next, true);
+    persistNotes(next);
   }, [notes, persistNotes]);
 
   const persistTemplates = useCallback(async (next) => {
@@ -600,6 +640,7 @@ export default function App({ onLogout, userEmail }) {
     const result = await save("arch-templates", next);
     trackSaveResult("arch-templates", result, next, setUserTemplates);
     showSaveResult(result);
+    return result;
   }, [showSaveResult, trackSaveResult]);
 
   // Export a single note as a .txt file (HTML stripped to plain text)
@@ -1180,16 +1221,17 @@ export default function App({ onLogout, userEmail }) {
   // Danger Zone dialog before this runs.
   const applySupabaseBackup = async (snapshot) => {
     const data = snapshot?.data || {};
-    await persistInv(Array.isArray(data.inventory) ? data.inventory : []);
-    await persistSales(Array.isArray(data.sales) ? data.sales : []);
-    await persistExp(Array.isArray(data.expenses) ? data.expenses : []);
-    await persistSubs(Array.isArray(data.subs) ? data.subs : []);
+    validateBackup(data);
+    await requireSaved(persistInv(data.inventory));
+    await requireSaved(persistSales(data.sales));
+    await requireSaved(persistExp(data.expenses));
+    if (data.subs) await requireSaved(persistSubs(data.subs));
     if (Array.isArray(data.notes)) {
-      setNotes(data.notes);
-      await save("arch-notes", data.notes);
+      await requireSaved(persistNotes(data.notes));
       setActiveNoteId(data.notes[0]?.id || null);
     }
-    if (data.settings) await persistSettings(normalizeSettings(data.settings));
+    if (data.settings) await requireSaved(persistSettings(normalizeSettings(data.settings)));
+    if (data.templates) await requireSaved(persistTemplates(data.templates));
     setBackupStatus("Backup restored.");
     setTimeout(() => setBackupStatus(""), 4000);
   };
@@ -1231,21 +1273,13 @@ export default function App({ onLogout, userEmail }) {
       ...snapshotNotes,
       ...notes.filter((note) => !snapshotNoteIds.has(note.id)),
     ];
-    if (noteSaveTimer.current) {
-      clearTimeout(noteSaveTimer.current);
-      noteSaveTimer.current = null;
-    }
-    setSaveStatus("saving");
-    const result = await save("arch-notes", recoveredNotes);
-    trackSaveResult("arch-notes", result, recoveredNotes, setNotes);
-    showSaveResult(result);
+    const result = await persistNotes(recoveredNotes);
     if (result?.ok === false) {
       setBackupStatus("Notes recovery failed. Retry from the save warning.");
       setTimeout(() => setBackupStatus(""), 5000);
       return;
     }
 
-    setNotes(recoveredNotes);
     setActiveNoteId(snapshotNotes[0]?.id || recoveredNotes[0]?.id || null);
     setBackupStatus(`${snapshotNotes.length} note${snapshotNotes.length === 1 ? "" : "s"} recovered. Inventory, sales, expenses, and subscriptions were not changed.`);
     setTimeout(() => setBackupStatus(""), 6000);
@@ -1303,7 +1337,7 @@ export default function App({ onLogout, userEmail }) {
       confirmLabel: "Clear all data",
       snapshot: true,
       snapshotReason: "pre-clear",
-      run: async () => { await persistInv([]); await persistSales([]); await persistExp([]); },
+      run: async () => { await requireSaved(persistInv([])); await requireSaved(persistSales([])); await requireSaved(persistExp([])); },
     });
   };
 
@@ -1320,6 +1354,8 @@ export default function App({ onLogout, userEmail }) {
         if (!backedUp) return;
       }
       await action.run();
+    } catch (error) {
+      setBackupStatus(`Action stopped: ${error.message} Earlier successful saves may already have applied. Your pre-action snapshot is available in Backup & Restore.`);
     } finally {
       setDangerBusy(false);
       setDangerAction(null);
@@ -1363,24 +1399,23 @@ export default function App({ onLogout, userEmail }) {
       const file = e.target.files[0]; if (!file) return;
       try {
         const data = JSON.parse(await file.text());
-        if (!data.inventory || !data.sales || !data.expenses) { setBackupStatus("Invalid file"); return; }
+        validateBackup(data);
         if (mode === "replace") {
-          await persistInv(data.inventory); await persistSales(data.sales); await persistExp(data.expenses);
-          if (data.subs) await persistSubs(data.subs);
+          await requireSaved(persistInv(data.inventory)); await requireSaved(persistSales(data.sales)); await requireSaved(persistExp(data.expenses));
+          if (data.subs) await requireSaved(persistSubs(data.subs));
           // Notes: prefer new array, fall back to legacy notepad
           if (Array.isArray(data.notes)) {
-            setNotes(data.notes);
-            await save("arch-notes", data.notes);
-            if (data.notes.length) setActiveNoteId(data.notes[0].id);
+            await requireSaved(persistNotes(data.notes));
+            setActiveNoteId(data.notes[0]?.id || null);
           } else if (data.notepad) {
             const content = typeof data.notepad === "string" ? data.notepad : data.notepad.content;
             if (content) {
               const migrated = [{ id: genId(), title: "Imported notes", content, pinned: false, createdAt: Date.now(), updatedAt: Date.now() }];
-              setNotes(migrated); setActiveNoteId(migrated[0].id);
-              await save("arch-notes", migrated);
+              await requireSaved(persistNotes(migrated));
+              setActiveNoteId(migrated[0].id);
             }
           }
-          if (data.settings) await persistSettings(data.settings);
+          if (data.settings) await requireSaved(persistSettings(normalizeSettings(data.settings)));
           setBackupStatus("Replaced all data!");
         }
         else {
@@ -1397,19 +1432,18 @@ export default function App({ onLogout, userEmail }) {
             const content = typeof data.notepad === "string" ? data.notepad : data.notepad.content;
             if (content) nn = [{ id: genId(), title: "Imported notes", content, pinned: false, createdAt: Date.now(), updatedAt: Date.now() }];
           }
-          if (ni.length) await persistInv([...inventory, ...ni]);
-          if (ns.length) await persistSales([...sales, ...ns].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")));
-          if (ne.length) await persistExp([...expenses, ...ne].sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||"")));
-          if (nsb.length) await persistSubs([...subs, ...nsb]);
+          if (ni.length) await requireSaved(persistInv([...inventory, ...ni]));
+          if (ns.length) await requireSaved(persistSales([...sales, ...ns].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||""))));
+          if (ne.length) await requireSaved(persistExp([...expenses, ...ne].sort((a, b) => (b.purchaseDate||"").localeCompare(a.purchaseDate||""))));
+          if (nsb.length) await requireSaved(persistSubs([...subs, ...nsb]));
           if (nn.length) {
             const merged = [...notes, ...nn];
-            setNotes(merged);
-            await save("arch-notes", merged);
+            await requireSaved(persistNotes(merged));
           }
           setBackupStatus(`Merged: +${ni.length} items, +${ns.length} sales, +${ne.length} expenses, +${nsb.length} subs, +${nn.length} notes`);
         }
         setTimeout(() => setBackupStatus(""), 5000);
-      } catch { setBackupStatus("Failed to read file"); setTimeout(() => setBackupStatus(""), 3000); }
+      } catch (error) { setBackupStatus(`Import stopped: ${error.message} Check the save warning before continuing; earlier successful saves may already have applied.`); }
     };
     input.click();
   };
@@ -2234,7 +2268,14 @@ export default function App({ onLogout, userEmail }) {
     return { count: rows.length, amount: rows.reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0) };
   }, [expenses]);
 
-  if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b97ad" }}>Loading...</div>;
+  if (loading) return <div style={{ background: "#0b0f19", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b97ad", padding: 24 }}>
+    {loadError ? <div role="alert" style={{ maxWidth: 560 }}>
+      <h2 style={{ color: "#f3f6fb" }}>Dashboard could not load</h2>
+      <p>Your saved records have not been replaced with empty data. Check your connection and retry.</p>
+      <p>{loadError}</p>
+      <button style={primaryBtn} onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry loading</button>
+    </div> : "Loading..."}
+  </div>;
 
   const invQueueTotal = invQueue.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
   const invQueueProductCount = new Set(invQueue.map((item) => item.name).filter(Boolean)).size;
@@ -2721,7 +2762,10 @@ export default function App({ onLogout, userEmail }) {
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#fca5a5", fontSize: 12, fontWeight: 800 }}>{saveBannerText}</div>
               <div style={{ color: "#fecaca", fontSize: 11, marginTop: 2 }}>Your changes are still in this tab. Retry before closing or refreshing.</div>
+              {[...failedSaves.entries()].map(([key, failure]) => <div key={key} style={{ color: "#fecaca", fontSize: 11, marginTop: 4 }}>{failure.label}: {failure.error}</div>)}
             </div>
+            <button onClick={exportJSON} style={{ ...ghostBtn, fontSize: 12 }}>Export current data</button>
+            {failedSaves.has("arch-notes") && <button onClick={reloadSavedNotes} style={{ ...ghostBtn, fontSize: 12 }}>Load saved notes</button>}
             <button onClick={retryFailedSaves} disabled={retryingSaves} style={{ ...primaryBtn, background: retryingSaves ? "#56627a" : "#dc2626", padding: "7px 12px", fontSize: 12, opacity: retryingSaves ? 0.75 : 1 }}>
               {retryingSaves ? "Retrying..." : "Retry all"}
             </button>

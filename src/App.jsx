@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { isSupabaseConfigured, supabase } from "./supabase.js";
-import Dashboard from "./Dashboard.jsx";
+import { isSupabaseConfigured, supabase, hasPendingSaves } from "./supabase.js";
 import "./dashboard/shared/appStyles.js";
+
+import Dashboard from "./Dashboard.jsx";
 
 const cardSurface = { background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" };
 const inp = { width: "100%", padding: "12px 14px", background: "#0d1117", border: "1px solid #232c3c", borderRadius: 8, color: "#e5e7eb", fontSize: 14, boxSizing: "border-box", fontFamily: "inherit", transition: "border-color 120ms ease, box-shadow 120ms ease" };
@@ -49,6 +50,10 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    if (hasPendingSaves()) {
+      window.alert("There are unsaved changes. Retry saving or export your data before logging out.");
+      return;
+    }
     await supabase.auth.signOut();
     setSession(null);
   };
@@ -117,5 +122,5 @@ export default function App() {
     );
   }
 
-  return <Dashboard onLogout={handleLogout} userEmail={session.user.email} />;
+  return <Dashboard key={session.user.id} onLogout={handleLogout} userEmail={session.user.email} />;
 }

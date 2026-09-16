@@ -6,14 +6,17 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
   const [tplOpen, setTplOpen] = useState(false);
   const lastNoteId = useRef(null);
 
-  // Load fresh HTML when active note changes
+  // Refresh recovered content and edits made in the other notepad view too.
+  // Avoid assigning identical HTML, which would reset the typing caret.
   useEffect(() => {
-    if (!editorRef.current || !note) return;
-    if (lastNoteId.current !== note.id) {
-      editorRef.current.innerHTML = sanitizeHtml(note.content || "");
-      lastNoteId.current = note.id;
+    if (!note) { lastNoteId.current = null; return; }
+    if (!editorRef.current) return;
+    const html = sanitizeHtml(note.content || "");
+    if (lastNoteId.current !== note.id || sanitizeHtml(editorRef.current.innerHTML) !== html) {
+      editorRef.current.innerHTML = html;
     }
-  }, [note?.id]);
+    lastNoteId.current = note.id;
+  }, [note?.id, note?.content]);
 
   if (!note) {
     return (
@@ -40,7 +43,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
     if (locked || !editorRef.current) return;
     editorRef.current.focus();
     document.execCommand(cmd);
-    requestAnimationFrame(updateContent);
+    updateContent();
   };
 
   const insertHtml = (html) => {
@@ -81,7 +84,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
         return;
       }
       if (t.checked) t.setAttribute("checked", "checked"); else t.removeAttribute("checked");
-      requestAnimationFrame(updateContent);
+      updateContent();
     }
   };
 
