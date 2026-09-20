@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes } from "./supabase.js";
+import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes, saveInventorySale, hasPendingSale } from "./supabase.js";
 import { validateBackup, requireSaved } from "./dashboard/backupValidation.js";
+import { allVisibleSelected, toggleVisibleSelection, recordError } from "./dashboard/formValidation.js";
 import Calculator from "./Calculator";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
 import BackupPage from "./dashboard/pages/BackupPage.jsx";
@@ -123,6 +124,7 @@ export default function App({ onLogout, userEmail }) {
   const [saveStatus, setSaveStatus] = useState("");
   const [failedSaves, setFailedSaves] = useState(() => new Map());
   const [retryingSaves, setRetryingSaves] = useState(false);
+  const [saleRecovery, setSaleRecovery] = useState(null);
 
   // Modals
   const [addInvOpen, setAddInvOpen] = useState(false);
@@ -139,6 +141,8 @@ export default function App({ onLogout, userEmail }) {
   const [ebayExportStatus, setEbayExportStatus] = useState("");
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
+  const [invFormError, setInvFormError] = useState("");
+  const [expFormError, setExpFormError] = useState("");
   const [invQueue, setInvQueue] = useState([]);
   const [editExpOpen, setEditExpOpen] = useState(null);
   const [notepadOpen, setNotepadOpen] = useState(false);
@@ -286,6 +290,7 @@ export default function App({ onLogout, userEmail }) {
 
       if (cancelled) return;
       setInventory(i); setSales(s); setExpenses(e); setSubs(sb); setSettings(normalizeSettings(st));
+      if (hasPendingSale()) setSaleRecovery({ busy: false, error: "This sale still needs to finish saving. Retry to complete both the sale and stock removal." });
       setNotes(initialNotes);
       if (hasNotesDraft()) {
         setFailedSaves(new Map([["arch-notes", { data: initialNotes, setter: setNotes, label: "Notes", error: "Unsynced notes restored from this tab. Retry saving; if there is a conflict, export your notes before reconciling." }]]));
@@ -368,6 +373,7 @@ export default function App({ onLogout, userEmail }) {
     return true;
   }, []);
   const persist = useCallback(async (key, data, setter, label) => {
+    if (hasPendingSale() && ["arch-sales2", "arch-inv2"].includes(key)) return { ok: false, error: "Finish recovering the pending sale first." };
     setSaveStatus("saving");
     setter(data);
     const result = await save(key, data);
@@ -701,7 +707,9 @@ export default function App({ onLogout, userEmail }) {
   };
   const inventoryItemsFromDraft = (draft) => {
     const price = parseFloat(draft.price);
-    if (!String(draft.name || "").trim() || Number.isNaN(price)) return [];
+    const error = recordError(draft.name, draft.price);
+    setInvFormError(error);
+    if (error) return [];
     const qty = Math.max(1, parseInt(draft.quantity, 10) || 1);
     return Array.from({ length: qty }, () => ({
       id: genId(),
@@ -777,12 +785,29 @@ export default function App({ onLogout, userEmail }) {
     if (subs.some(isDemoRecord)) await persistSubs(subs.filter((r) => !isDemoRecord(r)));
   };
 
+  const commitInventorySale = async (nextSales, nextInventory) => {
+    const recovering = hasPendingSale();
+    setSaleRecovery({ busy: true, error: "" });
+    setSaveStatus("saving");
+    const request = saveInventorySale(nextSales ? { "arch-sales2": nextSales, "arch-inv2": nextInventory } : undefined);
+    if (hasPendingSale()) {
+      if (!recovering) { setSales(nextSales); setInventory(nextInventory); }
+      setAddSaleOpen(false); setSellOpen(null); setBulkSellOpen(false);
+    }
+    const result = await request;
+    showSaveResult(result);
+    if (result.ok) {
+      setSelectedInv(new Set());
+      setSaleRecovery(null);
+    } else setSaleRecovery({ busy: false, error: result.error });
+    return result;
+  };
+
   const handleSell = async (item, sf) => {
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
     const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, ...inventoryPurchaseFields(item), customer: sf.customer||"" };
-    const salesResult = await persistSales([sale, ...sales]);
+    const salesResult = await commitInventorySale([sale, ...sales], inventory.filter((i) => i.id !== item.id));
     if (salesResult?.ok === false) return;
-    await persistInv(inventory.filter((i) => i.id !== item.id));
     if (sf.customer) addCustomer(sf.customer);
     setSellOpen(null);
   };
@@ -797,9 +822,8 @@ export default function App({ onLogout, userEmail }) {
       newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
       soldIds.add(item.id);
     }
-    const salesResult = await persistSales([...newSales, ...sales]);
+    const salesResult = await commitInventorySale([...newSales, ...sales], inventory.filter((i) => !soldIds.has(i.id)));
     if (salesResult?.ok === false) return;
-    await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
     if (shared.customer) addCustomer(shared.customer);
     setSelectedInv(new Set());
     setBulkSellOpen(false);
@@ -818,9 +842,8 @@ export default function App({ onLogout, userEmail }) {
       soldIds.add(item.id);
     }
     if (!newSales.length) return;
-    const salesResult = await persistSales([...newSales, ...sales]);
+    const salesResult = await commitInventorySale([...newSales, ...sales], inventory.filter((i) => !soldIds.has(i.id)));
     if (salesResult?.ok === false) return;
-    await persistInv(inventory.filter((i) => !soldIds.has(i.id)));
     if (shared.customer) addCustomer(shared.customer);
     setAddSaleOpen(false);
   };
@@ -1742,7 +1765,7 @@ export default function App({ onLogout, userEmail }) {
 
   const reportStats = useMemo(() => {
     const cutFrom = range === "Custom" ? customFrom : getFilterDate(range);
-    const cutTo = range === "Custom" ? customTo : "2099-12-31";
+    const cutTo = range === "Custom" ? customTo : today();
     let fs = sales.filter((s) => s.saleDate >= cutFrom && s.saleDate <= cutTo);
     let fe = expenses.filter((e) => e.purchaseDate >= cutFrom && e.purchaseDate <= cutTo);
     if (dashCat !== "All") fs = fs.filter((s) => s.category === dashCat);
@@ -2189,7 +2212,7 @@ export default function App({ onLogout, userEmail }) {
   const listedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).length > 0).length, [inventory]);
   const facebookListedInvCount = useMemo(() => inventory.filter((i) => listedPlatformsFor(i).some((p) => String(p).toLowerCase().includes("facebook"))).length, [inventory]);
   const toggleSel = (id) => setSelectedInv((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
-  const toggleAll = () => { if (selectedInv.size === filteredInv.length) setSelectedInv(new Set()); else setSelectedInv(new Set(filteredInv.map((i) => i.id))); };
+  const toggleAll = () => setSelectedInv((previous) => toggleVisibleSelection(filteredInv, previous));
   const toggleGroupSelection = (items = []) => setSelectedInv((p) => {
     const n = new Set(p);
     const allSelected = items.length > 0 && items.every((i) => n.has(i.id));
@@ -2199,7 +2222,7 @@ export default function App({ onLogout, userEmail }) {
 
   const selectedExpValue = useMemo(() => expenses.filter((e) => selectedExp.has(e.id)).reduce((a, e) => a + e.amount, 0), [expenses, selectedExp]);
   const toggleSelExp = (id) => setSelectedExp((p) => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
-  const toggleAllExp = () => { if (selectedExp.size === filteredExp.length) setSelectedExp(new Set()); else setSelectedExp(new Set(filteredExp.map((e) => e.id))); };
+  const toggleAllExp = () => setSelectedExp((previous) => toggleVisibleSelection(filteredExp, previous));
   const handleBulkEditExp = async (updates) => {
     const ids = selectedExp;
     await persistExp(expenses.map((e) => ids.has(e.id) ? { ...e, ...updates } : e));
@@ -2213,7 +2236,7 @@ export default function App({ onLogout, userEmail }) {
   const selectedSalesProfit = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + saleProfit(s), 0), [keyedSales, selectedSales]);
   const selectedSalesRevenue = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + s.salePrice, 0), [keyedSales, selectedSales]);
   const toggleSelSale = (key) => setSelectedSales((p) => { const n = new Set(p); n.has(key)?n.delete(key):n.add(key); return n; });
-  const toggleAllSales = () => { if (filteredSales.length > 0 && filteredSales.every((s) => selectedSales.has(s._saleKey))) setSelectedSales(new Set()); else setSelectedSales(new Set(filteredSales.map((s) => s._saleKey))); };
+  const toggleAllSales = () => setSelectedSales((previous) => toggleVisibleSelection(filteredSales, previous, "_saleKey"));
   const handleBulkEditSale = async (updates) => {
     const ids = selectedSales;
     await persistSales(keyedSales.map((s) => stripSaleKey(ids.has(s._saleKey) ? { ...s, ...updates } : s)));
@@ -2808,11 +2831,11 @@ export default function App({ onLogout, userEmail }) {
           <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
             {!isMobile && (
               <div style={{ display: "grid", gridTemplateColumns: expenseGridColumns, gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
-                <input type="checkbox" checked={selectedExp.size===filteredExp.length&&filteredExp.length>0} onChange={toggleAllExp} style={cb} />
+                <input type="checkbox" checked={allVisibleSelected(filteredExp, selectedExp)} onChange={toggleAllExp} style={cb} />
                 <span>Name</span><span>Category</span><span>Payment</span><span style={{ textAlign: "right" }}>Price</span><span style={{ textAlign: "center" }}>Date</span><span style={{ textAlign: "center" }}>Actions</span>
               </div>
             )}
-            {mobileSelectAll(selectedExp.size===filteredExp.length&&filteredExp.length>0, toggleAllExp, filteredExp.length)}
+            {mobileSelectAll(allVisibleSelected(filteredExp, selectedExp), toggleAllExp, filteredExp.length)}
             {filteredExp.length === 0 && (expenses.length > 0 ? <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses match these filters.<button onClick={() => { setExpSearch(""); setExpFrom(""); setExpTo(""); setExpCatFilter("All"); setExpPayment("All"); setExpSort("date_desc"); }} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div> : <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No expenses yet</div>)}
             {filteredExp.map((e, idx) => expRow(e, idx))}
           </div>
@@ -2903,6 +2926,7 @@ export default function App({ onLogout, userEmail }) {
 
       {/* ══ MODALS ══ */}
       <Modal open={addInvOpen} onClose={closeAddInventory} guardedClose={guardedCloseAdd} title="Add inventory">
+        {invFormError && <p role="alert" style={{ color: "#fca5a5" }}>{invFormError}</p>}
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
         <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Cost (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
@@ -2947,20 +2971,26 @@ export default function App({ onLogout, userEmail }) {
       <UnsavedDialog open={showUnsavedAdd} onDiscard={() => { closeAddInventory(); setShowUnsavedAdd(false); }} onCancel={() => setShowUnsavedAdd(false)} />
 
       <Modal open={addExpOpen} onClose={() => setAddExpOpen(false)} title="Create expense">
+        {expFormError && <p role="alert" style={{ color: "#fca5a5" }}>{expFormError}</p>}
         <Field label="Name" req><input value={expForm.name} onChange={(e) => setExpForm({ ...expForm, name: e.target.value })} style={inp} placeholder="e.g. eBay Sub" /></Field>
         <Row><Field label="Price (AU$)" req><input type="number" step="0.01" value={expForm.amount} onChange={(e) => setExpForm({ ...expForm, amount: e.target.value })} style={inp} /></Field><Field label="Date"><input type="date" value={expForm.purchaseDate} onChange={(e) => setExpForm({ ...expForm, purchaseDate: e.target.value })} style={inp} /></Field></Row>
         <Row><Field label="Category"><select value={expForm.expCategory} onChange={(e) => setExpForm({ ...expForm, expCategory: e.target.value })} style={sel}>{EXP_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Payment method"><select value={expForm.paymentMethod} onChange={(e) => setExpForm({ ...expForm, paymentMethod: e.target.value })} style={sel}>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
         <Field label="Tags"><input value={expForm.tags} onChange={(e) => setExpForm({ ...expForm, tags: e.target.value })} style={inp} /></Field>
-        <ModalActions marginTop={6}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { if (!expForm.name||!expForm.amount) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory, paymentMethod: expForm.paymentMethod || "Other" }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></ModalActions>
+        <ModalActions marginTop={6}><button onClick={() => setAddExpOpen(false)} style={ghostBtn}>Cancel</button><button onClick={async () => { const error = recordError(expForm.name, expForm.amount, "Amount"); setExpFormError(error); if (error) return; await persistExp([{ id: genId(), name: expForm.name, amount: parseFloat(expForm.amount), purchaseDate: expForm.purchaseDate, tags: expForm.tags, expCategory: expForm.expCategory, paymentMethod: expForm.paymentMethod || "Other" }, ...expenses]); setExpForm(emptyExp); setAddExpOpen(false); }} style={primaryBtn}>Create</button></ModalActions>
       </Modal>
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      <Modal open={Boolean(saleRecovery)} title={saleRecovery?.busy ? "Saving sale" : "Finish saving sale"} dismissible={!hasPendingSale() && !saleRecovery?.busy} onClose={() => setSaleRecovery(null)}>
+        <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.6 }}>Recording this sale also removes the sold items from inventory. Keep this tab open until both finish. If the connection fails, Retry sale continues the original sale.</p>
+        {saleRecovery?.error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{saleRecovery.error}</p>}
+        <ModalActions><button onClick={exportJSON} style={ghostBtn}>Export current data</button>{hasPendingSale() && <button disabled={saleRecovery?.busy} onClick={() => commitInventorySale()} style={primaryBtn}>{saleRecovery?.busy ? "Saving…" : "Retry sale"}</button>}</ModalActions>
+      </Modal>
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} paymentMethods={PAYMETHODS} />}
       {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
-      {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); setEditInvOpen(null); }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
+      {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { const result = await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); if (result.ok) setEditInvOpen(null); return result; }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
       {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(keyedSales.map((s) => stripSaleKey(s._saleKey===editSaleOpen._saleKey ? u : s))); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
-      {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); setEditExpOpen(null); }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
+      {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { const result = await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); if (result.ok) setEditExpOpen(null); return result; }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
       {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
       {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}

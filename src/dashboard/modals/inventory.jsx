@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { draftChanged, recordError, validAmount } from "../formValidation.js";
 import { getDefaultSize, getSizes, currency, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid } from "../shared.jsx";
 import { PURCHASE_SOURCES, canonicalPurchaseSource, explicitAvailabilityFor, releaseExpectedDateFor } from "../inventory.js";
 
@@ -30,6 +31,9 @@ function PurchaseSourceField({ value, onChange, blankLabel = "Unknown / not set"
 function EditInvModal({ item, onSave, onClose, categories, customers, platforms = [] }) {
   const [ef, setEf] = useState({ name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price, ebayListedPrice: item.ebayListedPrice || "", brand: item.brand || "", purchaseDate: item.purchaseDate, releaseExpectedDate: releaseExpectedDateFor(item), purchaseSource: canonicalPurchaseSource(item.purchaseSource), purchasedBy: item.purchasedBy || "", availability: explicitAvailabilityFor(item), listedPlatforms: Array.isArray(item.listedPlatforms) ? item.listedPlatforms : [], tags: item.tags || "", customer: item.customer || "" });
   const [showU, setShowU] = useState(false);
+  const initial = useRef(ef);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const up = (u) => { setEf({ ...ef, ...u }); };
   const listed = Array.isArray(ef.listedPlatforms) ? ef.listedPlatforms : [];
   const toggleListedPlatform = (platform, checked) => {
@@ -37,8 +41,18 @@ function EditInvModal({ item, onSave, onClose, categories, customers, platforms 
     checked ? next.add(platform) : next.delete(platform);
     up({ listedPlatforms: [...next] });
   };
-  const gc = () => { setShowU(true); };
-  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit item">
+  const gc = () => { if (saving) return; if (draftChanged(ef, initial.current, ["price", "ebayListedPrice"])) setShowU(true); else onClose(); };
+  const submit = async () => {
+    const issue = recordError(ef.name, ef.price) || (!getSizes(ef.category).includes(ef.size) ? "Choose a size for this category." : "") || (ef.ebayListedPrice !== "" && !validAmount(ef.ebayListedPrice) ? "Listed price must be zero or more." : "");
+    setError(issue); if (issue || saving) return;
+    setSaving(true);
+    try {
+      const result = await onSave({ ...ef, name: ef.name.trim(), purchaseSource: canonicalPurchaseSource(ef.purchaseSource), preorderDate: ef.releaseExpectedDate, preorderOrigin: Boolean(item.preorderOrigin || item.preorderDate || ef.availability === "preorder"), price: Number(ef.price), ebayListedPrice: ef.ebayListedPrice !== "" ? Number(ef.ebayListedPrice) : undefined });
+      if (result?.ok === false) setError(result.error || "Could not save. Your changes are still here; try Save again.");
+    } finally { setSaving(false); }
+  };
+  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit item" dismissible={!saving}>
+    {error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{error}</p>}
     <Field label="Product name" req><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field>
     <Row cols={3}><Field label="Category"><select value={ef.category} onChange={(e) => up({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field>
     <Field label="Size"><select value={ef.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(ef.category).map((s) => <option key={s}>{s}</option>)}</select></Field>
@@ -50,13 +64,14 @@ function EditInvModal({ item, onSave, onClose, categories, customers, platforms 
     <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{platforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listed.includes(p)} onChange={(e) => toggleListedPlatform(p, e.target.checked)} style={cb} /> {p}</label>)}</div></Field>
     {listed.some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={ef.ebayListedPrice || ""} onChange={(e) => up({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
     <Field label="Customer"><input list="cust-list" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-list">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field>
-    <ModalActions marginTop={10}><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => onSave({ ...ef, purchaseSource: canonicalPurchaseSource(ef.purchaseSource), preorderDate: ef.releaseExpectedDate, preorderOrigin: Boolean(item.preorderOrigin || item.preorderDate || ef.availability === "preorder"), price: parseFloat(ef.price), ebayListedPrice: ef.ebayListedPrice ? parseFloat(ef.ebayListedPrice) : undefined })} style={primaryBtn}>Save</button></ModalActions>
+    <ModalActions marginTop={10}><button onClick={gc} disabled={saving} style={ghostBtn}>Cancel</button><button onClick={submit} disabled={saving} style={primaryBtn}>{saving ? "Saving…" : "Save"}</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 
 // ─── Bulk Edit Inventory Modal ───
 
 function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
+  const [error, setError] = useState("");
   const [nameSet, setNameSet] = useState("");
   const [titleFind, setTitleFind] = useState("");
   const [titleReplace, setTitleReplace] = useState("");
@@ -109,6 +124,10 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
   const hasDraft = [nameSet, titleFind, titleReplace, titlePrefix, titleSuffix, cat, size, cost, brand, purchaseDate, releaseExpectedDate, purchaseSource, purchasedBy, availability, customer, setTags, addTags, ebayListedPrice, addListedPlatform].some((value) => String(value || "").length > 0) || clearBrand || clearPreorderDate || clearCustomer || clearTags || clearEbayListedPrice || clearListingPlatforms;
   const requestClose = () => { if (hasDraft) setShowU(true); else onClose(); };
   const apply = () => {
+    const invalidSize = items.some((item) => (cat || size) && !getSizes(cat || item.category).includes(size || item.size));
+    const invalidName = items.some((item) => !String(nameSet.trim() || `${titlePrefix}${titleFind ? String(item.name || "").split(titleFind).join(titleReplace) : item.name}${titleSuffix}`).trim());
+    const issue = (cost !== "" && !validAmount(cost)) ? "Cost must be a number of zero or more." : invalidSize ? "Choose a size compatible with every selected item's category." : invalidName ? "The title change would leave an item without a name." : (ebayListedPrice !== "" && !validAmount(ebayListedPrice)) ? "Listed price must be zero or more." : "";
+    setError(issue); if (issue) return;
     const updates = {};
     if (nameSet.trim()) updates.nameSet = nameSet.trim();
     if (titleFind) updates.titleFind = titleFind;
@@ -141,6 +160,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     onSave(updates);
   };
   return (<><Modal open={true} onClose={onClose} guardedClose={requestClose} title={`Bulk edit ${items.length} items`} maxWidth={980}>
+    {error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{error}</p>}
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <div style={{ flex: "1 1 560px", minWidth: 0 }}>
     <p style={{ fontSize: 12, color: "#7c8aa0", marginBottom: 14 }}>Leave fields blank to keep current values.</p>

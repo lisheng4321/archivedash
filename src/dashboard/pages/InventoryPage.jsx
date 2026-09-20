@@ -1,3 +1,4 @@
+import { allVisibleSelected } from "../formValidation.js";
 import { isInventoryAvailable } from "../inventory.js";
 import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader, today } from "../shared.jsx";
 
@@ -57,6 +58,7 @@ export default function InventoryPage({ ctx }) {
   const preorderInventoryValue = inventory
     .filter((item) => !isInventoryAvailable(item, todayKey))
     .reduce((total, item) => total + (Number(item.price) || 0), 0);
+  const hiddenSelectedCount = selectedInv.size - filteredInv.filter((item) => selectedInv.has(item.id)).length;
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
@@ -148,7 +150,7 @@ export default function InventoryPage({ ctx }) {
         </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
         {(invSearch || invCat !== "All" || invSource !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected - ${currency(selectedValue)}`}</span>
+        <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected${hiddenSelectedCount ? ` (${hiddenSelectedCount} outside this filter)` : ""} - ${currency(selectedValue)}`}</span>
       </div>
 
       {inventory.length === 0 ? (
@@ -163,11 +165,11 @@ export default function InventoryPage({ ctx }) {
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
           <div style={{ display: "grid", gridTemplateColumns: "44px minmax(180px, 1.45fr) minmax(76px, 0.55fr) minmax(86px, 0.65fr) 56px 82px 88px 96px 40px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
-            <input type="checkbox" checked={selectedInv.size === filteredInv.length && filteredInv.length > 0} onChange={toggleAll} style={{ ...cb, justifySelf: "center" }} />
+            <input type="checkbox" aria-label="Select all visible inventory" ref={(node) => { if (node) node.indeterminate = filteredInv.some((item) => selectedInv.has(item.id)) && !allVisibleSelected(filteredInv, selectedInv); }} checked={allVisibleSelected(filteredInv, selectedInv)} onChange={toggleAll} style={{ ...cb, justifySelf: "center" }} />
             <SortHeader field="name" label="Item" sort={invSort} setSort={setInvSort} /><span style={tableHead("center")}>Listed</span><span style={tableHead("center")}>Category</span><span style={tableHead("center")}>Size</span><SortHeader field="price" label="Price" sort={invSort} setSort={setInvSort} align="right" /><SortHeader field="date" label="Purchased" sort={invSort} setSort={setInvSort} align="center" /><SortHeader field="preorder" label="Release date" sort={invSort} setSort={setInvSort} align="center" /><span style={tableHead("center")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
         )}
-        {mobileSelectAll(selectedInv.size === filteredInv.length && filteredInv.length > 0, toggleAll, filteredInv.length)}
+        {mobileSelectAll(allVisibleSelected(filteredInv, selectedInv), toggleAll, filteredInv.length)}
         {groupedInv.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No items match these filters.<button onClick={clearFilters} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div>}
         {groupedInv.map((item, idx) => {
           if (!item._group) return invRow(item, false, idx);

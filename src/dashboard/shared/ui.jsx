@@ -1,5 +1,6 @@
-import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from "react";
+import { Children, cloneElement, isValidElement, useEffect, useId, useRef, useState } from "react";
 import "./appStyles.js";
+import { useDialogFocus } from "./useDialogFocus.js";
 import { VERSION } from "./constants.js";
 import { C, cardSurface, destructiveBtn, ghostBtn, inp, primaryBtn, smallCaps } from "./styles.js";
 
@@ -14,9 +15,10 @@ function useIsMobile() {
 }
 
 function ConfirmDialog({ open, msg, onConfirm, onCancel, label }) {
+  const dialogRef = useDialogFocus(open, onCancel);
   if (!open) return null;
   return (<div onClick={onCancel} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 380, width: "100%", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Confirm deletion" onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 380, width: "100%", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
       <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 18, lineHeight: 1.5 }}>{msg}</div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={onCancel} style={ghostBtn}>Cancel</button>
@@ -30,11 +32,12 @@ function ConfirmDialog({ open, msg, onConfirm, onCancel, label }) {
 // user to type a confirmation keyword (e.g. RESTORE / REPLACE / DELETE).
 function DangerConfirmDialog({ open, title, intro, counts, keyword, snapshotNote, confirmLabel, busy, onConfirm, onCancel }) {
   const [typed, setTyped] = useState("");
+  const dialogRef = useDialogFocus(open, () => { if (!busy) onCancel(); });
   useEffect(() => { setTyped(""); }, [open, keyword]);
   if (!open) return null;
   const ready = !busy && typed.trim().toUpperCase() === String(keyword || "").toUpperCase();
   return (<div onClick={busy ? undefined : onCancel} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 420, width: "100%", borderColor: "#ef444455", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 420, width: "100%", borderColor: "#ef444455", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
       <div style={{ fontSize: 15, fontWeight: 700, color: "#f87171", marginBottom: 8 }}>{title}</div>
       {intro && <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.5, marginBottom: 12 }}>{intro}</div>}
       {Array.isArray(counts) && counts.length > 0 && (
@@ -59,9 +62,10 @@ function DangerConfirmDialog({ open, title, intro, counts, keyword, snapshotNote
 }
 
 function UnsavedDialog({ open, onDiscard, onCancel }) {
+  const dialogRef = useDialogFocus(open, onCancel);
   if (!open) return null;
   return (<div onClick={onCancel} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 300, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-    <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 380, width: "100%", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Unsaved changes" onClick={(e) => e.stopPropagation()} style={{ ...cardSurface, padding: 24, maxWidth: 380, width: "100%", boxShadow: `${cardSurface.boxShadow}, 0 24px 80px rgba(0,0,0,0.45)` }}>
       <div style={{ fontSize: 14, color: "#e5e7eb", marginBottom: 6, fontWeight: 600 }}>Unsaved changes</div>
       <div style={{ fontSize: 13, color: "#9ca3af", marginBottom: 18 }}>Are you sure you want to close? Changes will be lost.</div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -72,28 +76,39 @@ function UnsavedDialog({ open, onDiscard, onCancel }) {
   </div>);
 }
 
-function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560 }) {
+function Modal({ open, onClose, title, children, guardedClose, maxWidth = 560, dismissible = true }) {
   const isMobile = useIsMobile();
   const backdropPointerDown = useRef(false);
+  const close = () => { if (dismissible) (guardedClose || onClose)?.(); };
+  const dialogRef = useDialogFocus(open, close);
   if (!open) return null;
-  const close = guardedClose || onClose;
   const backdropDown = (e) => { backdropPointerDown.current = e.target === e.currentTarget; };
   const backdropUp = (e) => {
     if (backdropPointerDown.current && e.target === e.currentTarget) close();
     backdropPointerDown.current = false;
   };
   return (<div onMouseDown={backdropDown} onMouseUp={backdropUp} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "center", padding: isMobile ? 8 : 16, boxSizing: "border-box" }}>
-    <div role="dialog" aria-modal="true" style={{ ...cardSurface, width: "100%", maxWidth: isMobile ? "100%" : maxWidth, maxHeight: isMobile ? "calc(100vh - 16px)" : "90vh", overflowY: "auto", borderRadius: isMobile ? 10 : cardSurface.borderRadius, boxShadow: `${cardSurface.boxShadow}, 0 30px 90px rgba(0,0,0,0.5)` }}>
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} style={{ ...cardSurface, width: "100%", maxWidth: isMobile ? "100%" : maxWidth, maxHeight: isMobile ? "calc(100vh - 16px)" : "90vh", overflowY: "auto", borderRadius: isMobile ? 10 : cardSurface.borderRadius, boxShadow: `${cardSurface.boxShadow}, 0 30px 90px rgba(0,0,0,0.5)` }}>
       <div style={{ position: "sticky", top: 0, zIndex: 1, display: "flex", justifyContent: "space-between", alignItems: "center", padding: isMobile ? "12px 14px" : "14px 20px", borderBottom: "1px solid #232c3c", background: "#121a2b" }}>
         <h3 style={{ margin: 0, color: "#f3f6fb", fontSize: 15, fontWeight: 600 }}>{title}</h3>
-        <button aria-label="Close" onClick={close} style={{ width: 30, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1f2937", border: "1px solid #232c3c", borderRadius: 8, color: "#9aa6bb", fontSize: 18, cursor: "pointer" }}>{"\u2715"}</button>
+        <button aria-label="Close" disabled={!dismissible} onClick={close} style={{ width: 30, height: 30, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#1f2937", border: "1px solid #232c3c", borderRadius: 8, color: "#9aa6bb", fontSize: 18, cursor: "pointer" }}>{"\u2715"}</button>
       </div>
       <div style={{ padding: isMobile ? 14 : 20 }}>{children}</div>
     </div>
   </div>);
 }
 
-const Field = ({ label, req, children }) => (<div style={{ marginBottom: 14 }}><label style={{ fontSize: 12, color: "#9aa6bb", display: "block", marginBottom: 5, fontWeight: 600 }}>{label}{req && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}</label>{children}</div>);
+function Field({ label, req, children }) {
+  const generatedId = useId();
+  let controlId;
+  const content = Children.map(children, (child) => {
+    if (!isValidElement(child) || !["input", "select", "textarea"].includes(child.type)) return child;
+    const id = child.props.id || `${generatedId}-${controlId ? "extra" : "control"}`;
+    if (!controlId) controlId = id;
+    return cloneElement(child, { id, "aria-label": child.props["aria-label"] || label, "aria-required": req || undefined });
+  });
+  return <div style={{ marginBottom: 14 }}><label htmlFor={controlId} style={{ fontSize: 12, color: "#9aa6bb", display: "block", marginBottom: 5, fontWeight: 600 }}>{label}{req && <span style={{ color: "#ef4444", marginLeft: 2 }}>*</span>}</label>{content}</div>;
+}
 const Row = ({ children, cols = 2 }) => {
   const isMobile = useIsMobile();
   return <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : `repeat(${cols}, 1fr)`, gap: isMobile ? 0 : 12 }}>{children}</div>;
