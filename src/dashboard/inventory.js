@@ -56,6 +56,15 @@ const isInventoryAvailable = (record = {}, todayKey = "") => {
   if (availability === "preorder") return Boolean(releaseDate && releaseDate <= todayKey);
   return !releaseDate || releaseDate <= todayKey;
 };
+// Expected dates do not confirm receipt. Preorder stock must be marked available.
+const isInventorySellable = (record = {}) => explicitAvailabilityFor(record) === "available" || (
+  explicitAvailabilityFor(record) !== "preorder" && !isPreorderOrigin(record) && !releaseExpectedDateFor(record)
+);
+const inventorySaleError = (inventory, items) => {
+  if (!items.length || items.some((item) => !inventory.some((current) => current.id === item.id))) return "Some selected stock is no longer available. Refresh your selection.";
+  if (items.some((item) => !isInventorySellable(inventory.find((current) => current.id === item.id)))) return "Preorder or in-transit stock cannot be sold. Mark it Available after it arrives, then try again.";
+  return "";
+};
 const isUnreleasedPreorder = (record = {}, todayKey = "") => !isInventoryAvailable(record, todayKey);
 const inventoryAgeStart = (record = {}) => {
   const releaseDate = releaseExpectedDateFor(record);
@@ -151,6 +160,8 @@ export {
   explicitAvailabilityFor,
   inventoryAgeStart,
   isInventoryAvailable,
+  isInventorySellable,
+  inventorySaleError,
   isPreorderOrigin,
   isUnreleasedPreorder,
   listedPlatformsFor,

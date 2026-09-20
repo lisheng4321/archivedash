@@ -14,7 +14,7 @@ import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
-import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isInventorySellable, inventorySaleError, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { groupInventory, inventoryPreorderBadge, sortInventory } from "./dashboard/inventoryView.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
@@ -803,7 +803,13 @@ export default function App({ onLogout, userEmail }) {
     return result;
   };
 
+  const guardSaleItems = (items) => {
+    const error = inventorySaleError(inventory, items);
+    if (error) window.alert(error);
+    return !error;
+  };
   const handleSell = async (item, sf) => {
+    if (!guardSaleItems([item])) return;
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
     const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, ...inventoryPurchaseFields(item), customer: sf.customer||"" };
     const salesResult = await commitInventorySale([sale, ...sales], inventory.filter((i) => i.id !== item.id));
@@ -813,6 +819,7 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleBulkSell = async (shared, rows) => {
+    if (!guardSaleItems(inventory.filter((item) => selectedInv.has(item.id)))) return;
     const soldIds = new Set();
     const newSales = [];
     for (const item of inventory.filter((i) => selectedInv.has(i.id))) {
@@ -830,6 +837,7 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleManualSell = async (items, shared, rows) => {
+    if (!guardSaleItems(items)) return;
     const soldIds = new Set();
     const newSales = [];
     for (const item of items) {
@@ -860,7 +868,7 @@ export default function App({ onLogout, userEmail }) {
     return Math.round((hits / words.length) * 70);
   };
 
-  const findEbayMatches = (draft) => [...inventory]
+  const findEbayMatches = (draft) => inventory.filter(isInventorySellable)
     .map((item) => ({ item, score: ebayMatchScore(draft, item) }))
     .filter((m) => m.score >= 45)
     .sort((a, b) => b.score - a.score);
@@ -890,7 +898,7 @@ export default function App({ onLogout, userEmail }) {
   const recordEbaySale = async (draft, review = null) => {
     const reviewItems = review?.items || [];
     const matches = reviewItems.length ? reviewItems : findEbayMatches(draft).map((m) => m.item).slice(0, Math.max(1, Number(draft.quantity || 1)));
-    if (!matches.length) return;
+    if (!guardSaleItems(matches)) return;
     const shared = review?.shared || { platform: "eBay AU", paymentMethod: "eBay Payout", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
     const rows = review?.rows || matches.map((item) => {
       const qty = Math.max(1, Number(draft.quantity || 1));
@@ -2441,7 +2449,7 @@ export default function App({ onLogout, userEmail }) {
               )}
             </div>
             <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
-              <button onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 34, padding: "7px 12px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
+              <button disabled={!isInventorySellable(item)} title={!isInventorySellable(item) ? "Mark Available after arrival to sell" : undefined} onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 34, padding: "7px 12px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
               <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
               <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
             </div>
@@ -2461,7 +2469,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: isPreorderOrigin(item) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: isPreorderOrigin(item) ? 600 : 400, textAlign: "center" }}>{releaseDateLabel(item)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
-          <button onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
+          <button disabled={!isInventorySellable(item)} title={!isInventorySellable(item) ? "Mark Available after arrival to sell" : undefined} onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
           <div className="archive-row-actions">
             <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
             <div className="archive-row-action-wrap">
@@ -2980,7 +2988,7 @@ export default function App({ onLogout, userEmail }) {
       </Modal>
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
-      {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {addSaleOpen && <ManualSaleModal inventory={inventory.filter(isInventorySellable)} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       <Modal open={Boolean(saleRecovery)} title={saleRecovery?.busy ? "Saving sale" : "Finish saving sale"} dismissible={!hasPendingSale() && !saleRecovery?.busy} onClose={() => setSaleRecovery(null)}>
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.6 }}>Recording this sale also removes the sold items from inventory. Keep this tab open until both finish. If the connection fails, Retry sale continues the original sale.</p>
         {saleRecovery?.error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{saleRecovery.error}</p>}
