@@ -1,3 +1,6 @@
+import PurchasePastePanel from "./dashboard/components/PurchasePastePanel.jsx";
+import { createInventoryBatchSave } from "./dashboard/inventoryBatchSave.js";
+import InventoryQueueSummary from "./dashboard/components/InventoryQueueSummary.jsx";
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes, saveInventorySale, hasPendingSale } from "./supabase.js";
 import { validateBackup, requireSaved } from "./dashboard/backupValidation.js";
@@ -14,7 +17,7 @@ import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
-import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, isInventoryAvailable, isInventorySellable, inventorySaleError, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, inventoryStatusFor, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { groupInventory, inventoryPreorderBadge, sortInventory } from "./dashboard/inventoryView.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
@@ -142,6 +145,11 @@ export default function App({ onLogout, userEmail }) {
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [invFormError, setInvFormError] = useState("");
+  const [invSaving, setInvSaving] = useState(false);
+  const [invSavePending, setInvSavePending] = useState(false);
+  const [invPasteDirty, setInvPasteDirty] = useState(false);
+  const invSaveAttempt = useRef(null);
+  const invSavingRef = useRef(false);
   const [expFormError, setExpFormError] = useState("");
   const [invQueue, setInvQueue] = useState([]);
   const [editExpOpen, setEditExpOpen] = useState(null);
@@ -161,6 +169,8 @@ export default function App({ onLogout, userEmail }) {
   const [bulkEditExpOpen, setBulkEditExpOpen] = useState(false);
   const [selectedSales, setSelectedSales] = useState(new Set());
   const [rowMenuOpen, setRowMenuOpen] = useState(null);
+  const [titleCopyFeedback, setTitleCopyFeedback] = useState(null);
+  const titleCopyTimerRef = useRef(null);
   const [bulkEditSaleOpen, setBulkEditSaleOpen] = useState(false);
   const [addSaleOpen, setAddSaleOpen] = useState(false);
   const [ebayImports, setEbayImports] = useState([]);
@@ -207,15 +217,16 @@ export default function App({ onLogout, userEmail }) {
     return () => {
       document.removeEventListener("pointerdown", closeRowMenu);
       document.removeEventListener("keydown", closeRowMenuOnEscape);
+      if (titleCopyTimerRef.current) clearTimeout(titleCopyTimerRef.current);
     };
   }, []);
   const CATS = settings.categories; const PLATS = settings.platforms; const CUSTS = settings.customers; const PAYMETHODS = settings.paymentMethods;
   const listingPlatforms = useMemo(() => PLATS.filter((p) => !["StockX", "GOAT", "CSFloat", "Bonusbank"].includes(p)), [PLATS]);
   const purchaseSources = useMemo(() => [...new Set([
-    ...PURCHASE_SOURCES,
+    ...(settings.purchaseSources || PURCHASE_SOURCES),
     ...inventory.map((item) => canonicalPurchaseSource(item.purchaseSource)).filter(Boolean),
     ...sales.map((sale) => canonicalPurchaseSource(sale.purchaseSource)).filter(Boolean),
-  ])], [inventory, sales]);
+  ])], [inventory, sales, settings.purchaseSources]);
 
   const lastInventoryEntryRef = useRef({ purchaseSource: "", purchasedBy: "", availability: "available" });
   const emptyInv = { name: "", category: CATS[0]||"Other", size: getDefaultSize(CATS[0]||""), price: "", ebayListedPrice: "", quantity: "1", purchaseDate: today(), releaseExpectedDate: "", purchaseSource: "", purchasedBy: "", availability: "available", brand: "", listedPlatforms: [], tags: "", customer: "" };
@@ -687,19 +698,27 @@ export default function App({ onLogout, userEmail }) {
   }, [settings, CUSTS, persistSettings]);
 
   const openAddInventory = () => {
+    invSaveAttempt.current = null;
+    setInvSavePending(false);
+    setInvFormError("");
+    setInvPasteDirty(false);
     setInvQueue([]);
     setInvForm({ ...emptyInv, ...lastInventoryEntryRef.current, category: CATS[0] || "Other", size: getDefaultSize(CATS[0] || ""), listedPlatforms: [] });
     setAddDirty(false);
     setAddInvOpen(true);
   };
   const closeAddInventory = () => {
+    if (invSavingRef.current) return;
+    invSaveAttempt.current = null;
+    setInvSavePending(false);
+    setInvPasteDirty(false);
     setAddInvOpen(false);
     setAddDirty(false);
     setInvQueue([]);
     setInvForm(emptyInv);
   };
   const updateInvForm = (u) => { setInvForm({ ...invForm, ...u }); setAddDirty(true); };
-  const guardedCloseAdd = () => { if (addDirty || invQueue.length) setShowUnsavedAdd(true); else closeAddInventory(); };
+  const guardedCloseAdd = () => { if (invSavingRef.current) return; if (addDirty || invQueue.length || invPasteDirty) setShowUnsavedAdd(true); else closeAddInventory(); };
   const nextSizeFor = (category, size) => {
     const sizes = getSizes(category);
     const index = sizes.indexOf(size);
@@ -723,7 +742,7 @@ export default function App({ onLogout, userEmail }) {
       preorderDate: draft.releaseExpectedDate || "",
       purchaseSource: canonicalPurchaseSource(draft.purchaseSource),
       purchasedBy: String(draft.purchasedBy || "").trim(),
-      availability: draft.availability === "preorder" ? "preorder" : "available",
+      availability: explicitAvailabilityFor(draft) || "available",
       preorderOrigin: draft.availability === "preorder",
       brand: draft.brand,
       listedPlatforms: listedPlatformsFor(draft),
@@ -736,7 +755,7 @@ export default function App({ onLogout, userEmail }) {
     lastInventoryEntryRef.current = {
       purchaseSource: canonicalPurchaseSource(draft.purchaseSource),
       purchasedBy: String(draft.purchasedBy || "").trim(),
-      availability: draft.availability === "preorder" ? "preorder" : "available",
+      availability: explicitAvailabilityFor(draft) || "available",
     };
   };
   const queueInventoryDraft = () => {
@@ -747,8 +766,9 @@ export default function App({ onLogout, userEmail }) {
     setInvForm((prev) => ({ ...prev, size: nextSizeFor(prev.category, prev.size), quantity: "1" }));
     setAddDirty(true);
   };
-  const removeQueuedInventory = (id) => {
-    setInvQueue((prev) => prev.filter((item) => item.id !== id));
+  const removeQueuedInventory = (ids) => {
+    const removed = new Set(ids);
+    setInvQueue((prev) => prev.filter((item) => !removed.has(item.id)));
     setAddDirty(true);
   };
   const clearInventoryDraft = () => {
@@ -756,12 +776,40 @@ export default function App({ onLogout, userEmail }) {
     setAddDirty(true);
   };
 
-  const addInventory = async () => {
-    const items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
+  const queuePastedInventory = (drafts) => {
+    const items = drafts.flatMap(inventoryItemsFromDraft);
     if (!items.length) return;
-    if (!invQueue.length) rememberInventoryEntry(invForm);
-    await persistInv([...items, ...inventory]);
-    closeAddInventory();
+    setInvQueue((previous) => [...previous, ...items]);
+    rememberInventoryEntry(drafts[drafts.length - 1]);
+    setAddDirty(true);
+  };
+  const addInventory = async () => {
+    if (invSavingRef.current) return;
+    if (invPasteDirty && !invSaveAttempt.current) { setInvFormError("Queue or clear the pasted summary before saving."); return; }
+    if (!invSaveAttempt.current) {
+      const items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
+      if (!items.length) return;
+      if (!invQueue.length) rememberInventoryEntry(invForm);
+      invSaveAttempt.current = createInventoryBatchSave(items);
+    }
+    invSavingRef.current = true;
+    setInvSaving(true);
+    setInvSavePending(true);
+    setInvFormError("");
+    try {
+      const result = await invSaveAttempt.current.save(inventory, persistInv);
+      if (result?.ok !== true || result.superseded) {
+        setInvFormError(`${result?.error || "Save could not be confirmed."} Your batch is still here. Retry saving to finish.`);
+        return;
+      }
+      invSavingRef.current = false;
+      closeAddInventory();
+    } catch (error) {
+      setInvFormError(`${error.message || "Could not save inventory."} Your batch is still here. Retry saving to finish.`);
+    } finally {
+      invSavingRef.current = false;
+      setInvSaving(false);
+    }
   };
 
   const duplicateItem = async (item) => { await persistInv([{ ...item, id: genId(), addedAt: Date.now() }, ...inventory]); };
@@ -803,13 +851,7 @@ export default function App({ onLogout, userEmail }) {
     return result;
   };
 
-  const guardSaleItems = (items) => {
-    const error = inventorySaleError(inventory, items);
-    if (error) window.alert(error);
-    return !error;
-  };
   const handleSell = async (item, sf) => {
-    if (!guardSaleItems([item])) return;
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
     const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, ...inventoryPurchaseFields(item), customer: sf.customer||"" };
     const salesResult = await commitInventorySale([sale, ...sales], inventory.filter((i) => i.id !== item.id));
@@ -819,7 +861,6 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleBulkSell = async (shared, rows) => {
-    if (!guardSaleItems(inventory.filter((item) => selectedInv.has(item.id)))) return;
     const soldIds = new Set();
     const newSales = [];
     for (const item of inventory.filter((i) => selectedInv.has(i.id))) {
@@ -837,8 +878,8 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleManualSell = async (items, shared, rows) => {
-    if (!guardSaleItems(items)) return;
     const soldIds = new Set();
+    const orderId = genId();
     const newSales = [];
     for (const item of items) {
       const r = rows.find((x) => x.id === item.id);
@@ -846,12 +887,12 @@ export default function App({ onLogout, userEmail }) {
       const rawSalePrice = String(r.salePrice ?? "").trim();
       const sp = parseFloat(rawSalePrice), ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
       if (!rawSalePrice || !Number.isFinite(sp) || sp < 0) continue;
-      newSales.push({ id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
+      newSales.push({ id: genId(), orderId, name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
       soldIds.add(item.id);
     }
     if (!newSales.length) return;
     const salesResult = await commitInventorySale([...newSales, ...sales], inventory.filter((i) => !soldIds.has(i.id)));
-    if (salesResult?.ok === false) return;
+    if (salesResult?.ok === false) return salesResult;
     if (shared.customer) addCustomer(shared.customer);
     setAddSaleOpen(false);
   };
@@ -868,7 +909,7 @@ export default function App({ onLogout, userEmail }) {
     return Math.round((hits / words.length) * 70);
   };
 
-  const findEbayMatches = (draft) => inventory.filter(isInventorySellable)
+  const findEbayMatches = (draft) => [...inventory]
     .map((item) => ({ item, score: ebayMatchScore(draft, item) }))
     .filter((m) => m.score >= 45)
     .sort((a, b) => b.score - a.score);
@@ -898,7 +939,7 @@ export default function App({ onLogout, userEmail }) {
   const recordEbaySale = async (draft, review = null) => {
     const reviewItems = review?.items || [];
     const matches = reviewItems.length ? reviewItems : findEbayMatches(draft).map((m) => m.item).slice(0, Math.max(1, Number(draft.quantity || 1)));
-    if (!guardSaleItems(matches)) return;
+    if (!matches.length) return;
     const shared = review?.shared || { platform: "eBay AU", paymentMethod: "eBay Payout", saleDate: draft.sale_date || today(), customer: draft.buyer_username || "" };
     const rows = review?.rows || matches.map((item) => {
       const qty = Math.max(1, Number(draft.quantity || 1));
@@ -908,7 +949,7 @@ export default function App({ onLogout, userEmail }) {
     const newSales = matches.map((item) => {
       const r = rows.find((x) => x.id === item.id) || {};
       const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", paymentMethod: shared.paymentMethod || "eBay Payout", saleDate: shared.saleDate || today(), tags: `eBay ${draft.order_id}`, ...inventoryPurchaseFields(item), customer: shared.customer || "" };
+      return { id: genId(), name: item.name, category: item.category, size: item.size || "OS", brand: item.brand || "", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform || "eBay AU", paymentMethod: shared.paymentMethod || "eBay Payout", saleDate: shared.saleDate || today(), orderId: draft.order_id, tags: `eBay ${draft.order_id}`, ...inventoryPurchaseFields(item), customer: shared.customer || "" };
     });
     const soldIds = new Set(matches.map((i) => i.id));
     const salesResult = await persistSales([...newSales, ...sales]);
@@ -964,7 +1005,7 @@ export default function App({ onLogout, userEmail }) {
       preorderDate: form.releaseExpectedDate || "",
       purchaseSource: canonicalPurchaseSource(form.purchaseSource),
       purchasedBy: String(form.purchasedBy || "").trim(),
-      availability: form.availability === "preorder" ? "preorder" : "available",
+      availability: explicitAvailabilityFor(form) || "available",
       preorderOrigin: form.availability === "preorder",
       brand: form.brand || "",
       tags: form.tags || "",
@@ -1092,6 +1133,20 @@ export default function App({ onLogout, userEmail }) {
     const copied = document.execCommand("copy");
     document.body.removeChild(textarea);
     if (!copied) throw new Error("Clipboard copy failed");
+  };
+
+  const copyItemTitle = async (event, title, key) => {
+    event.stopPropagation();
+    const text = String(title || "").trim();
+    if (!text) return;
+    if (titleCopyTimerRef.current) clearTimeout(titleCopyTimerRef.current);
+    try {
+      await copyTextToClipboard(text);
+      setTitleCopyFeedback({ key, message: "Copied" });
+    } catch {
+      setTitleCopyFeedback({ key, message: "Copy failed" });
+    }
+    titleCopyTimerRef.current = setTimeout(() => setTitleCopyFeedback(null), 1800);
   };
 
   const ebayPartnerListPrice = (item) => {
@@ -1991,6 +2046,7 @@ export default function App({ onLogout, userEmail }) {
     if (invCat !== "All") f = f.filter((i) => i.category === invCat);
     if (invSource !== "All") f = f.filter((i) => purchaseSourceFor(i) === invSource);
     if (invPreorderView === "available") f = f.filter((i) => isInventoryAvailable(i, today()));
+    if (invPreorderView === "in_transit") f = f.filter((i) => inventoryStatusFor(i, today()) === "in_transit");
     if (invPreorderView === "preorders") f = f.filter((i) => isUnreleasedPreorder(i, today()));
     if (invStatus !== "All") {
       f = f.filter((i) => {
@@ -2282,7 +2338,6 @@ export default function App({ onLogout, userEmail }) {
   </div>;
 
   const invQueueTotal = invQueue.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
-  const invQueueProductCount = new Set(invQueue.map((item) => item.name).filter(Boolean)).size;
 
   const navItems = [
     { id: "dashboard", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
@@ -2428,6 +2483,12 @@ export default function App({ onLogout, userEmail }) {
   const sampleTag = (record) => isDemoRecord(record) ? (
     <span style={{ marginLeft: 6, padding: "1px 6px", borderRadius: 999, background: "#241a08", border: "1px solid #92400e66", color: "#fbbf24", fontSize: 11, fontWeight: 800, letterSpacing: 0.3, verticalAlign: "middle", whiteSpace: "nowrap" }}>SAMPLE</span>
   ) : null;
+  const renderCopyableTitle = (title, key, style = {}) => (
+    <>
+      <button type="button" onClick={(event) => copyItemTitle(event, title, key)} aria-label={`Copy title: ${title}`} title="Copy title" style={{ display: "inline-block", minWidth: 0, maxWidth: "100%", padding: 0, border: "none", background: "transparent", color: titleCopyFeedback?.key === key && titleCopyFeedback.message === "Copied" ? "#86efac" : "#e5e7eb", font: "inherit", textAlign: "left", cursor: "copy", textDecoration: "underline", textDecorationStyle: "dotted", textDecorationColor: "#64748b", textUnderlineOffset: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", verticalAlign: "bottom", ...style }}>{title}</button>
+      {titleCopyFeedback?.key === key && <span role="status" style={{ marginLeft: 6, color: titleCopyFeedback.message === "Copied" ? "#86efac" : "#fca5a5", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>{titleCopyFeedback.message}</span>}
+    </>
+  );
 
   const invRow = (item, isGroupChild, index = 0) => {
     const buyerMatchCount = buyerMatchesByInventoryId.get(item.id)?.length || 0;
@@ -2437,7 +2498,7 @@ export default function App({ onLogout, userEmail }) {
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{currency(item.price)}</span>
             </div>
             <div style={{ minWidth: 0 }}>
@@ -2449,7 +2510,6 @@ export default function App({ onLogout, userEmail }) {
               )}
             </div>
             <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
-              <button disabled={!isInventorySellable(item)} title={!isInventorySellable(item) ? "Mark Available after arrival to sell" : undefined} onClick={() => setSellOpen(item)} style={{ ...ghostBtn, minHeight: 34, padding: "7px 12px", borderRadius: 6, fontSize: 12, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
               <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
               <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
             </div>
@@ -2460,7 +2520,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, justifySelf: "center" }} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{(item.brand || item.purchaseSource || item.purchasedBy) && <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[item.brand, item.purchaseSource, item.purchasedBy].filter(Boolean).join(" · ")}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{(item.brand || item.purchaseSource || item.purchasedBy) && <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[item.brand, item.purchaseSource, item.purchasedBy].filter(Boolean).join(" · ")}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
@@ -2469,7 +2529,6 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: isPreorderOrigin(item) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: isPreorderOrigin(item) ? 600 : 400, textAlign: "center" }}>{releaseDateLabel(item)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
-          <button disabled={!isInventorySellable(item)} title={!isInventorySellable(item) ? "Mark Available after arrival to sell" : undefined} onClick={() => setSellOpen(item)} style={{ ...rowActionButton, color: "#93c5fd", fontWeight: 700 }}>Sell</button>
           <div className="archive-row-actions">
             <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
             <div className="archive-row-action-wrap">
@@ -2497,7 +2556,7 @@ export default function App({ onLogout, userEmail }) {
           <span style={{ color: "#7c8aa0", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13 }}>{item.name}{renderPreBadge(item)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
             </div>
             <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units{item._items?.some(isPreorderOrigin) ? ` · releases ${groupReleaseDateLabel(item._items)}` : ""}</div>
@@ -2511,7 +2570,7 @@ export default function App({ onLogout, userEmail }) {
           <input ref={(node) => { if (node) node.indeterminate = groupIndeterminate; }} type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#7c8aa0", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
-        <div><span style={{ color: "#e5e7eb" }}>{item.name}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}><span style={{ color: "#e5e7eb", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
@@ -2535,7 +2594,7 @@ export default function App({ onLogout, userEmail }) {
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{s.name}{sampleTag(s)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{renderCopyableTitle(s.name, `sale:${saleKey}`, { maxWidth: "78%" })}{sampleTag(s)}</span>
               <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{currency(s.salePrice)}</span>
             </div>
             <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
@@ -2555,7 +2614,7 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={saleKey} className="archive-data-row" data-selected={saleSelected} onClick={(e) => rowClick(e, toggleSelSale, saleKey)} style={{ display: "grid", gridTemplateColumns: salesGridColumns, gap: 8, padding: "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: saleBackground, cursor: "pointer", ...selectedAccent(saleSelected), zIndex: rowMenuOpen === `sale:${saleKey}` ? 4 : undefined }}>
         <input type="checkbox" checked={saleSelected} onChange={() => toggleSelSale(saleKey)} style={{ ...cb, justifySelf: "center" }} />
-        <div><span style={{ color: "#e5e7eb" }}>{s.name}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category} · {recordPaymentMethod(s)}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}><span style={{ color: "#e5e7eb", whiteSpace: "nowrap" }}>{renderCopyableTitle(s.name, `sale:${saleKey}`, { maxWidth: "78%" })}{sampleTag(s)}</span><div style={{ fontSize: 11, color: "#8b97ad" }}>{s.category} · {recordPaymentMethod(s)}{s.brand?` · ${s.brand}`:""}{s.customer?` · ${s.customer}`:""}{s.purchaseDate?` · bought ${s.purchaseDate}`:""}</div></div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}><PlatformBadge platform={s.platform} style={{ margin: "0 auto" }} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "center" }}>{s.size||"OS"}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
@@ -2933,48 +2992,31 @@ export default function App({ onLogout, userEmail }) {
       )}
 
       {/* ══ MODALS ══ */}
-      <Modal open={addInvOpen} onClose={closeAddInventory} guardedClose={guardedCloseAdd} title="Add inventory">
+      <Modal open={addInvOpen} onClose={closeAddInventory} guardedClose={guardedCloseAdd} title="Add inventory" maxWidth={1040} dismissible={!invSaving}>
         {invFormError && <p role="alert" style={{ color: "#fca5a5" }}>{invFormError}</p>}
+        <fieldset disabled={invSaving || invSavePending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+        <ResponsiveGrid columns="minmax(0, 1.65fr) minmax(280px, 1fr)" gap={24}>
+          <div style={{ minWidth: 0 }}>
+        {addInvOpen && <PurchasePastePanel defaults={invForm} categories={CATS} onQueue={queuePastedInventory} onDirtyChange={setInvPasteDirty} disabled={invSaving || invSavePending} />}
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
-        <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Cost (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
+        <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Landed cost / unit (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
-        <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={invForm.availability} onChange={(e) => updateInvForm({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="available">Available</option></select></Field><Field label="Release / Expected Date"><input type="date" value={invForm.releaseExpectedDate} onChange={(e) => updateInvForm({ releaseExpectedDate: e.target.value })} style={inp} /></Field></Row>
-        <Row><PurchaseSourceField value={invForm.purchaseSource} onChange={(purchaseSource) => updateInvForm({ purchaseSource })} /><Field label="Purchased by"><input value={invForm.purchasedBy} onChange={(e) => updateInvForm({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
+        <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={invForm.availability} onChange={(e) => updateInvForm({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field><Field label="Release / Expected Date"><input type="date" value={invForm.releaseExpectedDate} onChange={(e) => updateInvForm({ releaseExpectedDate: e.target.value })} style={inp} /></Field></Row>
+        <Row><PurchaseSourceField purchaseSources={purchaseSources} value={invForm.purchaseSource} onChange={(purchaseSource) => updateInvForm({ purchaseSource })} /><Field label="Purchased by"><input value={invForm.purchasedBy} onChange={(e) => updateInvForm({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
         {listedPlatformsFor(invForm).some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={invForm.ebayListedPrice || ""} onChange={(e) => updateInvForm({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
         <Field label="Tags"><input value={invForm.tags} onChange={(e) => updateInvForm({ tags: e.target.value })} style={inp} /></Field>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
-          <button onClick={clearInventoryDraft} style={{ ...ghostBtn, color: "#9ca3af", ...(isMobile ? { width: "100%" } : {}) }}>Clear form</button>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", flexDirection: isMobile ? "column" : "row", width: isMobile ? "100%" : "auto" }}>
-            <button onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd", ...(isMobile ? { width: "100%" } : {}) }}>Queue {parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}</button>
-            <button onClick={guardedCloseAdd} style={{ ...ghostBtn, ...(isMobile ? { width: "100%" } : {}) }}>Cancel</button>
-            <button onClick={addInventory} style={{ ...primaryBtn, ...(isMobile ? { width: "100%" } : {}) }}>{invQueue.length ? `Add ${invQueue.length} queued` : `Add ${parseInt(invForm.quantity, 10)>1?`${invForm.quantity} items`:"item"}`}</button>
+            <button onClick={clearInventoryDraft} style={{ ...ghostBtn, fontSize: 12, color: "#8b97ad" }}>Clear form</button>
           </div>
-        </div>
-        {invQueue.length > 0 && (
-          <div style={{ marginTop: 14, border: "1px solid #232c3c", borderRadius: 12, overflow: "hidden", background: "#0d1117" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", padding: "9px 11px", borderBottom: "1px solid #232c3c" }}>
-              <div>
-                <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Submission queue</div>
-                <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{invQueueProductCount} product{invQueueProductCount === 1 ? "" : "s"} - {invQueue.length} unit{invQueue.length === 1 ? "" : "s"} - {currency(invQueueTotal)}</div>
-              </div>
-              <button onClick={() => { setInvQueue([]); setAddDirty(true); }} style={{ ...ghostBtn, padding: "5px 8px", fontSize: 11, color: "#f87171" }}>Clear queue</button>
-            </div>
-            <div style={{ maxHeight: 154, overflowY: "auto" }}>
-              {invQueue.map((item) => (
-                <ResponsiveGrid key={item.id} columns="minmax(0,1fr) 76px 78px 54px" mobileColumns="minmax(0, 1fr) auto" gap={8} style={{ alignItems: "center", padding: "8px 11px", borderTop: "1px solid #232c3c22", fontSize: 12 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ color: "#e5e7eb", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                    <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}{item.brand ? ` - ${item.brand}` : ""}{item.purchaseSource ? ` - ${item.purchaseSource}` : ""}{listedPlatformsFor(item).length ? ` - ${listedPlatformsFor(item).map(platformShortName).join(", ")}` : ""}</div>
-                  </div>
-                  <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 700 }}>{item.size || "OS"}</span>
-                  <span style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</span>
-                  <button onClick={() => removeQueuedInventory(item.id)} style={{ ...ghostBtn, padding: "4px 7px", fontSize: 11, color: "#f87171" }}>Remove</button>
-                </ResponsiveGrid>
-              ))}
-            </div>
-          </div>
-        )}
+          <InventoryQueueSummary items={invQueue} disabled={invSaving || invSavePending} isMobile={isMobile} onRemove={removeQueuedInventory} onClear={() => { setInvQueue([]); setAddDirty(true); }} />
+        </ResponsiveGrid>
+        </fieldset>
+        <ModalActions mobileStack={false} style={{ flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ flex: "1 1 140px", fontSize: 12, color: "#8b97ad" }}>{invQueue.length ? `${invQueue.length} queued units · ${currency(invQueueTotal)}` : "Retailer stays selected between entries"}</span>
+          <button disabled={invSaving} onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button>
+          <button disabled={invSaving || invSavePending} onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd" }}>Queue {parseInt(invForm.quantity, 10) > 1 ? `${invForm.quantity} units` : "item"}</button>
+          <button disabled={invSaving} onClick={addInventory} style={primaryBtn}>{invSaving ? "Saving…" : invSavePending ? "Retry saving batch" : invQueue.length ? `Save ${invQueue.length} queued units` : `Add ${parseInt(invForm.quantity, 10) > 1 ? `${invForm.quantity} items` : "item"}`}</button>
+        </ModalActions>
       </Modal>
       <UnsavedDialog open={showUnsavedAdd} onDiscard={() => { closeAddInventory(); setShowUnsavedAdd(false); }} onCancel={() => setShowUnsavedAdd(false)} />
 
@@ -2988,18 +3030,18 @@ export default function App({ onLogout, userEmail }) {
       </Modal>
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
-      {addSaleOpen && <ManualSaleModal inventory={inventory.filter(isInventorySellable)} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       <Modal open={Boolean(saleRecovery)} title={saleRecovery?.busy ? "Saving sale" : "Finish saving sale"} dismissible={!hasPendingSale() && !saleRecovery?.busy} onClose={() => setSaleRecovery(null)}>
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.6 }}>Recording this sale also removes the sold items from inventory. Keep this tab open until both finish. If the connection fails, Retry sale continues the original sale.</p>
         {saleRecovery?.error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{saleRecovery.error}</p>}
         <ModalActions><button onClick={exportJSON} style={ghostBtn}>Export current data</button>{hasPendingSale() && <button disabled={saleRecovery?.busy} onClick={() => commitInventorySale()} style={primaryBtn}>{saleRecovery?.busy ? "Saving…" : "Retry sale"}</button>}</ModalActions>
       </Modal>
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} paymentMethods={PAYMETHODS} />}
-      {gmailReviewOpen && <GmailInventoryReviewModal draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
-      {editInvOpen && <EditInvModal item={editInvOpen} onSave={async (ef) => { const result = await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); if (result.ok) setEditInvOpen(null); return result; }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
+      {gmailReviewOpen && <GmailInventoryReviewModal purchaseSources={purchaseSources} draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
+      {editInvOpen && <EditInvModal purchaseSources={purchaseSources} item={editInvOpen} onSave={async (ef) => { const result = await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); if (result.ok) setEditInvOpen(null); return result; }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
       {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(keyedSales.map((s) => stripSaleKey(s._saleKey===editSaleOpen._saleKey ? u : s))); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { const result = await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); if (result.ok) setEditExpOpen(null); return result; }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
-      {bulkEditOpen && <BulkEditModal items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
+      {bulkEditOpen && <BulkEditModal purchaseSources={purchaseSources} items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}
       {tplManagerOpen && userTemplates && <TemplateManagerModal templates={userTemplates} onSave={async (next) => { await persistTemplates(next); setTplManagerOpen(false); }} onClose={() => setTplManagerOpen(false)} />}
       {bulkSellOpen && <BulkSellModal items={inventory.filter((i) => selectedInv.has(i.id))} onSell={handleBulkSell} onClose={() => setBulkSellOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}

@@ -1,3 +1,4 @@
+import ManualSaleModal from "./ManualSaleModal.jsx";
 import { useState } from "react";
 import { DEF_CATEGORIES, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, currency, computeProfit, estimateEbayFee, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid, useIsMobile } from "../shared.jsx";
 
@@ -53,7 +54,7 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMet
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit sale">
     <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>{ef.category} · {sale.size || "OS"}{sale.brand ? ` · ${sale.brand}` : ""}</div></div>
     <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value })} style={inp} /></Field></Row>
-    <Row><Field label="Sale price (AU$)" req><input type="number" min="0" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
+    <Row><Field label="Sale price (AU$)" req><input type="number" min="0" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date (buyer paid)"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} /></Field><Field label="Fees"><input type="number" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
     <Row><Field label="Payment method"><select value={ef.paymentMethod} onChange={(e) => up({ paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, ef.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field></Row>
     <Field label="Customer"><input list="cust-list2" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} /><datalist id="cust-list2">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field>
@@ -168,93 +169,6 @@ function BulkSellModal({ items, onSell, onClose, platforms, customers, paymentMe
 
 // ─── Manual Sale Modal ───
 
-function ManualSaleModal({ inventory, onSell, onClose, platforms, customers, paymentMethods = [] }) {
-  const isMobile = useIsMobile();
-  const [query, setQuery] = useState("");
-  const [selectedIds, setSelectedIds] = useState(new Set());
-  const initialPlatform = platforms[0] || "Other";
-  const [shared, setShared] = useState({ platform: initialPlatform, paymentMethod: paymentForPlatform(initialPlatform, paymentMethods), saleDate: today(), customer: "" });
-  const [rows, setRows] = useState({});
-  const [showU, setShowU] = useState(false);
-  const gc = () => setShowU(true);
-  const q = query.trim().toLowerCase();
-  const filtered = inventory
-    .filter((item) => !q || [item.name, item.brand, item.category, item.tags, item.customer].some((v) => String(v || "").toLowerCase().includes(q)))
-    .slice(0, 80);
-  const selectedItems = inventory.filter((item) => selectedIds.has(item.id));
-  const toggle = (item) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(item.id)) next.delete(item.id);
-      else next.add(item.id);
-      return next;
-    });
-    setRows((prev) => prev[item.id] ? prev : { ...prev, [item.id]: { salePrice: "", shippingPrice: "", platformFees: "" } });
-  };
-  const updateRow = (id, u) => setRows((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...u } }));
-  const preparedRows = selectedItems.map((item) => ({ id: item.id, ...(rows[item.id] || {}) }));
-  const previews = selectedItems.map((item) => {
-    const r = rows[item.id] || {};
-    const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-    return { ...item, sp, ship, fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }) };
-  });
-  const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
-  const totalRevenue = previews.reduce((a, p) => a + p.sp, 0);
-  const allPriced = selectedItems.length > 0 && preparedRows.every((row) => hasValidSalePrice(row.salePrice));
-
-  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Add Sale" maxWidth={980}>
-    <p style={{ color: "#9ca3af", fontSize: 12 }}>Only available stock can be sold. Mark preorder or in-transit items Available after they arrive.</p>
-    <Row cols={4}><Field label="Platform" req><select value={shared.platform} onChange={(e) => { const platform = e.target.value; setShared({ ...shared, platform, paymentMethod: paymentForPlatform(platform, paymentMethods) }); }} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Payment method"><select value={shared.paymentMethod} onChange={(e) => setShared({ ...shared, paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, shared.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Sale date"><input type="date" value={shared.saleDate} onChange={(e) => setShared({ ...shared, saleDate: e.target.value })} style={inp} /></Field><Field label="Customer"><input list="cust-manual-sale" value={shared.customer} onChange={(e) => setShared({ ...shared, customer: e.target.value })} style={inp} placeholder="Optional" /><datalist id="cust-manual-sale">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field></Row>
-    <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 12 }}>
-      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Selected</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{selectedItems.length} item{selectedItems.length === 1 ? "" : "s"}</div></div>
-      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(totalRevenue)}</div></div>
-      <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 700 }}>{currency(totalProfit)}</div></div>
-    </ResponsiveGrid>
-    <Field label="Search inventory"><input value={query} onChange={(e) => setQuery(e.target.value)} style={inp} placeholder="Search name, brand, category..." autoFocus={!isMobile} /></Field>
-    <ResponsiveGrid columns="minmax(340px, 0.95fr) minmax(500px, 1.3fr)" gap={isMobile ? 12 : 14} style={{ minHeight: isMobile ? 0 : 360 }}>
-      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 260 : 360, background: "#0d1117" }}>
-        {filtered.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#8b97ad", fontSize: 12 }}>No inventory matches.</div>}
-        {filtered.map((item, index) => {
-          const checked = selectedIds.has(item.id);
-          return (
-            <div key={item.id} onClick={() => toggle(item)} style={{ display: "grid", gridTemplateColumns: "26px minmax(0, 1fr) auto", gap: 10, alignItems: "center", padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #232c3c22", background: checked ? "#1e293b" : (index % 2 === 0 ? "#0d131f" : "#121a2b") }}>
-              <input type="checkbox" checked={checked} onChange={() => toggle(item)} onClick={(e) => e.stopPropagation()} style={cb} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
-                <SaleItemIdentity item={item} showCost={false} compact />
-              </div>
-              <div style={{ color: "#f3f6fb", fontSize: 12, fontWeight: 700 }}>{currency(item.price)}</div>
-            </div>
-          );
-        })}
-      </div>
-      <div style={{ border: "1px solid #232c3c", borderRadius: 8, overflow: "auto", maxHeight: isMobile ? 320 : 360, background: "#0d1117" }}>
-        {selectedItems.length === 0 && <div style={{ padding: 18, textAlign: "center", color: "#8b97ad", fontSize: 12 }}>Select inventory to price the sale.</div>}
-        {selectedItems.map((item) => {
-          const r = rows[item.id] || {};
-          const sp = parseFloat(r.salePrice)||0, ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-          const profit = computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees });
-          return (
-            <div key={item.id} style={{ padding: "10px 12px", borderBottom: "1px solid #232c3c44", background: "#0d1117" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 7, alignItems: "flex-start" }}>
-                <div style={{ minWidth: 0 }}><div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div><SaleItemIdentity item={item} /></div>
-                <button onClick={() => toggle(item)} style={{ ...ghostBtn, padding: "3px 7px", fontSize: 11, color: "#f87171", flexShrink: 0 }}>Remove</button>
-              </div>
-              <ResponsiveGrid columns="repeat(3, minmax(120px, 1fr)) 92px" mobileColumns="1fr 1fr" gap={8} style={{ alignItems: "end" }}>
-                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Sale</div><input type="number" min="0" step="0.01" placeholder="Sale price" value={r.salePrice ?? ""} onChange={(e) => updateRow(item.id, { salePrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Shipping</div><input type="number" step="0.01" placeholder="Shipping" value={r.shippingPrice || ""} onChange={(e) => updateRow(item.id, { shippingPrice: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <div><div style={{ fontSize: 11, color: "#9ca3af", marginBottom: 4, fontWeight: 600 }}>Fees</div><input type="number" step="0.01" placeholder="Fees" value={r.platformFees || ""} onChange={(e) => updateRow(item.id, { platformFees: e.target.value })} style={{ ...inp, fontSize: 12, padding: "7px 9px" }} /></div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: hasValidSalePrice(r.salePrice)?(profit>=0?"#34d399":"#f87171"):"#374151", textAlign: "right", paddingBottom: 8 }}>{hasValidSalePrice(r.salePrice)?currency(profit):"—"}</span>
-              </ResponsiveGrid>
-            </div>
-          );
-        })}
-      </div>
-    </ResponsiveGrid>
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!allPriced) return; onSell(selectedItems, shared, preparedRows); }} style={{ ...primaryBtn, opacity: allPriced?1:0.5 }}>Record {selectedItems.length || ""} Sale{selectedItems.length === 1 ? "" : "s"}</button></ModalActions>
-  </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
-}
-
 function EbaySaleReviewModal({ draft, items, onRecord, onClose, paymentMethods = [] }) {
   const qty = Math.max(1, Number(draft.quantity || 1));
   const saleTotal = Number(draft.sale_price || 0);
@@ -284,7 +198,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose, paymentMethods =
   const totalShip = previews.reduce((a, p) => a + p.ship, 0);
   const totalFees = previews.reduce((a, p) => a + p.fees, 0);
   const totalProfit = previews.reduce((a, p) => a + p.profit, 0);
-  const allPriced = rows.every((row) => hasValidSalePrice(row.salePrice));
+  const allPriced = rows.every((row) => hasValidSalePrice(row.salePrice)) && shared.saleDate && shared.saleDate <= today();
 
   return (<><Modal open={true} onClose={onClose} guardedClose={() => setShowU(true)} title="Review eBay Sale">
     <div style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14 }}>
@@ -298,6 +212,7 @@ function EbaySaleReviewModal({ draft, items, onRecord, onClose, paymentMethods =
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Fees</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{currency(totalFees)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: totalProfit>=0?"#34d399":"#f87171", fontWeight: 800 }}>{currency(totalProfit)}</div></div>
     </ResponsiveGrid>
+    <p style={{ color: "#9aa6bb", fontSize: 12 }}>Record after fulfilment; keep the buyer’s payment date as the sale date.</p>
     {rawFeeTotal <= 0 && <div style={{ fontSize: 11, color: "#fbbf24", margin: "-2px 0 10px" }}>Fees are estimated from eBay AU Pro Basic Tier 4 at {(EBAY_AU_FEE_RATE * 100).toFixed(2)}% + {currency(EBAY_AU_FIXED_ORDER_FEE)}. Edit them before recording if eBay shows a different amount.</div>}
     <div style={{ maxHeight: 300, overflowY: "auto", borderRadius: 8, border: "1px solid #232c3c" }}>
       {items.map((item) => {

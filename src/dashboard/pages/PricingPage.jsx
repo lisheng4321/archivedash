@@ -13,6 +13,8 @@ const syncMetaStorageKey = "archivedash-pricing-sync-meta-v1";
 const activeListingsStorageKey = "archivedash-pricing-active-listings-v1";
 const liveCompsStorageKey = "archivedash-pricing-live-comps-v1";
 const uiStateStorageKey = "archivedash-pricing-ui-state-v1";
+const localEbayHelperUrl = "http://127.0.0.1:8787";
+const localCompSource = "scrapling-local";
 const defaultExclude = "acrylic, empty, box only, case only, damaged, custom, replica, proxy, bundle, lot, combo";
 const ownEbaySeller = "thearchive777";
 
@@ -256,6 +258,31 @@ const buildSyncProfiles = (baseProfiles, currentTweaks, listings, maxProfiles = 
   withTweaks(baseProfiles, currentTweaks, listings)
     .slice(0, maxProfiles)
     .map((profile) => ({ id: profile.id, query: profile.query }))
+);
+
+const normalizeLocalComps = (rows, profileId) => (
+  (Array.isArray(rows) ? rows : [])
+    .map((row, index) => {
+      const total = Number(row.total);
+      if (!Number.isFinite(total) || total <= 0 || !row.title) return null;
+      const type = row.type === "sold" ? "sold" : "active";
+      const price = Number(row.price);
+      const shipping = Number(row.shipping);
+      return {
+        id: row.id || `${localCompSource}-${profileId}-${type}-${index}`,
+        profileId,
+        title: row.title,
+        type,
+        scope: "au",
+        price: Number.isFinite(price) ? price : total,
+        shipping: Number.isFinite(shipping) ? shipping : 0,
+        total,
+        soldDate: type === "sold" ? row.soldDate || "" : "",
+        itemWebUrl: row.itemWebUrl || "",
+        source: localCompSource,
+      };
+    })
+    .filter(Boolean)
 );
 
 const statusStyle = (status) => {
@@ -511,6 +538,9 @@ export default function PricingPage({ ctx }) {
   const [syncStatus, setSyncStatus] = useState("");
   const [syncMeta, setSyncMeta] = useState(loadSyncMeta);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [localSearchBusy, setLocalSearchBusy] = useState(false);
+  const [localSearchMode, setLocalSearchMode] = useState("both");
+  const [localSearchQuery, setLocalSearchQuery] = useState("");
   useEffect(() => {
     saveUiState({ selectedId, showTuning, cardFilter, cardSort, cardSearch });
   }, [selectedId, showTuning, cardFilter, cardSort, cardSearch]);
@@ -564,6 +594,8 @@ export default function PricingPage({ ctx }) {
   const hiddenCount = baseProfiles.filter((profile) => tweaks[profile.id]?.hidden).length;
   const lastSyncAt = syncMeta.lastSyncAt || "";
   const reviewDate = today();
+  const selectedDefaultQuery = selected ? (tweaks[selected.profile.id]?.query?.trim() || selected.profile.query || selected.profile.name || "") : "";
+  const selectedLocalQuery = localSearchQuery || selectedDefaultQuery;
 
   const markSyncComplete = (message) => {
     const nextMeta = { lastSyncAt: new Date().toISOString() };
@@ -775,6 +807,52 @@ export default function PricingPage({ ctx }) {
     markSyncComplete(`Loaded ${listingData.listings.length} active eBay listing${listingData.listings.length === 1 ? "" : "s"}, matched prices for ${matchedPrices} inventory item${matchedPrices === 1 ? "" : "s"}, and fetched ${activeTotal} active AU comp${activeTotal === 1 ? "" : "s"}${skipped ? `; ${skipped} product${skipped === 1 ? "" : "s"} not synced yet` : ""}.`);
   };
 
+  const searchLocalEbayComps = async () => {
+    if (!selected) return;
+    const query = selectedLocalQuery.trim();
+    if (!query) {
+      setSyncStatus("Add a query before searching eBay AU.");
+      return;
+    }
+    setLocalSearchBusy(true);
+    setSyncStatus(`Searching eBay AU ${localSearchMode === "both" ? "active and sold listings" : `${localSearchMode} listings`} for "${query}"...`);
+    try {
+      const params = new URLSearchParams({ q: query, mode: localSearchMode, limit: "30", pages: "2" });
+      const response = await fetch(`${localEbayHelperUrl}/api/ebay/search?${params.toString()}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(data.comps)) {
+        throw new Error(data.error || `Local helper returned HTTP ${response.status}`);
+      }
+      const nextCompsForProfile = normalizeLocalComps(data.comps, selected.profile.id);
+      if (!nextCompsForProfile.length) {
+        const errorText = Array.isArray(data.errors) && data.errors.length ? ` ${data.errors[0].error}` : "";
+        setSyncStatus(`No usable eBay AU comps found for "${query}".${errorText}`);
+        return;
+      }
+      const replacedTypes = new Set(nextCompsForProfile.map((comp) => comp.type));
+      setLiveActiveComps((prev) => {
+        const next = [
+          ...(Array.isArray(prev) ? prev : []).filter((comp) => !(
+            comp.profileId === selected.profile.id
+            && comp.scope === "au"
+            && replacedTypes.has(comp.type)
+          )),
+          ...nextCompsForProfile,
+        ];
+        saveLiveComps(next);
+        return next;
+      });
+      const soldCount = nextCompsForProfile.filter((comp) => comp.type === "sold").length;
+      const activeCount = nextCompsForProfile.filter((comp) => comp.type === "active").length;
+      const modeText = data.searches?.[0]?.fetchMode ? ` via ${data.searches[0].fetchMode}` : "";
+      markSyncComplete(`Saved ${activeCount} active and ${soldCount} sold eBay AU comp${nextCompsForProfile.length === 1 ? "" : "s"} for ${selected.profile.name}${modeText}.`);
+    } catch (error) {
+      setSyncStatus(`Local eBay helper is not reachable. Start it with scripts\\start-ebay-market-helper.cmd. ${error.message || error}`);
+    } finally {
+      setLocalSearchBusy(false);
+    }
+  };
+
   const addCardSection = showAddCard ? (
     <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
@@ -839,7 +917,6 @@ export default function PricingPage({ ctx }) {
             <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>Inventory-driven AU active comp matching</p>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
             <button onClick={() => { setCardSource("manual"); setShowAddCard((value) => !value); }} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
           </div>
         </div>
@@ -851,10 +928,9 @@ export default function PricingPage({ ctx }) {
         {addCardSection}
         <EmptyState
           title="No products to price yet"
-          hint="Add inventory or a manual market card, then sync eBay comps to see live AU pricing."
+          hint="Add inventory or a manual market card, then search eBay AU from the card."
           actions={[
             { label: "+ Add a manual card", primary: true, onClick: () => { setCardSource("manual"); setShowAddCard(true); } },
-            { label: syncBusy ? "Syncing…" : "Sync comps", disabled: syncBusy, onClick: syncEbayListingsAndComps },
           ]}
         />
       </div>
@@ -877,7 +953,7 @@ export default function PricingPage({ ctx }) {
           <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>Inventory-driven AU active comp matching</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button onClick={syncEbayListingsAndComps} disabled={syncBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{syncBusy ? "Syncing..." : "Sync eBay Comps"}</button>
+          <button onClick={searchLocalEbayComps} disabled={localSearchBusy} style={{ ...ghostBtn, color: "#93c5fd" }}>{localSearchBusy ? "Searching..." : "Search eBay AU"}</button>
           <button onClick={() => setShowAddCard((value) => !value)} style={ghostBtn}>{showAddCard ? "Close add" : "+ Add card"}</button>
           <button onClick={() => setShowTuning((value) => !value)} style={{ ...ghostBtn, color: showTuning ? "#93c5fd" : "#9ca3af" }}>{showTuning ? "Close tuning" : "Tune"}</button>
           {hiddenCount > 0 && <button onClick={restoreHiddenProducts} style={{ ...ghostBtn, color: "#86efac" }}>Restore hidden</button>}
@@ -902,6 +978,31 @@ export default function PricingPage({ ctx }) {
         <KPI label="Need review" value={reviewNeeded} accent={reviewNeeded ? "#fbbf24" : "#34d399"} />
         <KPI label="Included comps" value={includedCount} />
         <KPI label="Rejected comps" value={excludedCount} accent={excludedCount ? "#f87171" : undefined} />
+      </div>
+
+      <div style={{ ...panel, padding: 14, marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+          <div>
+            <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>Local eBay AU search</div>
+            <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>Uses the local Scrapling helper and saves active/sold comps into this card.</div>
+          </div>
+          <button onClick={searchLocalEbayComps} disabled={localSearchBusy} style={{ ...primaryBtn, padding: "7px 12px", fontSize: 12 }}>{localSearchBusy ? "Searching..." : "Search & save"}</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0, 1fr) 150px", gap: 10 }}>
+          <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+            Search query
+            <input value={selectedLocalQuery} onChange={(e) => setLocalSearchQuery(e.target.value)} style={{ ...inputStyle, marginTop: 5 }} placeholder={selectedDefaultQuery || "eBay search terms"} />
+          </label>
+          <label style={{ color: "#9ca3af", fontSize: 11, fontWeight: 700 }}>
+            Listings
+            <select value={localSearchMode} onChange={(e) => setLocalSearchMode(e.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
+              <option value="both">Active + sold</option>
+              <option value="sold">Sold only</option>
+              <option value="active">Active only</option>
+            </select>
+          </label>
+        </div>
+        <div style={{ color: "#8b97ad", fontSize: 11, marginTop: 8 }}>Start helper: <code>scripts\start-ebay-market-helper.cmd</code></div>
       </div>
 
       {addCardSection}

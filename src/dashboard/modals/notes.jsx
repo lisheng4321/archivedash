@@ -1,8 +1,10 @@
+import { REDIRECT_TEMPLATE } from "../shared/constants.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FONT_SIZES, TEMPLATES, renderTemplate, sanitizeHtml, stripHtml, genId, inp, sel, primaryBtn, ghostBtn, badge, Modal, UnsavedDialog, Field, ModalActions } from "../shared.jsx";
 
 function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, isMobile = false, templates = [], onManageTemplates, onExport, compact = false }) {
   const editorRef = useRef(null);
+  const templateOptions = useMemo(() => templates.some((template) => template.id === REDIRECT_TEMPLATE.id || template.name === REDIRECT_TEMPLATE.name) ? templates : [...templates, REDIRECT_TEMPLATE], [templates]);
   const [tplOpen, setTplOpen] = useState(false);
   const lastNoteId = useRef(null);
 
@@ -120,14 +122,14 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
           <button onMouseDown={(e) => { e.preventDefault(); bumpFont(1); }} title="Bigger text" style={{ ...tBtn, fontSize: 15, fontWeight: 700 }}>A+</button>
         </>)}
 
-        {showTemplates && !isMobile && templates.length > 0 && (
+        {showTemplates && !isMobile && templateOptions.length > 0 && (
           <div style={{ position: "relative", marginLeft: 4 }}>
             <button onMouseDown={(e) => { e.preventDefault(); setTplOpen((o) => !o); }} title="Insert template" style={{ ...tBtn, width: "auto", padding: "0 10px", fontSize: 11 }}>+ Template ▾</button>
             {tplOpen && (
               <>
                 <div onClick={() => setTplOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 10 }} />
                 <div style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#0b0f19", border: "1px solid #232c3c", borderRadius: 8, padding: 4, minWidth: 220, zIndex: 11, boxShadow: "0 6px 18px rgba(0,0,0,0.5)" }}>
-                  {templates.map((t) => (
+                  {templateOptions.map((t) => (
                     <button key={t.id} onMouseDown={(e) => { e.preventDefault(); insertTemplate(t); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", background: "transparent", border: "none", color: "#d1d5db", fontSize: 12, cursor: "pointer", borderRadius: 6, fontFamily: "inherit" }} onMouseEnter={(e) => e.currentTarget.style.background = "#232c3c"} onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>{t.name}</button>
                   ))}
                   {onManageTemplates && (<>
@@ -163,7 +165,7 @@ function NotepadEditor({ note, onUpdate, height = "100%", showTemplates = true, 
 // ─── Template Manager Modal ───
 
 function TemplateManagerModal({ templates, onSave, onClose }) {
-  const [list, setList] = useState(templates.map((t) => ({ ...t })));
+  const [list, setList] = useState(() => (templates.some((template) => template.id === REDIRECT_TEMPLATE.id || template.name === REDIRECT_TEMPLATE.name) ? templates : [...templates, REDIRECT_TEMPLATE]).map((template) => ({ ...template })));
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({ name: "", body: "" });
   const [dirty, setDirty] = useState(false);

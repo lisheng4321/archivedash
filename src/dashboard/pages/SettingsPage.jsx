@@ -1,3 +1,4 @@
+import { PURCHASE_SOURCES, canonicalPurchaseSource } from "../inventory.js";
 import { useState } from "react";
 import { cb, ghostBtn, inp, primaryBtn } from "../shared.jsx";
 import { INTEGRATION_TONES, IntegrationPill, integrationTone } from "../shared/integrationState.jsx";
@@ -133,6 +134,8 @@ export default function SettingsPage({ ctx }) {
   const gmailTone = integrationTone({ status: gmailStatus, busy: gmailBusy, configured });
   const ebayConnected = ebayTone === INTEGRATION_TONES.connected;
   const gmailConnected = gmailTone === INTEGRATION_TONES.connected;
+  const [newSource, setNewSource] = useState("");
+  const sources = settings.purchaseSources || PURCHASE_SOURCES;
   const [newCat, setNewCat] = useState("");
   const [newPlat, setNewPlat] = useState("");
   const [newPaymentMethod, setNewPaymentMethod] = useState("");
@@ -257,6 +260,15 @@ export default function SettingsPage({ ctx }) {
         <AddRow value={newPlat} onChange={setNewPlat} onAdd={addPlatform} placeholder="New platform" />
       </div>
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: 20, marginBottom: 14 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Purchase sources</div>
+        <ChipList items={sources} onRemove={(source) => persistSettings({ ...settings, purchaseSources: sources.filter((item) => item !== source) })} />
+        <AddRow value={newSource} onChange={setNewSource} placeholder="New purchase source" onAdd={async () => {
+          const source = canonicalPurchaseSource(newSource);
+          if (!source || sources.some((item) => item.toLowerCase() === source.toLowerCase())) return;
+          const result = await persistSettings({ ...settings, purchaseSources: [...sources, source] });
+          if (result?.ok !== false) setNewSource("");
+        }} />
+        <p style={{ color: "#8b97ad", fontSize: 12 }}>Removing a source keeps existing inventory and sales unchanged.</p>
         <div style={{ fontSize: 14, fontWeight: 600, color: "#f3f6fb", marginBottom: 10 }}>Payment Methods</div>
         <ChipList items={PAYMETHODS} onMove={(from, to) => moveListItem("paymentMethods", PAYMETHODS, from, to)} onRemove={(method) => persistSettings({ ...settings, paymentMethods: PAYMETHODS.filter((item) => item !== method) })} />
         <AddRow value={newPaymentMethod} onChange={setNewPaymentMethod} onAdd={addPaymentMethod} placeholder="New payment method" />

@@ -11,7 +11,7 @@ const getSizes = (cat) => DEF_SIZE_MAP[cat] || ["OS"];
 const EXP_CATEGORIES = ["Shipping & Fulfillment", "Botting Resources", "Cook Groups & Retail Memberships", "Matched Betting", "Software & Subs", "Inventory Parts", "Other"];
 const SUB_CATEGORIES = ["Botting", "AI", "Marketplaces", "Domains", "Infrastructure", "Finance", "Other"];
 
-const VERSION = "0.6.25";
+const VERSION = "0.6.26";
 const PREORDER_THRESHOLD = 40;
 const FREQ_OPTIONS = ["weekly", "fortnightly", "monthly", "yearly", "custom"];
 const FREQ_LABEL = { weekly: "Weekly", fortnightly: "Fortnightly", monthly: "Monthly", yearly: "Yearly", custom: "Custom days" };
@@ -20,7 +20,15 @@ const EBAY_AU_FEE_RATE = 0.1177;
 const EBAY_AU_FIXED_ORDER_FEE = 0.33;
 const FONT_SIZES = [12, 13, 14, 15, 16, 18, 20, 24, 28, 32];
 
+const REDIRECT_TEMPLATE = {
+  id: "builtin-parcel-redirects",
+  name: "Parcel redirects",
+  builtIn: true,
+  body: `<b>Coins — redirects</b><div>Updated: \${date}</div><div>Tick when the redirect request is submitted. A tick does not mean delivery is confirmed.</div><div><br></div><div><b>Account / email: [account 1]</b></div><div><label><input type="checkbox"> [Retailer] — [Coin / product] × [quantity] — order [number]</label></div><div>Tracking: [optional] · Redirect requested: [date]</div><div><label><input type="checkbox"> [Retailer] — [Coin / product] × [quantity] — order [number]</label></div><div>Tracking: [optional] · Redirect requested: [date]</div><div><br></div><div><b>Account / email: [account 2]</b></div><div><label><input type="checkbox"> [Retailer] — [Coin / product] × [quantity] — order [number]</label></div><div>Tracking: [optional] · Redirect requested: [date]</div><div><br></div><div><b>Exceptions / pickups</b></div><div>[Account] — [Order / product] — [What happened / next action]</div>`,
+};
+
 const TEMPLATES = [
+  REDIRECT_TEMPLATE,
   {
     name: "Presale listing",
     body: `<b>Presale \u2014 \${date}</b><div>Item: </div><div>Source: </div><div>Cost per unit: AU$</div><div>Quantity: </div><div>Release date: </div><div>eBay title: </div><div><br></div><div><label><input type="checkbox"> AU comps researched</label></div><div><label><input type="checkbox"> Listing photos</label></div><div><label><input type="checkbox"> Listed on eBay</label></div><div><label><input type="checkbox"> Posted to FB groups</label></div><div><label><input type="checkbox"> Customer DMs sent</label></div><div><label><input type="checkbox"> Restock check</label></div>`,
@@ -62,4 +70,5 @@ export {
   EBAY_AU_FIXED_ORDER_FEE,
   FONT_SIZES,
   TEMPLATES,
+  REDIRECT_TEMPLATE,
 };

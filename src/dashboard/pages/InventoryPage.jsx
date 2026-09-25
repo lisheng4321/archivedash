@@ -1,5 +1,5 @@
 import { allVisibleSelected } from "../formValidation.js";
-import { isInventoryAvailable, isInventorySellable } from "../inventory.js";
+import { inventoryStatusFor, isInventoryAvailable } from "../inventory.js";
 import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader, today } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
@@ -56,11 +56,10 @@ export default function InventoryPage({ ctx }) {
     .filter((item) => isInventoryAvailable(item, todayKey))
     .reduce((total, item) => total + (Number(item.price) || 0), 0);
   const preorderInventoryValue = inventory
-    .filter((item) => !isInventoryAvailable(item, todayKey))
+    .filter((item) => inventoryStatusFor(item, todayKey) === "preorder")
     .reduce((total, item) => total + (Number(item.price) || 0), 0);
   const hiddenSelectedCount = selectedInv.size - filteredInv.filter((item) => selectedInv.has(item.id)).length;
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
-  const canSellSelection = selectedItems.length > 0 && selectedItems.every(isInventorySellable);
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
   const setInventoryView = (view) => {
@@ -97,11 +96,10 @@ export default function InventoryPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Inventory</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(preorderInventoryValue)} preorder</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(preorderInventoryValue)} preorder - {currency(inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").reduce((sum, item) => sum + (Number(item.price) || 0), 0))} in transit</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
-            <button disabled={!canSellSelection} title={!canSellSelection ? "Mark preorder or in-transit stock Available after arrival to sell" : undefined} onClick={() => setBulkSellOpen(true)} style={{ ...accentTextBtn, fontSize: 12, padding: "7px 12px" }}>Sell {selectedInv.size}</button>{!canSellSelection && <span role="status" style={{ fontSize: 12, color: "#fbbf24" }}>Mark preorder / in-transit stock Available after arrival to sell.</span>}
             <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify buyers{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit {selectedInv.size}</button>
@@ -137,6 +135,7 @@ export default function InventoryPage({ ctx }) {
         </select>
         <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3, width: isMobile ? "100%" : undefined }}>
           <button {...viewButton("available", "Available", availableInvCount)} />
+          <button {...viewButton("in_transit", "In transit", inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").length)} />
           <button {...viewButton("preorders", "Preorders", preorderInvCount)} />
         </div>
         {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
@@ -186,6 +185,7 @@ export default function InventoryPage({ ctx }) {
       </div>
       )}
 
+      <button onClick={openAddInventory} style={{ ...primaryBtn, position: "fixed", right: isMobile ? 12 : 24, bottom: selectedInv.size ? (isMobile ? 260 : 120) : (isMobile ? 140 : 88), zIndex: 94, boxShadow: "0 8px 24px #0008" }}>+ Add inventory</button>
       {selectedInv.size > 0 && (
         <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#121a2b", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 12, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>
           <div style={{ minWidth: isMobile ? "100%" : 150 }}>
@@ -196,7 +196,6 @@ export default function InventoryPage({ ctx }) {
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
             <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
-            <button disabled={!canSellSelection} title={!canSellSelection ? "Mark preorder or in-transit stock Available after arrival to sell" : undefined} onClick={() => setBulkSellOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "7px 12px" }}>Sell</button>{!canSellSelection && <span role="status" style={{ fontSize: 12, color: "#fbbf24" }}>Mark stock Available after arrival to sell.</span>}
             <button onClick={() => setConfirmDel({ type: "multi", name: `${selectedInv.size} items` })} style={{ ...dangerQuietBtn, fontSize: 12, padding: "7px 12px" }}>Delete</button>
           </div>
         </div>

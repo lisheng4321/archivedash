@@ -10,11 +10,11 @@ const early = item("A early", { releaseExpectedDate: "2099-01-10" });
 const late = item("B late", { preorderDate: "2099-02-20" });
 const sorts = ["name_asc", "name_desc", "price_asc", "price_desc", "date_asc", "date_desc", "preorder_asc", "preorder_desc"];
 
-test("undated preorders remain in the preorder queue and display In transit", () => {
+test("undated legacy preorders belong to transit, not the preorder queue", () => {
   for (const fields of [{}, { preorderDate: "", releaseExpectedDate: "" }, { preorderDate: null, releaseExpectedDate: null }]) {
     const record = item("transit", fields);
     assert.equal(isInventoryInTransit(record), true);
-    assert.equal(isUnreleasedPreorder(record, "2026-09-15"), true);
+    assert.equal(isUnreleasedPreorder(record, "2026-09-15"), false);
     assert.equal(isInventoryAvailable(record, "2026-09-15"), false);
     assert.equal(inventoryPreorderBadge(record).text, "In transit");
   }
@@ -33,7 +33,7 @@ test("both date fields retain countdown badges and released status", () => {
     assert.equal(isInventoryInTransit(record), false);
     assert.equal(inventoryPreorderBadge(record).text, `${calendarDaysUntil(date)}d`);
   }
-  assert.equal(inventoryPreorderBadge(item("old", { preorderDate: "2000-01-01" })).text, "RELEASED");
+  assert.equal(inventoryPreorderBadge(item("old", { preorderDate: "2000-01-01" })).text, "In transit");
 });
 
 for (const sort of sorts) {

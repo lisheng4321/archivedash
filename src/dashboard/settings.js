@@ -1,4 +1,4 @@
-import { DEF_CATEGORIES, DEF_PAYMENT_METHODS, DEF_PLATFORMS } from "./shared.jsx";
+import { DEF_CATEGORIES, DEF_PAYMENT_METHODS, DEF_PLATFORMS } from "./shared/constants.js";
 
 const DEFAULT_NAV_UTILITY_IDS = ["settings"];
 const DEFAULT_BACKUP_SETTINGS = { autoWeekly: false, destination: "supabase", retention: 12, lastRunAt: "" };
@@ -71,6 +71,7 @@ const defaultSettings = () => ({
 });
 
 const normalizeSettings = (settings = {}) => ({
+  purchaseSources: Array.isArray(settings.purchaseSources) ? [...new Set(settings.purchaseSources.map((source) => String(source).trim()).filter(Boolean))] : undefined,
   schemaVersion: SETTINGS_SCHEMA_VERSION,
   categories: settings.categories || DEF_CATEGORIES,
   platforms: migratePlatforms(settings),

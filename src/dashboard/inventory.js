@@ -1,3 +1,4 @@
+import { today } from "./shared/dates.js";
 import { getSizes } from "./shared/constants.js";
 
 const PURCHASE_SOURCES = [
@@ -47,25 +48,29 @@ const canonicalPurchaseSource = (value = "") => {
 
 const purchaseSourceFor = (record = {}) => canonicalPurchaseSource(record.purchaseSource) || "Unknown";
 const releaseExpectedDateFor = (record = {}) => record.releaseExpectedDate || record.preorderDate || "";
-const explicitAvailabilityFor = (record = {}) => ["preorder", "available"].includes(record.availability) ? record.availability : "";
+const explicitAvailabilityFor = (record = {}) => ["preorder", "in_transit", "available"].includes(record.availability) ? record.availability : "";
 const isPreorderOrigin = (record = {}) => Boolean(record.preorderOrigin || record.preorderDate || explicitAvailabilityFor(record) === "preorder");
-const isInventoryAvailable = (record = {}, todayKey = "") => {
+const inventoryStatusFor = (record = {}, todayKey = today()) => {
+  const status = explicitAvailabilityFor(record);
+  if (status === "available" || status === "in_transit") return status;
+  const releaseDate = releaseExpectedDateFor(record);
+  if (releaseDate && releaseDate > todayKey) return "preorder";
+  if (status === "preorder" || releaseDate) return "in_transit";
+  return "available";
+};
+const isInventoryAvailable = (record = {}, todayKey) => inventoryStatusFor(record, todayKey) === "available";
+const isInventorySellable = (record = {}) => {
   const availability = explicitAvailabilityFor(record);
   if (availability === "available") return true;
-  const releaseDate = releaseExpectedDateFor(record);
-  if (availability === "preorder") return Boolean(releaseDate && releaseDate <= todayKey);
-  return !releaseDate || releaseDate <= todayKey;
+  if (availability === "preorder" || availability === "in_transit") return false;
+  return !isPreorderOrigin(record) && !releaseExpectedDateFor(record);
 };
-// Expected dates do not confirm receipt. Preorder stock must be marked available.
-const isInventorySellable = (record = {}) => explicitAvailabilityFor(record) === "available" || (
-  explicitAvailabilityFor(record) !== "preorder" && !isPreorderOrigin(record) && !releaseExpectedDateFor(record)
-);
 const inventorySaleError = (inventory, items) => {
   if (!items.length || items.some((item) => !inventory.some((current) => current.id === item.id))) return "Some selected stock is no longer available. Refresh your selection.";
   if (items.some((item) => !isInventorySellable(inventory.find((current) => current.id === item.id)))) return "Preorder or in-transit stock cannot be sold. Mark it Available after it arrives, then try again.";
   return "";
 };
-const isUnreleasedPreorder = (record = {}, todayKey = "") => !isInventoryAvailable(record, todayKey);
+const isUnreleasedPreorder = (record = {}, todayKey) => inventoryStatusFor(record, todayKey) === "preorder";
 const inventoryAgeStart = (record = {}) => {
   const releaseDate = releaseExpectedDateFor(record);
   return isPreorderOrigin(record) && releaseDate ? releaseDate : (record.purchaseDate || "");
@@ -159,9 +164,10 @@ export {
   customerKey,
   explicitAvailabilityFor,
   inventoryAgeStart,
+  inventorySaleError,
+  inventoryStatusFor,
   isInventoryAvailable,
   isInventorySellable,
-  inventorySaleError,
   isPreorderOrigin,
   isUnreleasedPreorder,
   listedPlatformsFor,

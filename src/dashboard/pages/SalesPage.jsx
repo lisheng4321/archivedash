@@ -1,3 +1,6 @@
+import PlatformBadge from "../components/PlatformBadge.jsx";
+import { useState } from "react";
+import { orderKeyForSale } from "../inventory.js";
 import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
@@ -35,6 +38,7 @@ export default function SalesPage({ ctx }) {
     saleRow
   } = ctx;
 
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
   const since30 = (() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -49,6 +53,12 @@ export default function SalesPage({ ctx }) {
   const visibleSales = titleSearch
     ? filteredSales.filter((sale) => String(sale.name || "").toLowerCase().includes(titleSearch))
     : filteredSales;
+  const orderGroups = new Map();
+  visibleSales.forEach((sale) => {
+    const key = orderKeyForSale(sale);
+    if (!orderGroups.has(key)) orderGroups.set(key, []);
+    orderGroups.get(key).push(sale);
+  });
   const allVisibleSalesSelected = visibleSales.length > 0 && visibleSales.every((sale) => selectedSales.has(sale._saleKey || sale.id));
 
   return (
@@ -114,7 +124,34 @@ export default function SalesPage({ ctx }) {
         )}
         {mobileSelectAll(allVisibleSalesSelected, toggleAllSales, visibleSales.length)}
         {visibleSales.length === 0 && <div style={{ padding: 36, textAlign: "center", color: "#8b97ad", fontSize: 13 }}>No sales match these filters.<button onClick={clearFilters} style={{ ...ghostBtn, display: "block", margin: "10px auto 0", padding: "5px 12px", fontSize: 11 }}>Clear filters</button></div>}
-        {visibleSales.map((s, idx) => saleRow(s, idx))}
+        {[...orderGroups].map(([key, items], index) => {
+          if (items.length === 1) return saleRow(items[0], index);
+          const expanded = expandedOrders.has(key);
+          const total = items.reduce((sum, sale) => sum + Number(sale.salePrice || 0), 0);
+          const cost = items.reduce((sum, sale) => sum + Number(sale.costPrice || 0), 0);
+          const profit = items.reduce((sum, sale) => sum + saleProfit(sale), 0);
+          const names = [...new Set(items.map((sale) => sale.name))].join(", ");
+          return <div key={key}>
+            <button aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} order for ${items[0].customer || "unnamed buyer"}, ${items.length} items`} onClick={() => setExpandedOrders((previous) => { const next = new Set(previous); if (next.has(key)) next.delete(key); else next.add(key); return next; })} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid #232c3c", background: expanded ? "#182235" : "#121a2b", color: "#e5e7eb", padding: isMobile ? 12 : "12px 16px", cursor: "pointer", display: "grid", gridTemplateColumns: isMobile ? "20px minmax(0, 1fr) auto" : "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px", gap: 8, alignItems: "center", fontFamily: "inherit", fontSize: 12 }}>
+              <span aria-hidden="true" style={{ color: "#8b97ad", textAlign: "center", fontSize: 15 }}>{expanded ? "⌄" : "›"}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 600 }}>{items[0].customer || "Unnamed buyer"}<span style={{ color: "#8b97ad", fontSize: 11, fontWeight: 400, marginLeft: 8 }}>{items.length} items</span></span>
+                <span title={names} style={{ display: "block", color: "#7c8aa0", fontSize: 11, marginTop: 3, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{names}</span>
+                {isMobile && <span style={{ display: "block", color: "#7c8aa0", fontSize: 11, marginTop: 4 }}>{items[0].platform} · {items[0].saleDate}</span>}
+              </span>
+              {isMobile ? <span style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}><strong>{currency(total)}</strong><span style={{ display: "block", marginTop: 5, color: profit >= 0 ? "#34d399" : "#f87171", fontSize: 11 }}>{currency(profit)} profit</span></span> : <>
+                <span style={{ justifySelf: "center" }}><PlatformBadge platform={items[0].platform} compact /></span>
+                <span style={{ color: "#7c8aa0", textAlign: "center" }}>—</span>
+                <span style={{ color: "#8b97ad", textAlign: "center", fontSize: 11 }}>{items[0].saleDate}</span>
+                <span style={{ color: "#8b97ad", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(cost)}</span>
+                <strong style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(total)}</strong>
+                <strong style={{ color: profit >= 0 ? "#34d399" : "#f87171", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(profit)}</strong>
+                <span style={{ textAlign: "center", color: "#8b97ad", fontSize: 11 }}>{expanded ? "Hide items" : "View items"}</span>
+              </>}
+            </button>
+            {expanded && <div style={{ borderLeft: "2px solid #334155" }}>{items.map((sale, childIndex) => saleRow(sale, childIndex))}</div>}
+          </div>;
+        })}
       </div>
       )}
     </div>

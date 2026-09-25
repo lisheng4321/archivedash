@@ -1,8 +1,8 @@
-import { compareInventorySize, explicitAvailabilityFor, isPreorderOrigin, releaseExpectedDateFor } from "./inventory.js";
+import { compareInventorySize, inventoryStatusFor, isPreorderOrigin, releaseExpectedDateFor } from "./inventory.js";
 import { calendarDaysUntil, preorderBadge } from "./shared/dates.js";
 
 const isInventoryInTransit = (item = {}) => (
-  explicitAvailabilityFor(item) === "preorder" && !releaseExpectedDateFor(item)
+  inventoryStatusFor(item) === "in_transit"
 );
 
 const compareTransitFirst = (a, b) => Number(isInventoryInTransit(b)) - Number(isInventoryInTransit(a));
@@ -10,7 +10,7 @@ const compareTransitFirst = (a, b) => Number(isInventoryInTransit(b)) - Number(i
 const inventoryPreorderBadge = (item = {}) => {
   const items = Array.isArray(item._items) ? item._items : [item];
   if (items.some(isInventoryInTransit)) return { bg: "#1e3a5f", fg: "#93c5fd", text: "In transit" };
-  if (!isPreorderOrigin(item)) return null;
+  if (inventoryStatusFor(item) !== "preorder") return null;
   return preorderBadge(calendarDaysUntil(releaseExpectedDateFor(item)));
 };
 

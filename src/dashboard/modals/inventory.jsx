@@ -3,9 +3,9 @@ import { draftChanged, recordError, validAmount } from "../formValidation.js";
 import { getDefaultSize, getSizes, currency, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid } from "../shared.jsx";
 import { PURCHASE_SOURCES, canonicalPurchaseSource, explicitAvailabilityFor, releaseExpectedDateFor } from "../inventory.js";
 
-function PurchaseSourceField({ value, onChange, blankLabel = "Unknown / not set" }) {
+function PurchaseSourceField({ purchaseSources = PURCHASE_SOURCES, value, onChange, blankLabel = "Unknown / not set" }) {
   const canonical = canonicalPurchaseSource(value);
-  const known = PURCHASE_SOURCES.includes(canonical);
+  const known = purchaseSources.includes(canonical);
   const [customMode, setCustomMode] = useState(Boolean(canonical && !known));
   const selectValue = customMode ? "__custom__" : canonical;
   return (
@@ -20,7 +20,7 @@ function PurchaseSourceField({ value, onChange, blankLabel = "Unknown / not set"
         }
       }} style={sel}>
         <option value="">{blankLabel}</option>
-        {PURCHASE_SOURCES.map((source) => <option key={source} value={source}>{source}</option>)}
+        {purchaseSources.map((source) => <option key={source} value={source}>{source}</option>)}
         <option value="__custom__">Other / Add new source</option>
       </select>
       {customMode && <input value={known ? "" : canonical} onChange={(e) => onChange(e.target.value)} style={{ ...inp, marginTop: 7 }} placeholder="Source name" autoFocus />}
@@ -28,7 +28,7 @@ function PurchaseSourceField({ value, onChange, blankLabel = "Unknown / not set"
   );
 }
 
-function EditInvModal({ item, onSave, onClose, categories, customers, platforms = [] }) {
+function EditInvModal({ purchaseSources = PURCHASE_SOURCES, item, onSave, onClose, categories, customers, platforms = [] }) {
   const [ef, setEf] = useState({ name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price, ebayListedPrice: item.ebayListedPrice || "", brand: item.brand || "", purchaseDate: item.purchaseDate, releaseExpectedDate: releaseExpectedDateFor(item), purchaseSource: canonicalPurchaseSource(item.purchaseSource), purchasedBy: item.purchasedBy || "", availability: explicitAvailabilityFor(item), listedPlatforms: Array.isArray(item.listedPlatforms) ? item.listedPlatforms : [], tags: item.tags || "", customer: item.customer || "" });
   const [showU, setShowU] = useState(false);
   const initial = useRef(ef);
@@ -58,8 +58,8 @@ function EditInvModal({ item, onSave, onClose, categories, customers, platforms 
     <Field label="Size"><select value={ef.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(ef.category).map((s) => <option key={s}>{s}</option>)}</select></Field>
     <Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={ef.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
-    <Row><Field label="Release / Expected Date"><input type="date" value={ef.releaseExpectedDate} onChange={(e) => up({ releaseExpectedDate: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={ef.availability} onChange={(e) => up({ availability: e.target.value })} style={sel}><option value="">Unknown (historical)</option><option value="preorder">Preorder</option><option value="available">Available</option></select></Field></Row>
-    <Row><PurchaseSourceField value={ef.purchaseSource} onChange={(purchaseSource) => up({ purchaseSource })} /><Field label="Purchased by"><input value={ef.purchasedBy} onChange={(e) => up({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
+    <Row><Field label="Release / Expected Date"><input type="date" value={ef.releaseExpectedDate} onChange={(e) => up({ releaseExpectedDate: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={ef.availability} onChange={(e) => up({ availability: e.target.value })} style={sel}><option value="">Unknown (historical)</option><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field></Row>
+    <Row><PurchaseSourceField purchaseSources={purchaseSources} value={ef.purchaseSource} onChange={(purchaseSource) => up({ purchaseSource })} /><Field label="Purchased by"><input value={ef.purchasedBy} onChange={(e) => up({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
     <Field label="Tags"><input value={ef.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field>
     <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{platforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listed.includes(p)} onChange={(e) => toggleListedPlatform(p, e.target.checked)} style={cb} /> {p}</label>)}</div></Field>
     {listed.some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={ef.ebayListedPrice || ""} onChange={(e) => up({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}
@@ -70,7 +70,7 @@ function EditInvModal({ item, onSave, onClose, categories, customers, platforms 
 
 // ─── Bulk Edit Inventory Modal ───
 
-function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
+function BulkEditModal({ purchaseSources = PURCHASE_SOURCES, items, onSave, onClose, categories, platforms = [] }) {
   const [error, setError] = useState("");
   const [nameSet, setNameSet] = useState("");
   const [titleFind, setTitleFind] = useState("");
@@ -177,7 +177,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
     <Row cols={3}><Field label="Purchase date"><input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} style={inp} /></Field>
     <Field label="Release / Expected Date"><input type="date" value={releaseExpectedDate} onChange={(e) => { setReleaseExpectedDate(e.target.value); if (e.target.value) setClearPreorderDate(false); }} style={inp} /></Field>
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearPreorderDate} onChange={(e) => { setClearPreorderDate(e.target.checked); if (e.target.checked) setReleaseExpectedDate(""); }} style={cb} /> Clear expected date</label></Field></Row>
-    <Row cols={3}><PurchaseSourceField value={purchaseSource} onChange={setPurchaseSource} blankLabel="No change" /><Field label="Purchased by"><input value={purchasedBy} onChange={(e) => setPurchasedBy(e.target.value)} style={inp} placeholder="No change" /></Field><Field label="Availability"><select value={availability} onChange={(e) => setAvailability(e.target.value)} style={sel}><option value="">No change</option><option value="preorder">Preorder</option><option value="available">Available</option></select></Field></Row>
+    <Row cols={3}><PurchaseSourceField purchaseSources={purchaseSources} value={purchaseSource} onChange={setPurchaseSource} blankLabel="No change" /><Field label="Purchased by"><input value={purchasedBy} onChange={(e) => setPurchasedBy(e.target.value)} style={inp} placeholder="No change" /></Field><Field label="Availability"><select value={availability} onChange={(e) => setAvailability(e.target.value)} style={sel}><option value="">No change</option><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field></Row>
     <Row><Field label="Customer"><input value={customer} onChange={(e) => { setCustomer(e.target.value); if (e.target.value) setClearCustomer(false); }} style={inp} placeholder="No change" /></Field>
     <Field label=" "><label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9ca3af", cursor: "pointer", paddingTop: 8 }}><input type="checkbox" checked={clearCustomer} onChange={(e) => { setClearCustomer(e.target.checked); if (e.target.checked) setCustomer(""); }} style={cb} /> Clear customer</label></Field></Row>
     <Row cols={3}><Field label="Set tags"><input value={setTags} onChange={(e) => { setSetTags(e.target.value); if (e.target.value) setClearTags(false); }} style={inp} placeholder="Replace tags" /></Field>
@@ -216,7 +216,7 @@ function BulkEditModal({ items, onSave, onClose, categories, platforms = [] }) {
 
 // ─── Gmail Inventory Review Modal ───
 
-function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
+function GmailInventoryReviewModal({ purchaseSources = PURCHASE_SOURCES, draft, categories, onAdd, onClose }) {
   const defaultCat = categories.includes("Collectables") ? "Collectables" : (categories[0] || "Other");
   const [form, setForm] = useState({
     name: draft.item_title || "",
@@ -245,7 +245,7 @@ function GmailInventoryReviewModal({ draft, categories, onAdd, onClose }) {
     <Field label="Product name" req><input value={form.name} onChange={(e) => up({ name: e.target.value })} style={inp} autoFocus /></Field>
     <Row cols={3}><Field label="Category"><select value={form.category} onChange={(e) => up({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={form.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(form.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Unit cost"><input type="number" step="0.01" value={form.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
     <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={form.quantity} onChange={(e) => up({ quantity: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={form.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field><Field label="Release / Expected Date"><input type="date" value={form.releaseExpectedDate} onChange={(e) => up({ releaseExpectedDate: e.target.value })} style={inp} /></Field></Row>
-    <Row cols={3}><PurchaseSourceField value={form.purchaseSource} onChange={(purchaseSource) => up({ purchaseSource })} /><Field label="Purchased by"><input value={form.purchasedBy} onChange={(e) => up({ purchasedBy: e.target.value })} style={inp} placeholder="Optional" /></Field><Field label="Availability"><select value={form.availability} onChange={(e) => up({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="available">Available</option></select></Field></Row>
+    <Row cols={3}><PurchaseSourceField purchaseSources={purchaseSources} value={form.purchaseSource} onChange={(purchaseSource) => up({ purchaseSource })} /><Field label="Purchased by"><input value={form.purchasedBy} onChange={(e) => up({ purchasedBy: e.target.value })} style={inp} placeholder="Optional" /></Field><Field label="Availability"><select value={form.availability} onChange={(e) => up({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field></Row>
     <Row><Field label="Brand / vendor"><input value={form.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Tags"><input value={form.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field></Row>
     <ResponsiveGrid columns="repeat(3, minmax(0, 1fr))" mobileColumns="repeat(3, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12 }}>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Source</div><div style={{ color: "#f3f6fb", fontWeight: 700 }}>{draft.vendor || "Gmail"}</div></div>
