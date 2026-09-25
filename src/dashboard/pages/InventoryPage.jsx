@@ -101,7 +101,7 @@ export default function InventoryPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Inventory</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(preorderInventoryValue)} preorder - {currency(inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").reduce((sum, item) => sum + (Number(item.price) || 0), 0))} in transit</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").reduce((sum, item) => sum + (Number(item.price) || 0), 0))} in transit - {currency(preorderInventoryValue)} preorder</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
