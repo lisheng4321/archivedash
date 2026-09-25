@@ -17,6 +17,9 @@ export default function InventoryPage({ ctx }) {
     buyerNotifyStatus,
     handleBuyerNotifyExport,
     selectedBuyerNotifyCount,
+    inventoryTransitionStatus,
+    inventoryTransitionBusy,
+    moveInventoryAvailability,
     CATS = [],
     purchaseSources = [],
     listingPlatforms = [],
@@ -62,6 +65,8 @@ export default function InventoryPage({ ctx }) {
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
+  const selectedPreorderIds = selectedItems.filter((item) => inventoryStatusFor(item, todayKey) === "preorder").map((item) => item.id);
+  const selectedTransitIds = selectedItems.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").map((item) => item.id);
   const setInventoryView = (view) => {
     setInvPreorderView(view);
     if (view === "preorders" && invSort === "name_asc") setInvSort("preorder_asc");
@@ -119,6 +124,11 @@ export default function InventoryPage({ ctx }) {
           {buyerNotifyStatus}
         </div>
       )}
+      {inventoryTransitionStatus && (
+        <div role="status" style={{ margin: "-6px 0 12px", padding: "8px 10px", borderRadius: 8, background: "#0f2418", border: "1px solid #16a34a66", color: "#bbf7d0", fontSize: 12, fontWeight: 700 }}>
+          {inventoryTransitionStatus}
+        </div>
+      )}
 
       {gmailQueueOpen && gmailQueuePanel()}
 
@@ -164,7 +174,7 @@ export default function InventoryPage({ ctx }) {
       ) : (
       <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", overflow: "hidden" }}>
         {!isMobile && (
-          <div style={{ display: "grid", gridTemplateColumns: "44px minmax(180px, 1.45fr) minmax(76px, 0.55fr) minmax(86px, 0.65fr) 56px 82px 88px 96px 40px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "44px minmax(140px, 1.45fr) minmax(58px, 0.55fr) minmax(68px, 0.65fr) 44px 70px 76px 82px 32px 104px", gap: 8, padding: "10px 16px", fontSize: 11, color: "#8b97ad", textTransform: "uppercase", letterSpacing: 0.5, borderBottom: "1px solid #232c3c", fontWeight: 600, alignItems: "center", background: "#121a2b" }}>
             <input type="checkbox" aria-label="Select all visible inventory" ref={(node) => { if (node) node.indeterminate = filteredInv.some((item) => selectedInv.has(item.id)) && !allVisibleSelected(filteredInv, selectedInv); }} checked={allVisibleSelected(filteredInv, selectedInv)} onChange={toggleAll} style={{ ...cb, justifySelf: "center" }} />
             <SortHeader field="name" label="Item" sort={invSort} setSort={setInvSort} /><span style={tableHead("center")}>Listed</span><span style={tableHead("center")}>Category</span><span style={tableHead("center")}>Size</span><SortHeader field="price" label="Price" sort={invSort} setSort={setInvSort} align="right" /><SortHeader field="date" label="Purchased" sort={invSort} setSort={setInvSort} align="center" /><SortHeader field="preorder" label="Release date" sort={invSort} setSort={setInvSort} align="center" /><span style={tableHead("center")}>Qty</span><span style={tableHead("center")}>Actions</span>
           </div>
@@ -193,6 +203,8 @@ export default function InventoryPage({ ctx }) {
             <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {selectedPreorderIds.length > 0 && <button disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability(selectedPreorderIds, "in_transit")} style={{ ...ghostBtn, background: "#1d4ed8", borderColor: "#2563eb", color: "#fff", fontSize: 12, padding: "7px 12px", fontWeight: 700, opacity: inventoryTransitionBusy ? 0.6 : 1 }}>To transit ({selectedPreorderIds.length})</button>}
+            {selectedTransitIds.length > 0 && <button disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability(selectedTransitIds, "available")} style={{ ...ghostBtn, background: "#166534", borderColor: "#16a34a", color: "#fff", fontSize: 12, padding: "7px 12px", fontWeight: 700, opacity: inventoryTransitionBusy ? 0.6 : 1 }}>Available ({selectedTransitIds.length})</button>}
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
             <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>

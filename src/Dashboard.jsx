@@ -142,6 +142,8 @@ export default function App({ onLogout, userEmail }) {
   const [dangerBusy, setDangerBusy] = useState(false);
   const [selectedInv, setSelectedInv] = useState(new Set());
   const [ebayExportStatus, setEbayExportStatus] = useState("");
+  const [inventoryTransitionStatus, setInventoryTransitionStatus] = useState("");
+  const [inventoryTransitionBusy, setInventoryTransitionBusy] = useState(false);
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [invFormError, setInvFormError] = useState("");
@@ -1116,6 +1118,37 @@ export default function App({ onLogout, userEmail }) {
       return next;
     }));
     setBulkEditOpen(false); setSelectedInv(new Set());
+  };
+
+  const moveInventoryAvailability = async (ids, nextAvailability) => {
+    if (inventoryTransitionBusy) return;
+    const requestedIds = new Set(ids);
+    const currentAvailability = nextAvailability === "in_transit" ? "preorder" : "in_transit";
+    const movableIds = new Set(inventory
+      .filter((item) => requestedIds.has(item.id) && inventoryStatusFor(item, today()) === currentAvailability)
+      .map((item) => item.id));
+    if (!movableIds.size) {
+      setInventoryTransitionStatus(`No ${currentAvailability === "preorder" ? "preorders" : "in-transit items"} selected.`);
+      return;
+    }
+
+    setInventoryTransitionBusy(true);
+    setInventoryTransitionStatus("");
+    const nextInventory = inventory.map((item) => movableIds.has(item.id)
+      ? { ...item, availability: nextAvailability, preorderOrigin: isPreorderOrigin(item) || currentAvailability === "preorder" }
+      : item);
+    try {
+      const result = await persistInv(nextInventory);
+      if (result?.ok === false) {
+        setInventoryTransitionStatus(`Could not update ${movableIds.size} item${movableIds.size === 1 ? "" : "s"}. Retry the failed save above.`);
+        return;
+      }
+      setSelectedInv((selected) => new Set([...selected].filter((id) => !movableIds.has(id))));
+      const destination = nextAvailability === "in_transit" ? "In transit" : "Available";
+      setInventoryTransitionStatus(`Moved ${movableIds.size} item${movableIds.size === 1 ? "" : "s"} to ${destination}.`);
+    } finally {
+      setInventoryTransitionBusy(false);
+    }
   };
 
   const copyTextToClipboard = async (text) => {
@@ -2437,7 +2470,7 @@ export default function App({ onLogout, userEmail }) {
   const rowClick = (e, toggleFn, id) => { if (e.target.closest("button") || e.target.tagName === "INPUT") return; toggleFn(id); };
 
   const pagePad = isMobile ? "14px 12px" : "20px 24px";
-  const inventoryGridColumns = "44px minmax(180px, 1.45fr) minmax(76px, 0.55fr) minmax(86px, 0.65fr) 56px 82px 88px 96px 40px 104px";
+  const inventoryGridColumns = "44px minmax(140px, 1.45fr) minmax(58px, 0.55fr) minmax(68px, 0.65fr) 44px 70px 76px 82px 32px 104px";
   const salesGridColumns = "48px minmax(240px, 1.45fr) minmax(95px, 0.62fr) 70px 112px 96px 96px 96px 104px";
   const expenseGridColumns = "48px minmax(220px, 1.35fr) minmax(130px, 0.75fr) minmax(130px, 0.75fr) 100px 112px 104px";
   const rowBg = (_index, selected = false) => selected ? "#1e293b" : "#121a2b";
@@ -2492,6 +2525,10 @@ export default function App({ onLogout, userEmail }) {
 
   const invRow = (item, isGroupChild, index = 0) => {
     const buyerMatchCount = buyerMatchesByInventoryId.get(item.id)?.length || 0;
+    const availability = inventoryStatusFor(item, today());
+    const nextAvailability = availability === "preorder" ? "in_transit" : availability === "in_transit" ? "available" : "";
+    const transitionLabel = nextAvailability === "in_transit" ? "Move to In transit" : nextAvailability === "available" ? "Mark Available" : "";
+    const compactTransitionLabel = nextAvailability === "in_transit" ? "To transit" : nextAvailability === "available" ? "Available" : "";
     if (isMobile) {
       return (
         <div key={item.id} className="archive-mobile-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ padding: isGroupChild ? "12px 12px 12px 28px" : "12px", borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", display: "flex", gap: 10, alignItems: "flex-start", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null) }}>
@@ -2510,6 +2547,7 @@ export default function App({ onLogout, userEmail }) {
               )}
             </div>
             <div style={{ display: "flex", gap: 5, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 9, paddingTop: 9, borderTop: "1px solid #232c3c88" }}>
+              {nextAvailability && <button disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability([item.id], nextAvailability)} style={{ minHeight: 34, padding: "7px 12px", background: nextAvailability === "available" ? "#166534" : "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: inventoryTransitionBusy ? "wait" : "pointer", opacity: inventoryTransitionBusy ? 0.6 : 1 }}>{transitionLabel}</button>}
               <button onClick={() => setEditInvOpen(item)} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#d1d5db", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>Edit</button>
               <button aria-label={`Delete ${item.name}`} title="Delete" onClick={() => setConfirmDel({ type: "inv", id: item.id, name: item.name })} style={{ minHeight: 34, padding: "7px 12px", background: "#232c3c", color: "#f87171", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer" }}>✕</button>
             </div>
@@ -2530,10 +2568,12 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
         <div style={{ display: "flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
           <div className="archive-row-actions">
-            <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>
+            {nextAvailability && <button title={transitionLabel} disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability([item.id], nextAvailability)} style={{ ...rowActionButton, background: nextAvailability === "available" ? "#166534" : "#1d4ed8", color: "#fff", fontWeight: 700, cursor: inventoryTransitionBusy ? "wait" : "pointer", opacity: inventoryTransitionBusy ? 0.6 : 1 }}>{compactTransitionLabel}</button>}
+            {!nextAvailability && <button onClick={() => setEditInvOpen(item)} style={rowActionButton}>Edit</button>}
             <div className="archive-row-action-wrap">
               <button aria-label={`More actions for ${item.name}`} aria-expanded={rowMenuOpen === `inv:${item.id}`} onClick={() => setRowMenuOpen((open) => open === `inv:${item.id}` ? null : `inv:${item.id}`)} style={moreActionButton}>...</button>
               {rowMenuOpen === `inv:${item.id}` && <div className="archive-row-menu">
+                {nextAvailability && <button onClick={() => { setEditInvOpen(item); setRowMenuOpen(null); }} style={rowActionButton}>Edit</button>}
                 <button onClick={() => { duplicateItem(item); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#c4b5fd" }}>Duplicate</button>
                 <button onClick={() => { setConfirmDel({ type: "inv", id: item.id, name: item.name }); setRowMenuOpen(null); }} style={{ ...rowActionButton, color: "#f87171" }}>Delete</button>
               </div>}
@@ -2858,7 +2898,7 @@ export default function App({ onLogout, userEmail }) {
         {/* DASHBOARD */}
         {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, profitTarget }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, purchaseSources, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSource, setInvSource, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, purchaseSources, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSource, setInvSource, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, inventoryTransitionStatus, inventoryTransitionBusy, moveInventoryAvailability, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
         {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
