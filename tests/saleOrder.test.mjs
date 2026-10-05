@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allocateOrderAmount, saleProductGroups, prepareManualSaleOrders } from "../src/dashboard/saleOrder.js";
+import { allocateOrderAmount, manualSaleRows, saleProductGroups, prepareManualSaleOrders } from "../src/dashboard/saleOrder.js";
+import { computeProfit, toCents } from "../src/dashboard/shared/money.js";
 import { inventoryStatusFor, orderKeyForSale } from "../src/dashboard/inventory.js";
 import { normalizeSettings } from "../src/dashboard/settings.js";
 
@@ -73,4 +74,32 @@ test("invalid queued money and future dates reject the entire batch", () => {
   const order = queuedOrder([queueStock[0]], "Alice", 0);
   assert.equal(prepareManualSaleOrders([order], queueStock, () => "id", "2026-10-05").entries.length, 1);
   assert.throws(() => prepareManualSaleOrders([order], queueStock, () => "id", "2026-10-04"), /date/);
+});
+
+test("ten items sold for $400 plus $17.80 shipping save $417.80 received", () => {
+  const items = Array.from({ length: 10 }, (_, id) => ({ id, name: "Mini tin", price: 18 }));
+  const rows = manualSaleRows([{ key: "tins", items, quantity: 10 }], { tins: "40" }, "17.80", "17.80", "");
+  assert.equal(rows.length, 10);
+  assert(rows.every((row) => row.salePrice === 41.78 && row.shippingPrice === 1.78));
+  assert.equal(rows.reduce((sum, row) => sum + toCents(row.salePrice), 0), 41780);
+  assert.equal(rows.reduce((sum, row) => sum + toCents(computeProfit({ salePrice: row.salePrice, cost: 18, shipping: row.shippingPrice })), 0), 22000);
+});
+
+test("buyer shipping retains remainder cents across mixed products without changing costs", () => {
+  const selected = [{ key: "one", quantity: 2, items: queueStock.slice(0, 2) }, { key: "two", quantity: 1, items: queueStock.slice(2) }];
+  const rows = manualSaleRows(selected, { one: "10", two: "20" }, "0.02", "1.01", "0.01");
+  assert.deepEqual(rows.map((row) => row.salePrice), [10.01, 10.01, 20]);
+  assert.equal(rows.reduce((sum, row) => sum + toCents(row.shippingPrice), 0), 101);
+  assert.equal(rows.reduce((sum, row) => sum + toCents(row.platformFees), 0), 1);
+  assert.deepEqual(manualSaleRows(selected, { one: "10", two: "20" }).map((row) => row.salePrice), [10, 10, 20]);
+});
+
+test("queued buyer shipping is included exactly once and stays with its own order", () => {
+  const first = queuedOrder(queueStock.slice(0, 2), "Alice", 30);
+  first.rows = manualSaleRows([{ key: "one", quantity: 2, items: first.items }], { one: 30 }, 5);
+  const second = queuedOrder(queueStock.slice(2), "Bob", 45);
+  second.rows = manualSaleRows([{ key: "two", quantity: 1, items: second.items }], { two: 45 }, 2);
+  let id = 0;
+  const { entries } = prepareManualSaleOrders([first, second], queueStock, () => ++id, "2026-10-05");
+  assert.deepEqual(entries.map(({ shared, row }) => [shared.customer, row.salePrice]), [["Alice", 32.5], ["Alice", 32.5], ["Bob", 47]]);
 });

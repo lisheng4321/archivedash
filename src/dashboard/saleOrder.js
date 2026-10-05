@@ -1,9 +1,26 @@
-// Allocate whole-order costs in cents so the saved unit rows sum exactly.
+import { toCents, fromCents } from "./shared/money.js";
+
+// Allocate whole-order amounts in cents so the saved unit rows sum exactly.
 export function allocateOrderAmount(value, count) {
   if (!count) return [];
   const cents = Math.round(Number(value || 0) * 100);
   const base = Math.floor(cents / count);
   return Array.from({ length: count }, (_, index) => (base + (index < cents - base * count ? 1 : 0)) / 100);
+}
+
+// Existing sales store total money received as salePrice, and postage paid as
+// shippingPrice. Add buyer-paid shipping once, sharing any remainder cents.
+export function manualSaleRows(selected, prices, buyerShipping = 0, shipping = 0, fees = 0) {
+  const units = selected.flatMap((group) => group.items.slice(0, group.quantity).map((item) => ({ item, price: prices[group.key] })));
+  const receivedParts = allocateOrderAmount(buyerShipping, units.length);
+  const shippingParts = allocateOrderAmount(shipping, units.length);
+  const feeParts = allocateOrderAmount(fees, units.length);
+  return units.map(({ item, price }, index) => ({
+    id: item.id,
+    salePrice: fromCents(toCents(price) + toCents(receivedParts[index])),
+    shippingPrice: shippingParts[index],
+    platformFees: feeParts[index],
+  }));
 }
 
 export function saleProductGroups(inventory) {

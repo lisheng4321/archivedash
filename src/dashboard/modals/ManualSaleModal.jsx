@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { allocateOrderAmount, saleProductGroups } from "../saleOrder.js";
+import { manualSaleRows, saleProductGroups } from "../saleOrder.js";
+import { toCents, fromCents } from "../shared/money.js";
 import { inventoryStatusFor } from "../inventory.js";
 import { currency, today, inp, sel, primaryBtn, ghostBtn, Modal, UnsavedDialog, Field, Row, ModalActions } from "../shared.jsx";
 
@@ -14,6 +15,7 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
   const [query, setQuery] = useState("");
   const [step, setStep] = useState(0);
   const [shipping, setShipping] = useState("");
+  const [buyerShipping, setBuyerShipping] = useState("");
   const [fees, setFees] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -26,25 +28,20 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
     const quantity = Math.min(group.items.length, Math.max(0, Math.floor(Number(value) || 0)));
     setSelection((prev) => quantity === 0 ? prev.filter((entry) => entry.key !== group.key) : prev.some((entry) => entry.key === group.key) ? prev.map((entry) => entry.key === group.key ? { ...entry, quantity } : entry) : [...prev, { key: group.key, quantity }]);
   };
-  const revenue = selected.reduce((sum, group) => sum + Number(prices[group.key] || 0) * group.quantity, 0);
+  const itemRevenue = fromCents(selected.reduce((sum, group) => sum + toCents(prices[group.key]) * group.quantity, 0));
+  const revenue = fromCents(toCents(itemRevenue) + (items.length ? toCents(buyerShipping) : 0));
   const profit = revenue - items.reduce((sum, item) => sum + Number(item.price || 0), 0) - Number(shipping || 0) - Number(fees || 0);
   const validMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0;
-  const ready = items.length > 0 && selected.length === selection.length && selected.every((group) => group.quantity <= group.items.length && String(prices[group.key] ?? "").trim() !== "" && validMoney(prices[group.key])) && validMoney(shipping) && validMoney(fees) && shared.saleDate && shared.saleDate <= today();
+  const ready = items.length > 0 && selected.length === selection.length && selected.every((group) => group.quantity <= group.items.length && String(prices[group.key] ?? "").trim() !== "" && validMoney(prices[group.key])) && validMoney(buyerShipping) && validMoney(shipping) && validMoney(fees) && shared.saleDate && shared.saleDate <= today();
   const close = () => { if (!busy) selection.length || queue.length ? setDiscard(true) : onClose(); };
   const currentOrder = () => {
-    const shippingParts = allocateOrderAmount(shipping, items.length);
-    const feeParts = allocateOrderAmount(fees, items.length);
-    let index = 0;
-    const rows = selected.flatMap((group) => group.items.slice(0, group.quantity).map((item) => {
-      const i = index++;
-      return { id: item.id, salePrice: prices[group.key], shippingPrice: shippingParts[i], platformFees: feeParts[i] };
-    }));
-    return { items, shared: { ...shared }, rows, revenue, profit };
+    const rows = manualSaleRows(selected, prices, buyerShipping, shipping, fees);
+    return { items, shared: { ...shared }, rows, revenue, profit, buyerShipping: fromCents(toCents(buyerShipping)) };
   };
   const queueSale = () => {
     if (!ready || busy) return;
     setQueue((prev) => [...prev, currentOrder()]);
-    setSelection([]); setPrices({}); setQuery(""); setShipping(""); setFees(""); setError("");
+    setSelection([]); setPrices({}); setQuery(""); setShipping(""); setBuyerShipping(""); setFees(""); setError("");
     setShared((prev) => ({ ...prev, customer: "" }));
     if (step === 2) setStep(1);
   };
@@ -97,8 +94,10 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
       <Row><Field label="Platform"><select style={sel} value={shared.platform} onChange={(event) => setShared({ ...shared, platform: event.target.value, paymentMethod: defaultPayment(event.target.value) })}>{platforms.map((platform) => <option key={platform}>{platform}</option>)}</select></Field><Field label="Payment method"><select style={sel} value={shared.paymentMethod} onChange={(event) => setShared({ ...shared, paymentMethod: event.target.value })}>{[...new Set([...paymentMethods, shared.paymentMethod])].map((method) => <option key={method}>{method}</option>)}</select></Field></Row>
       <Row><Field label="Sale date (buyer paid)" req><input type="date" max={today()} value={shared.saleDate} onChange={(event) => setShared({ ...shared, saleDate: event.target.value })} style={inp} /></Field></Row>
       <Field label="Customer"><input list="manual-order-customers" value={shared.customer} onChange={(event) => setShared({ ...shared, customer: event.target.value })} style={inp} placeholder="Optional buyer name" /><datalist id="manual-order-customers">{customers.map((customer) => <option key={customer} value={customer} />)}</datalist></Field>
-      <div style={{ marginTop: 16 }}><Row><Field label="Order shipping cost"><input type="number" min="0" step="0.01" value={shipping} onChange={(event) => setShipping(event.target.value)} style={inp} placeholder="0.00" /></Field><Field label="Order fees"><input type="number" min="0" step="0.01" value={fees} onChange={(event) => setFees(event.target.value)} style={inp} placeholder="0.00" /></Field></Row></div>
-      <p style={{ color: "#9aa6bb", fontSize: 12 }}>Record once fulfilled. Sale date is when the buyer paid; shipping and fees apply to the whole order.</p>
+      <div style={{ marginTop: 16 }}><Row cols={3}><Field label="Shipping paid by buyer"><input type="number" min="0" step="0.01" value={buyerShipping} onChange={(event) => setBuyerShipping(event.target.value)} style={inp} placeholder="0.00" /></Field><Field label="Postage cost (you paid)"><input type="number" min="0" step="0.01" value={shipping} onChange={(event) => setShipping(event.target.value)} style={inp} placeholder="0.00" /></Field><Field label="Order fees"><input type="number" min="0" step="0.01" value={fees} onChange={(event) => setFees(event.target.value)} style={inp} placeholder="0.00" /></Field></Row></div>
+      <p style={{ color: "#9aa6bb", fontSize: 12 }}>Enter whole-order amounts; they are split automatically across all units. Buyer shipping adds to revenue. Your postage cost and fees reduce profit.</p>
+      {items.length > 0 && <p aria-live="polite" style={{ color: "#e5e7eb", fontSize: 13 }}>Items {currency(itemRevenue)} + buyer shipping {currency(buyerShipping)} = <strong>{currency(revenue)} total received</strong></p>}
+      <p style={{ color: "#9aa6bb", fontSize: 12 }}>Record once fulfilled. Sale date is when the buyer paid.</p>
     </>}
     {queue.length > 0 && <section aria-label="Sales queue" style={{ margin: "16px 0", padding: 14, border: "1px solid #334155", borderRadius: 8, background: "#0d1117" }}>
       <strong style={{ color: "#e5e7eb", fontSize: 13 }}>Queued sales · {queue.length}</strong>
@@ -107,7 +106,7 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
         <div style={{ flex: "1 1 240px", minWidth: 0, overflowWrap: "anywhere", color: "#e5e7eb", fontSize: 13 }}>
           <strong>{index + 1}. {order.shared.customer || "No buyer name"}</strong> · {order.items.length} units · {currency(order.revenue)}
           <div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{[...new Set(order.items.map((item) => item.name))].join(", ")}</div>
-          <div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{order.shared.platform} · {order.shared.paymentMethod} · {order.shared.saleDate} · {currency(order.rows.reduce((sum, row) => sum + row.shippingPrice, 0))} shipping · {currency(order.rows.reduce((sum, row) => sum + row.platformFees, 0))} fees</div>
+          <div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{order.shared.platform} · {order.shared.paymentMethod} · {order.shared.saleDate} · {currency(order.buyerShipping)} buyer shipping · {currency(order.rows.reduce((sum, row) => sum + row.shippingPrice, 0))} postage cost · {currency(order.rows.reduce((sum, row) => sum + row.platformFees, 0))} fees</div>
         </div>
         <button style={ghostBtn} aria-label={`Remove queued sale ${index + 1}`} onClick={() => setQueue((prev) => prev.filter((_, i) => i !== index))}>Remove</button>
       </div>)}
