@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allocateOrderAmount, saleProductGroups } from "../src/dashboard/saleOrder.js";
+import { allocateOrderAmount, saleProductGroups, prepareManualSaleOrders } from "../src/dashboard/saleOrder.js";
 import { inventoryStatusFor, orderKeyForSale } from "../src/dashboard/inventory.js";
 import { normalizeSettings } from "../src/dashboard/settings.js";
 
@@ -39,4 +39,38 @@ test("different orders from the same buyer on the same day remain separate", () 
 test("custom sources survive settings normalization and an empty list stays empty", () => {
   assert.deepEqual(normalizeSettings({ purchaseSources: ["Local shop"] }).purchaseSources, ["Local shop"]);
   assert.deepEqual(normalizeSettings({ purchaseSources: [] }).purchaseSources, []);
+});
+
+const queueStock = [{ id: "a", name: "Product", price: 10 }, { id: "b", name: "Product", price: 10 }, { id: "c", name: "Other", price: 20 }];
+const queuedOrder = (items, customer, price, shipping = 0, fees = 0) => ({
+  items,
+  shared: { customer, platform: "Other", paymentMethod: "Cash", saleDate: "2026-10-05" },
+  rows: items.map((item, i) => ({ id: item.id, salePrice: price, shippingPrice: allocateOrderAmount(shipping, items.length)[i], platformFees: allocateOrderAmount(fees, items.length)[i] })),
+});
+
+test("queued orders retain each buyer's items and costs with separate order IDs", () => {
+  let id = 0;
+  const orders = [queuedOrder(queueStock.slice(0, 2), "Alice", 30, 1.01, 0.03), queuedOrder(queueStock.slice(2), "Bob", 45, 4, 2)];
+  const { entries, soldIds } = prepareManualSaleOrders(orders, queueStock, () => `order-${++id}`, "2026-10-05");
+  assert.deepEqual(entries.map((entry) => [entry.item.id, entry.shared.customer, entry.orderId]), [["a", "Alice", "order-1"], ["b", "Alice", "order-1"], ["c", "Bob", "order-2"]]);
+  assert.deepEqual(entries.map((entry) => entry.row.salePrice), [30, 30, 45]);
+  assert.deepEqual(entries.map((entry) => entry.row.shippingPrice), [0.51, 0.5, 4]);
+  assert.deepEqual(entries.map((entry) => entry.row.platformFees), [0.02, 0.01, 2]);
+  assert.equal(soldIds.size, 3);
+});
+
+test("a queue rejects duplicate or missing stock before any sale is committed", () => {
+  const order = queuedOrder([queueStock[0]], "Alice", 30);
+  assert.throws(() => prepareManualSaleOrders([order, order], queueStock, () => "id", "2026-10-05"), /same inventory unit/);
+  assert.throws(() => prepareManualSaleOrders([order], queueStock.slice(1), () => "id", "2026-10-05"), /no longer in inventory/);
+});
+
+test("invalid queued money and future dates reject the entire batch", () => {
+  for (const value of ["", -1, Infinity, "abc", undefined]) {
+    const order = queuedOrder([queueStock[0]], "Alice", value);
+    assert.throws(() => prepareManualSaleOrders([order], queueStock, () => "id", "2026-10-05"), /Check the prices/);
+  }
+  const order = queuedOrder([queueStock[0]], "Alice", 0);
+  assert.equal(prepareManualSaleOrders([order], queueStock, () => "id", "2026-10-05").entries.length, 1);
+  assert.throws(() => prepareManualSaleOrders([order], queueStock, () => "id", "2026-10-04"), /date/);
 });

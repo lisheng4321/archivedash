@@ -4,7 +4,11 @@ import { inventoryStatusFor } from "../inventory.js";
 import { currency, today, inp, sel, primaryBtn, ghostBtn, Modal, UnsavedDialog, Field, Row, ModalActions } from "../shared.jsx";
 
 export default function ManualSaleModal({ inventory, onSell, onClose, platforms, customers, paymentMethods = [] }) {
-  const groups = useMemo(() => saleProductGroups(inventory), [inventory]);
+  const [queue, setQueue] = useState([]);
+  const groups = useMemo(() => {
+    const reserved = new Set(queue.flatMap((order) => order.items.map((item) => item.id)));
+    return saleProductGroups(inventory.filter((item) => !reserved.has(item.id)));
+  }, [inventory, queue]);
   const [selection, setSelection] = useState([]);
   const [prices, setPrices] = useState({});
   const [query, setQuery] = useState("");
@@ -25,11 +29,9 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
   const revenue = selected.reduce((sum, group) => sum + Number(prices[group.key] || 0) * group.quantity, 0);
   const profit = revenue - items.reduce((sum, item) => sum + Number(item.price || 0), 0) - Number(shipping || 0) - Number(fees || 0);
   const validMoney = (value) => Number.isFinite(Number(value)) && Number(value) >= 0;
-  const ready = items.length > 0 && selected.every((group) => String(prices[group.key] ?? "").trim() !== "" && validMoney(prices[group.key])) && validMoney(shipping) && validMoney(fees) && shared.saleDate && shared.saleDate <= today();
-  const close = () => selection.length ? setDiscard(true) : onClose();
-  const save = async () => {
-    if (!ready || busy) return;
-    setBusy(true); setError("");
+  const ready = items.length > 0 && selected.length === selection.length && selected.every((group) => group.quantity <= group.items.length && String(prices[group.key] ?? "").trim() !== "" && validMoney(prices[group.key])) && validMoney(shipping) && validMoney(fees) && shared.saleDate && shared.saleDate <= today();
+  const close = () => { if (!busy) selection.length || queue.length ? setDiscard(true) : onClose(); };
+  const currentOrder = () => {
     const shippingParts = allocateOrderAmount(shipping, items.length);
     const feeParts = allocateOrderAmount(fees, items.length);
     let index = 0;
@@ -37,17 +39,36 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
       const i = index++;
       return { id: item.id, salePrice: prices[group.key], shippingPrice: shippingParts[i], platformFees: feeParts[i] };
     }));
+    return { items, shared: { ...shared }, rows, revenue, profit };
+  };
+  const queueSale = () => {
+    if (!ready || busy) return;
+    setQueue((prev) => [...prev, currentOrder()]);
+    setSelection([]); setPrices({}); setQuery(""); setShipping(""); setFees(""); setError("");
+    setShared((prev) => ({ ...prev, customer: "" }));
+    if (step === 2) setStep(1);
+  };
+  const canSave = selection.length ? ready : queue.length > 0;
+  const saleCount = queue.length + (selection.length ? 1 : 0);
+  const totalUnits = items.length + queue.reduce((sum, order) => sum + order.items.length, 0);
+  const totalRevenue = revenue + queue.reduce((sum, order) => sum + order.revenue, 0);
+  const totalProfit = profit + queue.reduce((sum, order) => sum + order.profit, 0);
+  const save = async () => {
+    if (!canSave || busy) return;
+    setBusy(true); setError("");
     try {
-      const result = await onSell(items, shared, rows);
-      if (result?.ok === false) setError(result.error || "Could not save this order.");
-    } catch (err) { setError(err.message || "Could not save this order."); }
+      const result = await onSell([...queue, ...(selection.length ? [currentOrder()] : [])]);
+      if (result?.ok === false) setError(result.error || "Could not save these sales.");
+    } catch (err) { setError(err.message || "Could not save these sales."); }
     finally { setBusy(false); }
   };
   const filtered = groups.filter((group) => [group.item.name, group.item.brand, group.item.category, group.item.size].some((value) => String(value || "").toLowerCase().includes(query.toLowerCase().trim())));
   return <><Modal key={step} open onClose={close} guardedClose={close} dismissible={!busy} title={step === 0 ? "Add Sale" : `Bulk Sale · ${step === 1 ? "1. Select stock" : "2. Price and review"}`} maxWidth={900}>
+    <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
     <div role="group" aria-label="Sale entry mode" style={{ display: "flex", gap: 4, marginBottom: 16 }}>
       {[{ label: "Quick sale", value: 0 }, { label: "Bulk sale", value: 1 }].map((mode) => <button key={mode.value} disabled={busy} aria-pressed={mode.value === 0 ? step === 0 : step !== 0} onClick={() => setStep(mode.value)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px", background: (mode.value === 0 ? step === 0 : step !== 0) ? "#24324a" : "transparent", color: (mode.value === 0 ? step === 0 : step !== 0) ? "#f3f6fb" : "#8b97ad" }}>{mode.label}</button>)}
     </div>
+    <p style={{ color: "#9aa6bb", fontSize: 12, marginTop: 0 }}>Each sale is for one buyer. Queue a sale to enter another buyer, then record them together.</p>
     {step === 0 && <>
       <Field label="Add an item"><input value={query} onChange={(event) => setQuery(event.target.value)} style={inp} placeholder="Search inventory to add one or a few items…" /></Field>
       {query.trim() && <div style={{ marginBottom: 16, border: "1px solid #232c3c", borderRadius: 8, overflow: "hidden" }}>
@@ -79,11 +100,26 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
       <div style={{ marginTop: 16 }}><Row><Field label="Order shipping cost"><input type="number" min="0" step="0.01" value={shipping} onChange={(event) => setShipping(event.target.value)} style={inp} placeholder="0.00" /></Field><Field label="Order fees"><input type="number" min="0" step="0.01" value={fees} onChange={(event) => setFees(event.target.value)} style={inp} placeholder="0.00" /></Field></Row></div>
       <p style={{ color: "#9aa6bb", fontSize: 12 }}>Record once fulfilled. Sale date is when the buyer paid; shipping and fees apply to the whole order.</p>
     </>}
+    {queue.length > 0 && <section aria-label="Sales queue" style={{ margin: "16px 0", padding: 14, border: "1px solid #334155", borderRadius: 8, background: "#0d1117" }}>
+      <strong style={{ color: "#e5e7eb", fontSize: 13 }}>Queued sales · {queue.length}</strong>
+      <p style={{ color: "#9aa6bb", fontSize: 12 }}>Not recorded yet. Each entry stays a separate sale with its own buyer and costs.</p>
+      {queue.map((order, index) => <div key={index} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "10px 0", borderTop: "1px solid #232c3c" }}>
+        <div style={{ flex: "1 1 240px", minWidth: 0, overflowWrap: "anywhere", color: "#e5e7eb", fontSize: 13 }}>
+          <strong>{index + 1}. {order.shared.customer || "No buyer name"}</strong> · {order.items.length} units · {currency(order.revenue)}
+          <div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{[...new Set(order.items.map((item) => item.name))].join(", ")}</div>
+          <div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{order.shared.platform} · {order.shared.paymentMethod} · {order.shared.saleDate} · {currency(order.rows.reduce((sum, row) => sum + row.shippingPrice, 0))} shipping · {currency(order.rows.reduce((sum, row) => sum + row.platformFees, 0))} fees</div>
+        </div>
+        <button style={ghostBtn} aria-label={`Remove queued sale ${index + 1}`} onClick={() => setQueue((prev) => prev.filter((_, i) => i !== index))}>Remove</button>
+      </div>)}
+      <div style={{ color: "#e5e7eb", fontSize: 12, marginTop: 8 }}>{queue.reduce((sum, order) => sum + order.items.length, 0)} queued units · {currency(queue.reduce((sum, order) => sum + order.revenue, 0))} revenue · {currency(queue.reduce((sum, order) => sum + order.profit, 0))} profit</div>
+    </section>}
+    </fieldset>
     {error && <p role="alert" style={{ color: "#f87171" }}>{error}</p>}
     <ModalActions mobileStack={false} style={{ flexWrap: "wrap", alignItems: "center" }}>
-      <div aria-live="polite" style={{ flex: "1 1 220px", color: "#e5e7eb", fontSize: 12 }}>{items.length} units{step !== 1 && <> · {currency(revenue)} revenue · <span style={{ color: profit >= 0 ? "#34d399" : "#f87171" }}>{currency(profit)} profit</span></>}</div>
+      <div aria-live="polite" style={{ flex: "1 1 220px", color: "#e5e7eb", fontSize: 12 }}>{totalUnits} units{(step !== 1 || !selection.length) && <> · {currency(totalRevenue)} revenue · <span style={{ color: totalProfit >= 0 ? "#34d399" : "#f87171" }}>{currency(totalProfit)} profit</span></>}</div>
       <button disabled={busy} onClick={step === 2 ? () => setStep(1) : close} style={ghostBtn}>{step === 2 ? "Back to stock" : "Cancel"}</button>
-      <button disabled={busy || (step === 1 ? !items.length : !ready)} onClick={step === 1 ? () => setStep(2) : save} style={{ ...primaryBtn, opacity: (step === 1 ? items.length : ready) ? 1 : 0.5 }}>{busy ? "Saving…" : step === 1 ? "Price and review" : step === 0 ? "Record sale" : "Record order"}</button>
+      {step !== 1 && <button disabled={busy || !ready} onClick={queueSale} style={{ ...ghostBtn, opacity: ready ? 1 : 0.5 }}>Queue sale</button>}
+      <button disabled={busy || (step === 1 && selection.length ? !items.length : !canSave)} onClick={step === 1 && selection.length ? () => setStep(2) : save} style={{ ...primaryBtn, opacity: (step === 1 && selection.length ? items.length : canSave) ? 1 : 0.5 }}>{busy ? "Saving…" : step === 1 && selection.length ? "Price and review" : queue.length ? `Record ${saleCount} ${saleCount === 1 ? "sale" : "sales"}` : step === 0 ? "Record sale" : "Record order"}</button>
     </ModalActions>
   </Modal><UnsavedDialog open={discard} onDiscard={onClose} onCancel={() => setDiscard(false)} /></>;
 }

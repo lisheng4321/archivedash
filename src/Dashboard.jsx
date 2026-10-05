@@ -19,6 +19,7 @@ import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
 import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, inventoryStatusFor, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { groupInventory, inventoryPreorderBadge, sortInventory } from "./dashboard/inventoryView.js";
+import { prepareManualSaleOrders } from "./dashboard/saleOrder.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
 import { subCategory } from "./dashboard/subscriptions.js";
 
@@ -879,24 +880,22 @@ export default function App({ onLogout, userEmail }) {
     setBulkSellOpen(false);
   };
 
-  const handleManualSell = async (items, shared, rows) => {
-    const soldIds = new Set();
-    const orderId = genId();
+  const handleManualSell = async (orders) => {
+    const { entries, soldIds } = prepareManualSaleOrders(orders, inventory, genId, today());
     const newSales = [];
-    for (const item of items) {
-      const r = rows.find((x) => x.id === item.id);
-      if (!r) continue;
-      const rawSalePrice = String(r.salePrice ?? "").trim();
-      const sp = parseFloat(rawSalePrice), ship = parseFloat(r.shippingPrice)||0, fees = parseFloat(r.platformFees)||0;
-      if (!rawSalePrice || !Number.isFinite(sp) || sp < 0) continue;
+    for (const { item, shared, row: r, orderId } of entries) {
+      const sp = Number(r.salePrice), ship = Number(r.shippingPrice), fees = Number(r.platformFees);
       newSales.push({ id: genId(), orderId, name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
-      soldIds.add(item.id);
     }
-    if (!newSales.length) return;
     const salesResult = await commitInventorySale([...newSales, ...sales], inventory.filter((i) => !soldIds.has(i.id)));
     if (salesResult?.ok === false) return salesResult;
-    if (shared.customer) addCustomer(shared.customer);
+    const buyers = [...new Set(orders.map((order) => order.shared.customer).filter(Boolean))];
+    if (buyers.length) {
+      const buyerKeys = new Set(buyers.map(customerKey));
+      await persistSettings({ ...settings, customers: [...new Set([...CUSTS, ...buyers])], hiddenCustomerKeys: (settings.hiddenCustomerKeys || []).filter((key) => !buyerKeys.has(key)) });
+    }
     setAddSaleOpen(false);
+    return salesResult;
   };
 
   const ebayMatchScore = (draft, item) => {
