@@ -49,10 +49,7 @@ export default function SalesPage({ ctx }) {
   const recentProfit = recentSales.reduce((a, s) => a + saleProfit(s), 0);
   const latestSaleDate = [...sales].map((sale) => sale.saleDate).filter(Boolean).sort().pop();
   const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
-  const titleSearch = saleSearch.trim().toLowerCase();
-  const visibleSales = titleSearch
-    ? filteredSales.filter((sale) => String(sale.name || "").toLowerCase().includes(titleSearch))
-    : filteredSales;
+  const visibleSales = filteredSales;
   const orderGroups = new Map();
   visibleSales.forEach((sale) => {
     const key = orderKeyForSale(sale);
@@ -88,7 +85,7 @@ export default function SalesPage({ ctx }) {
       {ebayQueueOpen && ebayQueuePanel()}
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
-        <input placeholder="Search item title..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 190, flex: isMobile ? "1 1 100%" : undefined }} />
+        <input aria-label="Search sales by item title or buyer name" placeholder="Search item title or buyer name..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 260, flex: isMobile ? "1 1 100%" : undefined }} />
         <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 160, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
         <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>

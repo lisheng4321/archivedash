@@ -2134,7 +2134,7 @@ export default function App({ onLogout, userEmail }) {
     let f = keyedSales;
     const q = saleSearch.trim().toLowerCase();
     if (q) {
-      f = f.filter((s) => String(s.name || "").toLowerCase().includes(q));
+      f = f.filter((s) => [s.name, s.customer].some((value) => String(value || "").toLowerCase().includes(q)));
     }
     if (saleCat !== "All") f = f.filter((s) => s.category === saleCat);
     if (salePlat !== "All") f = f.filter((s) => s.platform === salePlat);

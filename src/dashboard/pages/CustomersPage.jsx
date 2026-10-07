@@ -315,10 +315,11 @@ function CustomerDetail({ customer, isMobile, categories, updateCustomerProfile,
         <div style={{ color: "#7c8aa0", fontSize: 11 }}>{p.lastContactedAt ? `Last contacted ${new Date(p.lastContactedAt).toLocaleString("en-AU")}` : "No outreach recorded yet"}</div>
       </Section>
 
-      <Section title="Sales History">
+      <Section title={`Sales History (${customer.sales.length})`}>
         {customer.sales.length === 0 ? (
           <div style={{ color: "#374151", fontSize: 13, textAlign: "center", padding: 14 }}>No linked sales yet</div>
-        ) : customer.sales.slice(0, 8).map((sale) => (
+        ) : <div key={customer.key} role="region" aria-label={`Sales history for ${customer.name}`} tabIndex={0} style={{ maxHeight: 360, overflowY: "auto" }}>
+          {customer.sales.map((sale) => (
           <div key={sale.id} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "7px 0", borderTop: "1px solid #232c3c22" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ color: "#e5e7eb", fontSize: 12, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sale.name}</div>
@@ -329,7 +330,8 @@ function CustomerDetail({ customer, isMobile, categories, updateCustomerProfile,
               <div style={{ color: sale.profit >= 0 ? "#34d399" : "#f87171", fontSize: 11 }}>{currency(sale.profit)}</div>
             </div>
           </div>
-        ))}
+          ))}
+        </div>}
       </Section>
     </div>
   );
