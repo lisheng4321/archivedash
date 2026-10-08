@@ -175,7 +175,7 @@ export default function InventoryPage({ ctx }) {
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
         <details aria-label="Stock work queues" style={{ position: "relative", fontSize: 12 }}>
           <summary style={{ ...ghostBtn, padding: "7px 10px", cursor: "pointer", whiteSpace: "nowrap" }}>Work queues</summary>
-          <div role="group" aria-label="Inventory work queues" style={{ position: "absolute", top: "100%", left: isMobile ? 0 : undefined, right: isMobile ? undefined : 0, zIndex: 20, width: 260, maxWidth: "85vw", padding: 8, borderRadius: 8, border: "1px solid #232c3c", background: "#121a2b", boxShadow: "0 8px 24px #0008", display: "grid", gap: 6 }}>
+          <div role="group" aria-label="Inventory work queues" style={{ position: isMobile ? "static" : "absolute", top: isMobile ? undefined : "100%", right: isMobile ? undefined : 0, zIndex: 20, width: 260, maxWidth: "85vw", padding: 8, borderRadius: 8, border: "1px solid #232c3c", background: "#121a2b", boxShadow: "0 8px 24px #0008", display: "grid", gap: 6 }}>
             {inventoryWorkQueues.map((view) => <button key={view.id} aria-pressed={invWorkView === view.id} onClick={() => openInventoryWorkView(view.id)} style={{ ...ghostBtn, textAlign: "left", padding: "6px 10px", fontSize: 12, background: invWorkView === view.id ? "#24324a" : "transparent" }}>{view.label} · {view.units}</button>)}
           </div>
         </details>
