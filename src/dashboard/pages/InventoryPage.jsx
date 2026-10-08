@@ -1,5 +1,8 @@
 import { allVisibleSelected } from "../formValidation.js";
 import { inventoryStatusFor, isInventoryAvailable } from "../inventory.js";
+import MobileDisclosure from "../components/MobileDisclosure.jsx";
+import { scopeTotals } from "../scopeTotals.js";
+import { financialIssue } from "../financialCompleteness.js";
 import { accentTextBtn, cb, currency, dangerQuietBtn, EmptyState, ghostBtn, inp, primaryBtn, sel, SortHeader, today } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
@@ -20,6 +23,11 @@ export default function InventoryPage({ ctx }) {
     inventoryTransitionStatus,
     inventoryTransitionBusy,
     moveInventoryAvailability,
+    invWorkView,
+    setInvWorkView,
+    inventoryWorkQueues = [],
+    openInventoryWorkView,
+    openReceiveInventory,
     CATS = [],
     purchaseSources = [],
     listingPlatforms = [],
@@ -52,22 +60,28 @@ export default function InventoryPage({ ctx }) {
     expandedGroups,
     groupRow
   } = ctx;
+  const { invFinancialFocus, setInvFinancialFocus } = ctx;
 
   const productCount = new Set(inventory.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const todayKey = today();
   const availableInventoryValue = inventory
     .filter((item) => isInventoryAvailable(item, todayKey))
-    .reduce((total, item) => total + (Number(item.price) || 0), 0);
+    .reduce((total, item) => total + (financialIssue(item, "cost", true) ? 0 : Number(item.price)), 0);
   const preorderInventoryValue = inventory
     .filter((item) => inventoryStatusFor(item, todayKey) === "preorder")
-    .reduce((total, item) => total + (Number(item.price) || 0), 0);
+    .reduce((total, item) => total + (financialIssue(item, "cost", true) ? 0 : Number(item.price)), 0);
   const hiddenSelectedCount = selectedInv.size - filteredInv.filter((item) => selectedInv.has(item.id)).length;
   const selectedItems = inventory.filter((item) => selectedInv.has(item.id));
+  const visible = scopeTotals(filteredInv, "price");
+  const selected = scopeTotals(selectedItems, "price");
+  const global = scopeTotals(inventory, "price");
   const selectedProducts = new Set(selectedItems.map((item) => String(item.name || "").trim().toLowerCase()).filter(Boolean)).size;
   const selectedCategories = [...new Set(selectedItems.map((item) => item.category).filter(Boolean))];
   const selectedPreorderIds = selectedItems.filter((item) => inventoryStatusFor(item, todayKey) === "preorder").map((item) => item.id);
   const selectedTransitIds = selectedItems.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").map((item) => item.id);
   const setInventoryView = (view) => {
+    setInvFinancialFocus(null);
+    setInvWorkView("");
     setInvPreorderView(view);
     if (view === "preorders" && invSort === "name_asc") setInvSort("preorder_asc");
     if (view === "available" && invSort.startsWith("preorder_")) setInvSort("name_asc");
@@ -94,14 +108,14 @@ export default function InventoryPage({ ctx }) {
       children: `${label} ${count}`,
     };
   };
-  const clearFilters = () => { setInvSearch(""); setInvCat("All"); setInvSource("All"); setInvPreorderView("available"); setInvStatus("All"); setInvSort("name_asc"); };
+  const clearFilters = () => { setInvFinancialFocus(null); setInvWorkView(""); setInvSearch(""); setInvCat("All"); setInvSource("All"); setInvPreorderView("available"); setInvStatus("All"); setInvSort("name_asc"); };
 
   return (
     <div style={{ padding: pagePad }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Inventory</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>{productCount} products - {inventory.length} units - {currency(availableInventoryValue)} available - {currency(inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").reduce((sum, item) => sum + (Number(item.price) || 0), 0))} in transit - {currency(preorderInventoryValue)} preorder</p>
+          <MobileDisclosure isMobile={isMobile} label={`Stock summary · ${inventory.length} units in all stock`}><p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>All stock: {productCount} products · {global.units} units · {currency(global.cost)} known cost{global.unknown ? ` · ${global.unknown} unknown cost` : ""} · {currency(availableInventoryValue)} available · {currency(inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").reduce((sum, item) => sum + (financialIssue(item, "cost", true) ? 0 : Number(item.price)), 0))} in transit · {currency(preorderInventoryValue)} preorder</p></MobileDisclosure>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedInv.size > 0 && <>
@@ -132,9 +146,21 @@ export default function InventoryPage({ ctx }) {
 
       {gmailQueueOpen && gmailQueuePanel()}
 
+      {invFinancialFocus && <div role="status" style={{ color: "#fbbf24", fontSize: 12, marginBottom: 10 }}>Unknown stock cost · all availability states. Corrected units leave this view. <button onClick={() => setInvFinancialFocus(null)} style={{ ...ghostBtn, padding: "4px 8px", fontSize: 11 }}>Clear review filter</button></div>}
+      <MobileDisclosure isMobile={isMobile} label="Stock work queues">
+      <div role="group" aria-label="Inventory work queues" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {inventoryWorkQueues.map((view) => <button key={view.id} aria-pressed={invWorkView === view.id} onClick={() => openInventoryWorkView(view.id)} style={{ ...ghostBtn, padding: "6px 10px", fontSize: 12, background: invWorkView === view.id ? "#24324a" : "transparent" }}>{view.label} · {view.units}</button>)}
+      </div>
+      </MobileDisclosure>
+
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input placeholder="Search name / brand..." value={invSearch} onChange={(e) => setInvSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 200, flex: isMobile ? "1 1 100%" : undefined }} />
-        <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+        <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3, width: isMobile ? "100%" : undefined }}>
+          <button {...viewButton("available", "Available", availableInvCount)} />
+          <button {...viewButton("in_transit", "In transit", inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").length)} />
+          <button {...viewButton("preorders", "Preorders", preorderInvCount)} />
+        </div>
+<MobileDisclosure isMobile={isMobile} label="Filters and sorting"><div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>        <select value={invCat} onChange={(e) => setInvCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={invSource} onChange={(e) => setInvSource(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 180, flex: isMobile ? "1 1 145px" : undefined }}><option value="All">All Purchase Sources</option><option value="Unknown">Unknown</option>{purchaseSources.map((source) => <option key={source} value={source}>{source}</option>)}</select>
         <select value={invStatus} onChange={(e) => setInvStatus(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}>
           <option value="All">All Listings</option>
@@ -143,11 +169,6 @@ export default function InventoryPage({ ctx }) {
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("facebook")) && <option value="Facebook">Facebook</option>}
           {listingPlatforms.some((p) => String(p).toLowerCase().includes("ebay")) && <option value="eBay">eBay</option>}
         </select>
-        <div role="group" aria-label="Inventory availability" style={{ display: "flex", gap: 3, background: "#121a2b", border: "1px solid #232c3c", borderRadius: 8, padding: 3, width: isMobile ? "100%" : undefined }}>
-          <button {...viewButton("available", "Available", availableInvCount)} />
-          <button {...viewButton("in_transit", "In transit", inventory.filter((item) => inventoryStatusFor(item, todayKey) === "in_transit").length)} />
-          <button {...viewButton("preorders", "Preorders", preorderInvCount)} />
-        </div>
         {isMobile && <select aria-label="Sort inventory" value={invSort} onChange={(e) => setInvSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
           <option value="name_asc">Name A-Z</option>
           <option value="name_desc">Name Z-A</option>
@@ -159,8 +180,9 @@ export default function InventoryPage({ ctx }) {
           <option value="date_asc">Oldest</option>
         </select>}
         <label style={{ fontSize: 12, color: "#7c8aa0", display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}><input type="checkbox" checked={invCollapse} onChange={(e) => setInvCollapse(e.target.checked)} style={cb} />Group</label>
-        {(invSearch || invCat !== "All" || invSource !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
-        <span style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, textAlign: "right", fontSize: 12, color: "#8b97ad" }}>{filteredInv.length} items{selectedInv.size > 0 && ` - ${selectedInv.size} selected${hiddenSelectedCount ? ` (${hiddenSelectedCount} outside this filter)` : ""} - ${currency(selectedValue)}`}</span>
+</div></MobileDisclosure>
+        {(invFinancialFocus || invWorkView || invSearch || invCat !== "All" || invSource !== "All" || invPreorderView !== "available" || invStatus !== "All" || invSort !== "name_asc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+        <span aria-label="Inventory scope totals" style={{ marginLeft: "auto", width: isMobile ? "100%" : undefined, fontSize: 12, color: "#8b97ad" }}>Visible: {visible.units} units · {currency(visible.cost)} known cost{visible.unknown ? ` · ${visible.unknown} unknown cost` : ""}{selectedInv.size > 0 && ` · Selected across all filters: ${selected.units} units${hiddenSelectedCount ? ` (${hiddenSelectedCount} outside this filter)` : ""} · ${currency(selected.cost)} known cost${selected.unknown ? ` · ${selected.unknown} unknown cost` : ""}`}. Select all selects only visible units.</span>
       </div>
 
       {inventory.length === 0 ? (
@@ -195,16 +217,16 @@ export default function InventoryPage({ ctx }) {
       </div>
       )}
 
-      <button onClick={openAddInventory} style={{ ...primaryBtn, position: "fixed", right: isMobile ? 12 : 24, bottom: selectedInv.size ? (isMobile ? 260 : 120) : (isMobile ? 140 : 88), zIndex: 94, boxShadow: "0 8px 24px #0008" }}>+ Add inventory</button>
+      {!isMobile && <button onClick={openAddInventory} style={{ ...primaryBtn, position: "fixed", right: 24, bottom: selectedInv.size ? 120 : 88, zIndex: 94, boxShadow: "0 8px 24px #0008" }}>+ Add inventory</button>}
       {selectedInv.size > 0 && (
-        <div style={{ position: "fixed", right: isMobile ? 12 : 24, bottom: isMobile ? 78 : 24, zIndex: 95, background: "#121a2b", border: "1px solid #2563eb66", boxShadow: "0 18px 40px rgba(0,0,0,0.45)", borderRadius: 12, padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "calc(100vw - 24px)" : 520 }}>
+        <div style={{ position: isMobile ? "static" : "fixed", right: 24, bottom: 24, zIndex: 95, background: "#121a2b", border: "1px solid #2563eb66", borderRadius: 12, padding: 10, marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", maxWidth: isMobile ? "100%" : 520 }}>
           <div style={{ minWidth: isMobile ? "100%" : 150 }}>
             <div style={{ color: "#f3f6fb", fontSize: 13, fontWeight: 800 }}>{selectedInv.size} selected</div>
             <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 2 }}>{selectedProducts} products - {currency(selectedValue)}{selectedCategories.length ? ` - ${selectedCategories.slice(0, 2).join(", ")}${selectedCategories.length > 2 ? ` +${selectedCategories.length - 2}` : ""}` : ""}</div>
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {selectedPreorderIds.length > 0 && <button disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability(selectedPreorderIds, "in_transit")} style={{ ...ghostBtn, background: "#1d4ed8", borderColor: "#2563eb", color: "#fff", fontSize: 12, padding: "7px 12px", fontWeight: 700, opacity: inventoryTransitionBusy ? 0.6 : 1 }}>To transit ({selectedPreorderIds.length})</button>}
-            {selectedTransitIds.length > 0 && <button disabled={inventoryTransitionBusy} onClick={() => moveInventoryAvailability(selectedTransitIds, "available")} style={{ ...ghostBtn, background: "#166534", borderColor: "#16a34a", color: "#fff", fontSize: 12, padding: "7px 12px", fontWeight: 700, opacity: inventoryTransitionBusy ? 0.6 : 1 }}>Available ({selectedTransitIds.length})</button>}
+            {selectedTransitIds.length > 0 && <button disabled={inventoryTransitionBusy} onClick={() => openReceiveInventory(selectedTransitIds)} style={{ ...ghostBtn, background: "#166534", borderColor: "#16a34a", color: "#fff", fontSize: 12, padding: "7px 12px", fontWeight: 700, opacity: inventoryTransitionBusy ? 0.6 : 1 }}>Receive ({selectedTransitIds.length})</button>}
             <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 12px" }}>Edit</button>
             <button onClick={handleBuyerNotifyExport} style={{ ...ghostBtn, color: selectedBuyerNotifyCount ? "#86efac" : "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Notify{selectedBuyerNotifyCount ? ` (${selectedBuyerNotifyCount})` : ""}</button>
             <button onClick={handleEbayPartnerExport} style={{ ...ghostBtn, color: "#93c5fd", fontSize: 12, padding: "7px 12px" }}>Copy eBay batch</button>
@@ -212,6 +234,12 @@ export default function InventoryPage({ ctx }) {
           </div>
         </div>
       )}
+      {isMobile && <div aria-label="Inventory quick actions" style={{ position: "fixed", bottom: 58, left: 0, right: 0, zIndex: 96, background: "#121a2b", borderTop: "1px solid #334155", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 11, color: "#9aa6bb" }}>{selectedInv.size ? `${selectedInv.size} selected${hiddenSelectedCount ? ` · ${hiddenSelectedCount} hidden` : ""} · ${currency(selected.cost)}` : `${visible.units} visible`}</span>
+        {selectedTransitIds.length > 0 ? <button disabled={inventoryTransitionBusy} onClick={() => openReceiveInventory(selectedTransitIds)} style={{ ...ghostBtn, fontSize: 12, padding: "8px 10px" }}>Receive</button> : selectedInv.size > 0 && <button onClick={() => setBulkEditOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "8px 10px" }}>Edit</button>}
+        <button onClick={openAddInventory} style={{ ...primaryBtn, fontSize: 12, padding: "8px 10px" }}>+ Add inventory</button>
+      </div>}
+      {isMobile && <div style={{ height: 80 }} />}
     </div>
   );
 }

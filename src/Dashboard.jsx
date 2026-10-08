@@ -1,9 +1,13 @@
 import PurchasePastePanel from "./dashboard/components/PurchasePastePanel.jsx";
 import { createInventoryBatchSave } from "./dashboard/inventoryBatchSave.js";
 import InventoryQueueSummary from "./dashboard/components/InventoryQueueSummary.jsx";
+import { financialCompleteness, financialIssue, knownMoney } from "./dashboard/financialCompleteness.js";
+import ReceiveInventoryModal from "./dashboard/modals/ReceiveInventoryModal.jsx";
+
+import { INVENTORY_WORK_VIEWS, inventoryWorkReason, receivingItems, calendarAge } from "./dashboard/receiving.js";
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { load, save, supabase, isSupabaseConfigured, hasPendingSaves, hasNotesDraft, loadCloudNotes, saveInventorySale, hasPendingSale } from "./supabase.js";
-import { validateBackup, requireSaved } from "./dashboard/backupValidation.js";
+import { validateBackup, requireSaved, saleBackupIdentity } from "./dashboard/backupValidation.js";
 import { allVisibleSelected, toggleVisibleSelection, recordError } from "./dashboard/formValidation.js";
 import Calculator from "./Calculator";
 import HealthPage from "./dashboard/pages/HealthPage.jsx";
@@ -17,7 +21,7 @@ import { shortDateLabel } from "./dashboard/components/PeriodComparisonChart.jsx
 import PlatformBadge from "./dashboard/components/PlatformBadge.jsx";
 import DashboardHomePage from "./dashboard/pages/DashboardHomePage.jsx";
 import { matchedBuyerRequestsForItem, mergeCustomerInterests, normalizeBuyerRequests } from "./dashboard/customerMarketing.js";
-import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, inventoryStatusFor, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
+import { PURCHASE_SOURCES, canonicalPurchaseSource, compareSizeValues, customerKey, explicitAvailabilityFor, inventoryAgeStart, inventorySaleError, inventoryStatusFor, isInventoryAvailable, isPreorderOrigin, isUnreleasedPreorder, listedPlatformsFor, orderKeyForSale, platformShortName, purchaseSourceFor, releaseExpectedDateFor, sortedListedPlatformsFor } from "./dashboard/inventory.js";
 import { groupInventory, inventoryPreorderBadge, sortInventory } from "./dashboard/inventoryView.js";
 import { prepareManualSaleOrders } from "./dashboard/saleOrder.js";
 import { DEFAULT_BACKUP_SETTINGS, DEFAULT_NAV_UTILITY_IDS, RESELLER_DASHBOARD_CARDS, defaultSettings, normalizeSettings, saveLabelFor } from "./dashboard/settings.js";
@@ -69,6 +73,16 @@ const saleProfit = (sale = {}) => computeProfit({
 const saleUnits = (sale = {}) => Math.max(1, Number(sale.quantity) || 1);
 const withComputedSaleProfit = (sale) => ({ ...sale, profit: saleProfit(sale) });
 const inventoryPurchaseFields = (item = {}) => ({
+  inventoryUnitId: item.id,
+  receivedDate: item.receivedDate || "",
+  purchaseLotId: item.purchaseLotId || "",
+  purchaseLineId: item.purchaseLineId || "",
+  purchaseReference: item.purchaseReference || "",
+  costConfirmed: item.costConfirmed,
+  productId: item.productId || "",
+  receiptTitle: item.receiptTitle || item.name || "",
+  retailerSku: item.retailerSku || "",
+  productMatchApproved: item.productMatchApproved === true,
   purchaseDate: item.purchaseDate || "",
   releaseExpectedDate: releaseExpectedDateFor(item),
   preorderDate: releaseExpectedDateFor(item),
@@ -145,6 +159,16 @@ export default function App({ onLogout, userEmail }) {
   const [ebayExportStatus, setEbayExportStatus] = useState("");
   const [inventoryTransitionStatus, setInventoryTransitionStatus] = useState("");
   const [inventoryTransitionBusy, setInventoryTransitionBusy] = useState(false);
+  const [receiveOpen, setReceiveOpen] = useState(null);
+  const receiveAttempt = useRef(null);
+  const [invWorkView, setInvWorkView] = useState("");
+  const [inventoryToday, setInventoryToday] = useState(today);
+  useEffect(() => {
+    const timer = setInterval(() => setInventoryToday(today()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+  const [invFinancialFocus, setInvFinancialFocus] = useState(null);
+  const [saleFinancialFocus, setSaleFinancialFocus] = useState(null);
   const [showUnsavedAdd, setShowUnsavedAdd] = useState(false);
   const [addDirty, setAddDirty] = useState(false);
   const [invFormError, setInvFormError] = useState("");
@@ -701,6 +725,7 @@ export default function App({ onLogout, userEmail }) {
   }, [settings, CUSTS, persistSettings]);
 
   const openAddInventory = () => {
+
     invSaveAttempt.current = null;
     setInvSavePending(false);
     setInvFormError("");
@@ -729,16 +754,27 @@ export default function App({ onLogout, userEmail }) {
   };
   const inventoryItemsFromDraft = (draft) => {
     const price = parseFloat(draft.price);
-    const error = recordError(draft.name, draft.price);
+    const error = recordError(draft.name, draft.price) || (draft.receivedDate && (calendarAge(draft.receivedDate, today()) === null || calendarAge(draft.receivedDate, today()) < 0) ? "Confirmed receipt date must be valid and not in the future." : "");
     setInvFormError(error);
     if (error) return [];
-    const qty = Math.max(1, parseInt(draft.quantity, 10) || 1);
+    const qty = Number(draft.quantity || 1);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 10000) { setInvFormError("Quantity must be a whole number from 1 to 10,000."); return []; }
+    const purchaseLineId = genId();
     return Array.from({ length: qty }, () => ({
       id: genId(),
       name: String(draft.name || "").trim(),
       category: draft.category,
       size: draft.size,
       price,
+      costConfirmed: true,
+      productId: draft.productId || purchaseLineId,
+      receiptTitle: draft.receiptTitle || String(draft.name || "").trim(),
+      retailerSku: String(draft.retailerSku || "").trim(),
+      productMatchApproved: draft.productMatchApproved === true,
+      purchaseLineId,
+      purchaseLotId: purchaseLineId,
+      ...(draft.receivedDate && draft.availability === "available" ? { receivedDate: draft.receivedDate } : {}),
+      ...(draft.availability === "in_transit" ? { transitDate: today() } : {}),
       ebayListedPrice: draft.ebayListedPrice ? parseFloat(draft.ebayListedPrice) : undefined,
       purchaseDate: draft.purchaseDate,
       releaseExpectedDate: draft.releaseExpectedDate || "",
@@ -781,16 +817,17 @@ export default function App({ onLogout, userEmail }) {
 
   const queuePastedInventory = (drafts) => {
     const items = drafts.flatMap(inventoryItemsFromDraft);
-    if (!items.length) return;
+    if (!items.length) return false;
     setInvQueue((previous) => [...previous, ...items]);
     rememberInventoryEntry(drafts[drafts.length - 1]);
     setAddDirty(true);
+    return true;
   };
   const addInventory = async () => {
     if (invSavingRef.current) return;
     if (invPasteDirty && !invSaveAttempt.current) { setInvFormError("Queue or clear the pasted summary before saving."); return; }
     if (!invSaveAttempt.current) {
-      const items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
+      let items = invQueue.length ? invQueue : inventoryItemsFromDraft(invForm);
       if (!items.length) return;
       if (!invQueue.length) rememberInventoryEntry(invForm);
       invSaveAttempt.current = createInventoryBatchSave(items);
@@ -837,24 +874,27 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const commitInventorySale = async (nextSales, nextInventory) => {
-    const recovering = hasPendingSale();
     setSaleRecovery({ busy: true, error: "" });
     setSaveStatus("saving");
     const request = saveInventorySale(nextSales ? { "arch-sales2": nextSales, "arch-inv2": nextInventory } : undefined);
-    if (hasPendingSale()) {
-      if (!recovering) { setSales(nextSales); setInventory(nextInventory); }
-      setAddSaleOpen(false); setSellOpen(null); setBulkSellOpen(false);
-    }
     const result = await request;
     showSaveResult(result);
     if (result.ok) {
+      setSales(result.sales || nextSales || sales);
+      setInventory(result.inventory || nextInventory || inventory);
+      setAddSaleOpen(false); setSellOpen(null); setBulkSellOpen(false);
       setSelectedInv(new Set());
       setSaleRecovery(null);
-    } else setSaleRecovery({ busy: false, error: result.error });
+    } else {
+      if (result.conflict) { setSales(result.sales); setInventory(result.inventory); }
+      setSaleRecovery(hasPendingSale() ? { busy: false, error: result.error } : null);
+    }
     return result;
   };
 
   const handleSell = async (item, sf) => {
+    const issue = inventorySaleError(inventory, [item]);
+    if (issue) return { ok: false, error: issue };
     const sp = parseFloat(sf.salePrice)||0, ship = parseFloat(sf.shippingPrice)||0, fees = parseFloat(sf.platformFees)||0;
     const sale = { id: genId(), name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: sf.platform, paymentMethod: sf.paymentMethod || paymentMethodForPlatform(sf.platform, PAYMETHODS), saleDate: sf.saleDate, tags: sf.tags, ...inventoryPurchaseFields(item), customer: sf.customer||"" };
     const salesResult = await commitInventorySale([sale, ...sales], inventory.filter((i) => i.id !== item.id));
@@ -864,6 +904,8 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleBulkSell = async (shared, rows) => {
+    const issue = inventorySaleError(inventory, inventory.filter((item) => selectedInv.has(item.id)));
+    if (issue) return { ok: false, error: issue };
     const soldIds = new Set();
     const newSales = [];
     for (const item of inventory.filter((i) => selectedInv.has(i.id))) {
@@ -881,11 +923,12 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const handleManualSell = async (orders) => {
+    if (hasPendingSale()) return commitInventorySale();
     const { entries, soldIds } = prepareManualSaleOrders(orders, inventory, genId, today());
     const newSales = [];
     for (const { item, shared, row: r, orderId } of entries) {
       const sp = Number(r.salePrice), ship = Number(r.shippingPrice), fees = Number(r.platformFees);
-      newSales.push({ id: genId(), orderId, name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
+      newSales.push({ id: genId(), orderId, name: item.name, category: item.category, size: item.size||"OS", brand: item.brand||"", costPrice: item.price, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: computeProfit({ salePrice: sp, cost: item.price, shipping: ship, fees }), platform: shared.platform, paymentMethod: shared.paymentMethod || paymentMethodForPlatform(shared.platform, PAYMETHODS), saleDate: shared.saleDate, fulfilmentDate: shared.fulfilmentDate || today(), feesConfirmed: shared.feesConfirmed === true, postageConfirmed: shared.postageConfirmed === true, tags: "", ...inventoryPurchaseFields(item), customer: shared.customer||"" });
     }
     const salesResult = await commitInventorySale([...newSales, ...sales], inventory.filter((i) => !soldIds.has(i.id)));
     if (salesResult?.ok === false) return salesResult;
@@ -1099,9 +1142,13 @@ export default function App({ onLogout, userEmail }) {
       clearTags,
       ...rest
     } = updates;
-    await persistInv(inventory.map((i) => {
+    const result = await persistInv(inventory.map((i) => {
       if (!ids.has(i.id)) return i;
       const next = { ...i, ...rest };
+      if (rest.availability && rest.availability !== inventoryStatusFor(i, today())) {
+        if (rest.availability === "available") next.receivedDate = today();
+        if (rest.availability === "in_transit") next.transitDate = today();
+      }
       if (nameSet) {
         next.name = nameSet;
       } else if (titleFind || titlePrefix || titleSuffix) {
@@ -1116,10 +1163,13 @@ export default function App({ onLogout, userEmail }) {
       if (addListedPlatform) next.listedPlatforms = [...new Set([...listedPlatformsFor(next), addListedPlatform])];
       return next;
     }));
+    if (!result.ok || result.superseded) return result;
     setBulkEditOpen(false); setSelectedInv(new Set());
+    return result;
   };
 
   const moveInventoryAvailability = async (ids, nextAvailability) => {
+    if (nextAvailability === "available") { openReceiveInventory(ids); return; }
     if (inventoryTransitionBusy) return;
     const requestedIds = new Set(ids);
     const currentAvailability = nextAvailability === "in_transit" ? "preorder" : "in_transit";
@@ -1134,7 +1184,7 @@ export default function App({ onLogout, userEmail }) {
     setInventoryTransitionBusy(true);
     setInventoryTransitionStatus("");
     const nextInventory = inventory.map((item) => movableIds.has(item.id)
-      ? { ...item, availability: nextAvailability, preorderOrigin: isPreorderOrigin(item) || currentAvailability === "preorder" }
+      ? { ...item, availability: nextAvailability, transitDate: today(), preorderOrigin: isPreorderOrigin(item) || currentAvailability === "preorder" }
       : item);
     try {
       const result = await persistInv(nextInventory);
@@ -1149,6 +1199,30 @@ export default function App({ onLogout, userEmail }) {
       setInventoryTransitionBusy(false);
     }
   };
+
+  const openReceiveInventory = (ids) => {
+    receiveAttempt.current = null;
+    const requested = new Set(ids);
+    const items = inventory.filter((item) => requested.has(item.id) && inventoryStatusFor(item, today()) === "in_transit");
+    if (items.length) setReceiveOpen(items);
+  };
+  const receiveInventory = async (ids, quantity, date, damaged) => {
+    if (!receiveAttempt.current) receiveAttempt.current = receivingItems(inventory, ids, quantity, date, damaged, today());
+    const result = await persistInv(receiveAttempt.current);
+    if (result.ok && !result.superseded) {
+      setSelectedInv(new Set());
+      setInventoryTransitionStatus(`Received ${quantity} units${damaged ? ` · ${damaged} damaged (sale blocked)` : ""}.`);
+    }
+    return result;
+  };
+  const openInventoryWorkView = (view) => {
+    setInvFinancialFocus(null);
+    setInvWorkView(view); setInvPreorderView("all"); setInvSearch(""); setInvCat("All"); setInvSource("All"); setInvStatus("All"); setInvSort("name_asc"); setSelectedInv(new Set()); setPage("inventory");
+  };
+  const inventoryWorkQueues = INVENTORY_WORK_VIEWS.map((view) => {
+    const items = inventory.filter((item) => inventoryWorkReason(item, view.id, today()));
+    return { ...view, units: items.length, value: items.reduce((sum, item) => sum + Number(item.price || 0), 0) };
+  });
 
   const copyTextToClipboard = async (text) => {
     if (navigator.clipboard?.writeText) {
@@ -1235,7 +1309,7 @@ export default function App({ onLogout, userEmail }) {
     });
     return [...byCustomer.values()].map(({ customer, rows }) => {
       const matchedItems = rows.map(({ item, request }) => {
-        const price = Number(item.price) > 0 ? ` - ${currency(item.price)}` : "";
+        const price = Number(item.price) > 0 ? ` - ${(knownMoney(item.price) && item.costConfirmed !== false ? currency(item.price) : "Unknown")}` : "";
         return `- ${item.name || "Untitled item"} (${item.size || "OS"})${price} [${request.label}]`;
       }).join("\n");
       const firstItem = rows[0]?.item || {};
@@ -1505,8 +1579,8 @@ export default function App({ onLogout, userEmail }) {
     return `"${safe.replace(/"/g, '""')}"`;
   };
   const exportCSV = () => {
-    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Release / Expected Date","Purchase Source","Purchased By","Customer","Tags"];
-    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,saleProfit(s),s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",releaseExpectedDateFor(s),canonicalPurchaseSource(s.purchaseSource),s.purchasedBy||"",s.customer||"",s.tags||""].map(csvCell).join(","));
+    const headers = ["Name","Category","Size","Brand","Cost Price","Sale Price","Shipping","Fees","Profit","Platform","Payment Method","Sale Date","Purchase Date","Release / Expected Date","Purchase Source","Purchased By","Customer","Tags","Order ID","Inventory Unit ID","Purchase Reference","Purchase Lot ID","Purchase Line ID","Fulfilment Date","Received Date","Product ID","Receipt Title","Retailer SKU","Cost Confirmed","Fees Confirmed","Postage Confirmed"];
+    const rows = sales.map((s) => [s.name,s.category,s.size||"OS",s.brand||"",s.costPrice,s.salePrice,s.shippingPrice,s.platformFees,saleProfit(s),s.platform,recordPaymentMethod(s),s.saleDate,s.purchaseDate||"",releaseExpectedDateFor(s),canonicalPurchaseSource(s.purchaseSource),s.purchasedBy||"",s.customer||"",s.tags||"",s.orderId||"",s.inventoryUnitId||"",s.purchaseReference||"",s.purchaseLotId||"",s.purchaseLineId||"",s.fulfilmentDate||"",s.receivedDate||"",s.productId||"",s.receiptTitle||"",s.retailerSku||"",s.costConfirmed??"",s.feesConfirmed??"",s.postageConfirmed??""].map(csvCell).join(","));
     const csv = [headers.join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" }); const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = `archivedash-sales-${today()}.csv`; a.click(); URL.revokeObjectURL(url);
@@ -1539,10 +1613,10 @@ export default function App({ onLogout, userEmail }) {
           setBackupStatus("Replaced all data!");
         }
         else {
-          const sFps = new Set(sales.map((s) => `${s.name}|${s.saleDate}|${s.salePrice}|${s.profit}`));
+          const sFps = new Set(sales.map(saleBackupIdentity));
           const iIds = new Set(inventory.map((i) => i.id)); const eIds = new Set(expenses.map((e) => e.id)); const sbIds = new Set(subs.map((s) => s.id)); const noteIds = new Set(notes.map((n) => n.id));
           const ni = data.inventory.filter((i) => !iIds.has(i.id));
-          const ns = data.sales.filter((s) => { const fp = `${s.name}|${s.saleDate}|${s.salePrice}|${s.profit}`; if (sFps.has(fp)) return false; sFps.add(fp); return true; });
+          const ns = data.sales.filter((s) => { const fp = saleBackupIdentity(s); if (sFps.has(fp)) return false; sFps.add(fp); return true; });
           const ne = data.expenses.filter((e) => !eIds.has(e.id));
           const nsb = (data.subs || []).filter((s) => !sbIds.has(s.id));
           let nn = [];
@@ -1671,6 +1745,7 @@ export default function App({ onLogout, userEmail }) {
     const ri = [...inventory].sort((a, b) => (b.addedAt||0) - (a.addedAt||0)).slice(0, 7);
     const rs = [...fs].sort((a, b) => (b.saleDate||"").localeCompare(a.saleDate||"")).slice(0, 7).map(withComputedSaleProfit);
     return {
+      completeness: financialCompleteness(fs, inventory),
       salesIncome, salesCost, salesUnits, grossProfit, contributionProfit, totalExpenses, totalShipping, totalFees, netProfit,
       inventorySpend, acquiredUnits, averageAcquisitionCost, invValue, onHandUnits: onHandInventory.length, onHandProductCount, preorderValue,
       preorderUnits: preorderInventory.length, preorderProductCount, cnt, aov, sellThrough, grossMargin,
@@ -1803,7 +1878,7 @@ export default function App({ onLogout, userEmail }) {
       .filter((item) => isInventoryAvailable(item, todayKey))
       .map((item) => {
         const ageStart = inventoryAgeStart(item);
-        return { ...item, _ageStart: ageStart, _ageLabel: isPreorderOrigin(item) ? "released" : "bought", _daysHeld: daysHeld(ageStart) };
+        return { ...item, _ageStart: ageStart, _ageLabel: item.receivedDate ? "received" : isPreorderOrigin(item) ? "estimated release" : "estimated purchase", _daysHeld: daysHeld(ageStart) };
       });
     const aged90 = onHandInventory.filter((item) => item._daysHeld >= 90);
     const aged180 = onHandInventory.filter((item) => item._daysHeld >= 180);
@@ -1822,7 +1897,7 @@ export default function App({ onLogout, userEmail }) {
     const avgDays = onHandInventory.length ? Math.round(onHandInventory.reduce((a, item) => a + item._daysHeld, 0) / onHandInventory.length) : 0;
     const agedValue = aged90.reduce((a, i) => a + (Number(i.price) || 0), 0);
     return { aged90, aged180, oldest, avgDays, agedValue, onHandUnits: onHandInventory.length };
-  }, [inventory, dashCat, dashSource]);
+  }, [inventory, dashCat, dashSource, inventoryToday]);
   const velocityStats = useMemo(() => {
     const since30 = daysAgo(30);
     const since90 = daysAgo(90);
@@ -1894,6 +1969,7 @@ export default function App({ onLogout, userEmail }) {
       return [...map.values()].sort((a, b) => b.amount - a.amount);
     };
     return {
+      completeness: financialCompleteness(fs, inventory),
       cutFrom,
       cutTo,
       sales: fs,
@@ -1913,7 +1989,7 @@ export default function App({ onLogout, userEmail }) {
       expenseRows: group(fe, (e) => e.expCategory, (e) => Number(e.amount) || 0),
       expensePaymentRows: group(fe, recordPaymentMethod, (e) => Number(e.amount) || 0),
     };
-  }, [sales, expenses, range, customFrom, customTo, dashCat, dashPlat, dashSource, reportPaymentMode, reportPaymentMethods]);
+  }, [sales, inventory, expenses, range, customFrom, customTo, dashCat, dashPlat, dashSource, reportPaymentMode, reportPaymentMethods]);
 
   const sourcePerformanceRows = useMemo(() => {
     const todayKey = today();
@@ -1959,6 +2035,10 @@ export default function App({ onLogout, userEmail }) {
       ["P&L", "Contribution profit", reportStats.sales.length, reportStats.contributionProfit],
       ["P&L", "Operating expenses", reportStats.expenses.length, reportStats.operatingExpenses],
       ["P&L", "Net profit", reportStats.sales.length, reportStats.netProfit],
+      ["Financial completeness", "Unknown sale cost", reportStats.completeness.cost.length, ""],
+      ["Financial completeness", "Unconfirmed fees", reportStats.completeness.fees.length, ""],
+      ["Financial completeness", "Unconfirmed postage", reportStats.completeness.postage.length, ""],
+      ["Financial completeness", "Unknown stock cost (all stock)", reportStats.completeness.stock.length, ""],
       ...reportStats.platformRows.map((r) => ["Platform revenue", r.name, r.count, r.amount]),
       ...reportStats.paymentRows.map((r) => ["Payment method revenue", r.name, r.count, r.amount]),
       ...reportStats.categoryRows.map((r) => ["Category profit", r.name, r.count, r.amount]),
@@ -2071,12 +2151,14 @@ export default function App({ onLogout, userEmail }) {
   // ─── Filtered Inventory ───
   const filteredInv = useMemo(() => {
     let f = inventory;
+    if (invFinancialFocus) f = f.filter((item) => invFinancialFocus.ids.includes(item.id) && financialIssue(item, "cost", true));
     if (invSearch) {
       const q = invSearch.toLowerCase();
       f = f.filter((i) => [i.name, i.brand, i.tags, ...listedPlatformsFor(i)].some((v) => String(v || "").toLowerCase().includes(q)));
     }
     if (invCat !== "All") f = f.filter((i) => i.category === invCat);
     if (invSource !== "All") f = f.filter((i) => purchaseSourceFor(i) === invSource);
+    if (invWorkView) f = f.filter((item) => inventoryWorkReason(item, invWorkView, today()));
     if (invPreorderView === "available") f = f.filter((i) => isInventoryAvailable(i, today()));
     if (invPreorderView === "in_transit") f = f.filter((i) => inventoryStatusFor(i, today()) === "in_transit");
     if (invPreorderView === "preorders") f = f.filter((i) => isUnreleasedPreorder(i, today()));
@@ -2091,7 +2173,7 @@ export default function App({ onLogout, userEmail }) {
       });
     }
     return sortInventory(f, invSort, invPreorderView);
-  }, [inventory, invSearch, invCat, invSource, invPreorderView, invStatus, invSort]);
+  }, [inventory, invSearch, invCat, invSource, invPreorderView, invStatus, invSort, invWorkView, inventoryToday, invFinancialFocus]);
 
   const groupedInv = useMemo(() => groupInventory(filteredInv, invCollapse, invPreorderView), [filteredInv, invCollapse, invPreorderView]);
 
@@ -2106,7 +2188,7 @@ export default function App({ onLogout, userEmail }) {
   const keyedSales = useMemo(() => {
     const seen = new Map();
     return sales.map((sale) => {
-      const fingerprint = [
+      const fingerprint = sale.id ? "id:" + sale.id : [
         sale.id || "",
         sale.name || "",
         sale.saleDate || "",
@@ -2132,6 +2214,7 @@ export default function App({ onLogout, userEmail }) {
 
   const filteredSales = useMemo(() => {
     let f = keyedSales;
+    if (saleFinancialFocus) f = f.filter((sale) => saleFinancialFocus.ids.includes(saleBackupIdentity(sale)) && financialIssue(sale, saleFinancialFocus.issue));
     const q = saleSearch.trim().toLowerCase();
     if (q) {
       f = f.filter((s) => [s.name, s.customer].some((value) => String(value || "").toLowerCase().includes(q)));
@@ -2151,7 +2234,7 @@ export default function App({ onLogout, userEmail }) {
       case "profit_asc": sorted.sort((a, b) => a.profit - b.profit); break;
     }
     return sorted;
-  }, [keyedSales, saleSearch, saleCat, salePlat, salePayment, saleSort]);
+  }, [keyedSales, saleSearch, saleCat, salePlat, salePayment, saleSort, saleFinancialFocus]);
 
   const customerRows = useMemo(() => {
     const platformGroup = (platform = "") => {
@@ -2294,7 +2377,7 @@ export default function App({ onLogout, userEmail }) {
     return sorted;
   }, [expenses, expSearch, expCatFilter, expPayment, expFrom, expTo, expSort]);
 
-  const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id)).reduce((a, i) => a + i.price, 0), [inventory, selectedInv]);
+  const selectedValue = useMemo(() => inventory.filter((i) => selectedInv.has(i.id) && !financialIssue(i, "cost", true)).reduce((a, i) => a + Number(i.price), 0), [inventory, selectedInv]);
   const selectedBuyerNotifyCount = useMemo(() => {
     const keys = new Set();
     inventory.forEach((item) => {
@@ -2330,7 +2413,21 @@ export default function App({ onLogout, userEmail }) {
   };
 
   const selectedSalesProfit = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + saleProfit(s), 0), [keyedSales, selectedSales]);
-  const selectedSalesRevenue = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + s.salePrice, 0), [keyedSales, selectedSales]);
+  const selectedSalesCost = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey) && !financialIssue(s, "cost")).reduce((a, s) => a + Number(s.costPrice), 0), [keyedSales, selectedSales]);
+  const selectedSalesUnknownCost = keyedSales.filter((s) => selectedSales.has(s._saleKey) && financialIssue(s, "cost")).length;
+  const selectedSalesRevenue = useMemo(() => keyedSales.filter((s) => selectedSales.has(s._saleKey)).reduce((a, s) => a + (Number(s.salePrice) || 0), 0), [keyedSales, selectedSales]);
+  const openFinancialReview = (issue, records) => {
+    if (issue === "stock") {
+      setInvFinancialFocus({ ids: records.map((item) => item.id) });
+      setInvSearch(""); setInvCat("All"); setInvSource("All"); setInvStatus("All");
+      setInvWorkView(""); setInvPreorderView("all"); setInvSort("name_asc");
+      setSelectedInv(new Set()); setPage("inventory");
+    } else {
+      setSaleFinancialFocus({ issue, ids: records.map(saleBackupIdentity) });
+      setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc");
+      setSelectedSales(new Set()); setPage("sales");
+    }
+  };
   const toggleSelSale = (key) => setSelectedSales((p) => { const n = new Set(p); n.has(key)?n.delete(key):n.add(key); return n; });
   const toggleAllSales = () => setSelectedSales((previous) => toggleVisibleSelection(filteredSales, previous, "_saleKey"));
   const handleBulkEditSale = async (updates) => {
@@ -2369,7 +2466,7 @@ export default function App({ onLogout, userEmail }) {
     </div> : "Loading..."}
   </div>;
 
-  const invQueueTotal = invQueue.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+
 
   const navItems = [
     { id: "dashboard", icon: "M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z M9 22V12h6v10" },
@@ -2425,8 +2522,8 @@ export default function App({ onLogout, userEmail }) {
   const mainNavItems = visibleNavItems.filter((n) => !utilityIdSet.has(n.id));
   const utilityNavItems = visibleNavItems.filter((n) => utilityIdSet.has(n.id));
   const navSettingsItems = orderedNavItems.map((n) => ({ id: n.id, label: navLabels[n.id] || n.id }));
-  const mobilePrimaryNavIds = ["dashboard", "inventory", "sales", "customers", "reports"];
-  const mobilePrimaryNavItems = visibleNavItems.filter((n) => mobilePrimaryNavIds.includes(n.id));
+  const mobilePrimaryNavIds = ["dashboard", "inventory", "sales"];
+  const mobilePrimaryNavItems = mobilePrimaryNavIds.map((id) => visibleNavItems.find((n) => n.id === id)).filter(Boolean);
   const mobileMoreNavItems = visibleNavItems.filter((n) => !mobilePrimaryNavIds.includes(n.id));
   const activeNavId = page === "subs" ? "expenses" : ["health", "backup"].includes(page) ? "settings" : page;
   const mobileMoreActive = mobileMoreNavItems.some((n) => n.id === activeNavId);
@@ -2449,8 +2546,9 @@ export default function App({ onLogout, userEmail }) {
     );
   };
   const renderNavButton = (n, zone) => (
-    <button key={n.id} className={isMobile ? "ad-nav-button" : "ad-nav-button ad-nav-tip"} data-tip={isMobile ? undefined : navLabels[n.id] || n.id} aria-label={navLabels[n.id] || n.id} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 42 : 38, height: 38, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: navDragId === n.id ? "grabbing" : "pointer", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#8b97ad", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
+    <button key={n.id} className={isMobile ? "ad-nav-button" : "ad-nav-button ad-nav-tip"} data-tip={isMobile ? undefined : navLabels[n.id] || n.id} aria-label={navLabels[n.id] || n.id} aria-current={activeNavId === n.id ? "page" : undefined} draggable={!isMobile} onDragStart={(e) => { setNavDragId(n.id); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", n.id); }} onDragOver={(e) => { if (!isMobile) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } }} onDrop={(e) => { e.preventDefault(); const fromId = e.dataTransfer.getData("text/plain") || navDragId; moveNavItem(fromId, n.id, zone); setNavDragId(null); }} onDragEnd={() => setNavDragId(null)} onClick={() => { setPage(n.id === "expenses" ? "subs" : n.id); setMobileNavMoreOpen(false); }} title={`${navLabels[n.id] || n.id}${isMobile ? "" : " - drag to reorder"}`} style={{ width: isMobile ? 72 : 38, height: isMobile ? 46 : 38, flexDirection: isMobile ? "column" : "row", gap: 3, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: navDragId === n.id ? "grabbing" : "pointer", background: activeNavId===n.id?"#1e293b":"transparent", color: activeNavId===n.id?"#60a5fa":"#8b97ad", position: "relative", flexShrink: 0, opacity: navDragId === n.id ? 0.45 : 1 }}>
       {renderNavIcon(n)}
+      {isMobile && <span style={{ fontSize: 10, fontWeight: 600 }}>{navLabels[n.id] || n.id}</span>}
       {severityColor(navAlertSeverity(n.id)) && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: severityColor(navAlertSeverity(n.id)) }} />}
     </button>
   );
@@ -2522,6 +2620,8 @@ export default function App({ onLogout, userEmail }) {
     </>
   );
 
+  const workReasonLabel = (item) => [...new Set((item._items || [item]).map((unit) => inventoryWorkReason(unit, invWorkView, today())).filter(Boolean))].join("; ");
+  const renderWorkReason = (item) => invWorkView && <span style={{ display: "block", whiteSpace: "normal", color: "#fbbf24", fontSize: 11, marginTop: 4 }}>{workReasonLabel(item)}</span>;
   const invRow = (item, isGroupChild, index = 0) => {
     const buyerMatchCount = buyerMatchesByInventoryId.get(item.id)?.length || 0;
     const availability = inventoryStatusFor(item, today());
@@ -2534,8 +2634,8 @@ export default function App({ onLogout, userEmail }) {
           <div style={{ width: 44, height: 44, margin: "-9px 0 -9px -10px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, width: 20, height: 20 }} /></div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginBottom: 6, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
-              <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{currency(item.price)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{renderWorkReason(item)}{item.stockIssue && <span style={badge("#3b1f1f", "#fca5a5")}>{item.stockIssue} · sale blocked</span>}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 700, fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{(knownMoney(item.price) && item.costConfirmed !== false ? currency(item.price) : "Unknown")}</span>
             </div>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
@@ -2557,11 +2657,11 @@ export default function App({ onLogout, userEmail }) {
     return (
       <div key={item.id} className="archive-data-row" data-selected={selectedInv.has(item.id)} onClick={(e) => rowClick(e, toggleSel, item.id)} style={{ display: "grid", gridTemplateColumns: inventoryGridColumns, gap: 8, padding: isGroupChild ? "8px 16px 8px 46px" : "10px 16px", alignItems: "center", fontSize: 13, borderBottom: "1px solid #232c3c", background: rowBg(index, selectedInv.has(item.id)), cursor: "pointer", ...selectedAccent(selectedInv.has(item.id), isGroupChild ? childAccent : null), zIndex: rowMenuOpen === `inv:${item.id}` ? 4 : undefined }}>
         <input type="checkbox" checked={selectedInv.has(item.id)} onChange={() => toggleSel(item.id)} style={{ ...cb, justifySelf: "center" }} />
-        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{(item.brand || item.purchaseSource || item.purchasedBy) && <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[item.brand, item.purchaseSource, item.purchasedBy].filter(Boolean).join(" · ")}</div>}</div>
+        <div style={{ overflow: "hidden" }}><div style={{ color: "#e5e7eb", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv:${item.id}`, { maxWidth: "70%" })}{renderPreBadge(item)}{renderWorkReason(item)}{item.stockIssue && <span style={badge("#3b1f1f", "#fca5a5")}>{item.stockIssue} · sale blocked</span>}{sampleTag(item)}{buyerMatchCount > 0 && <span style={badge("#17331f","#86efac")}>{buyerMatchCount} buyer{buyerMatchCount === 1 ? "" : "s"}</span>}</div>{(item.brand || item.purchaseSource || item.purchasedBy) && <div style={{ fontSize: 11, color: "#7c8aa0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{[item.brand, item.purchaseSource, item.purchasedBy].filter(Boolean).join(" · ")}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center" }}>{item.size||"OS"}</span>
-        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item.price)}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{(knownMoney(item.price) && item.costConfirmed !== false ? currency(item.price) : "Unknown")}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item.purchaseDate}</span>
         <span style={{ color: isPreorderOrigin(item) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: isPreorderOrigin(item) ? 600 : 400, textAlign: "center" }}>{releaseDateLabel(item)}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>1</span>
@@ -2588,6 +2688,9 @@ export default function App({ onLogout, userEmail }) {
     const groupChecked = item._items?.length > 0 && item._items.every((i) => selectedInv.has(i.id));
     const groupSelectionCount = item._items?.filter((i) => selectedInv.has(i.id)).length || 0;
     const groupIndeterminate = groupSelectionCount > 0 && !groupChecked;
+    const damagedCount = (item._items || []).filter((unit) => unit.stockIssue).length;
+    const transitIds = (item._items || []).filter((unit) => inventoryStatusFor(unit, today()) === "in_transit").map((unit) => unit.id);
+    const receiveButton = transitIds.length > 0 && <button onClick={(event) => { event.stopPropagation(); openReceiveInventory(transitIds); }} style={{ ...ghostBtn, padding: "6px 9px", fontSize: 11, color: "#86efac" }}>Receive {transitIds.length}</button>;
     if (isMobile) {
       return (
         <div onClick={() => toggleGroup(key)} style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: rowBg(index, false), borderBottom: "1px solid #232c3c22", ...groupAccent }}>
@@ -2595,10 +2698,10 @@ export default function App({ onLogout, userEmail }) {
           <span style={{ color: "#7c8aa0", fontSize: 12, width: 12 }}>{isExpanded ? "▾" : "▸"}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-              <span style={{ color: "#e5e7eb", fontSize: 13, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}</span>
-              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}</span>
+              <span style={{ color: "#e5e7eb", fontSize: 13, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}{renderWorkReason(item)}</span>
+              <span style={{ color: "#f3f6fb", fontWeight: 600, fontSize: 13 }}>{currency(item._totalValue)}{item._unknownCost > 0 && <small style={{ display: "block", color: "#fbbf24" }}>{item._unknownCost} unknown cost</small>}{receiveButton}</span>
             </div>
-            <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units{item._items?.some(isPreorderOrigin) ? ` · releases ${groupReleaseDateLabel(item._items)}` : ""}</div>
+            <div style={{ fontSize: 11, color: "#7c8aa0", marginTop: 3 }}>{item.category} · {groupSizeLabel(item._items || [])}{item.brand?` · ${item.brand}`:""} · {item._count} units{item._items?.some(isPreorderOrigin) ? ` · releases ${groupReleaseDateLabel(item._items)}` : ""}{damagedCount > 0 && <span style={{ color: "#fca5a5" }}> · {damagedCount} condition issue · sale blocked</span>}</div>
           </div>
         </div>
       );
@@ -2609,15 +2712,15 @@ export default function App({ onLogout, userEmail }) {
           <input ref={(node) => { if (node) node.indeterminate = groupIndeterminate; }} type="checkbox" checked={groupChecked} onChange={(e) => { e.stopPropagation(); toggleGroupSelection(item._items || []); }} onClick={(e) => e.stopPropagation()} style={cb} />
           <span style={{ color: "#7c8aa0", fontSize: 11 }}>{isExpanded ? "▾" : "▸"}</span>
         </div>
-        <div style={{ minWidth: 0, overflow: "hidden" }}><span style={{ color: "#e5e7eb", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}</span>{item.brand&&<div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
+        <div style={{ minWidth: 0, overflow: "hidden" }}><span style={{ color: "#e5e7eb", whiteSpace: "nowrap" }}>{renderCopyableTitle(item.name, `inv-group:${key}`, { maxWidth: "70%" })}{renderPreBadge(item)}{renderWorkReason(item)}{damagedCount > 0 && <span style={{ display: "block", color: "#fca5a5", fontSize: 11 }}>{damagedCount} condition issue · sale blocked</span>}</span>{item.brand&&<div style={{ fontSize: 11, color: "#7c8aa0" }}>{item.brand}</div>}</div>
         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>{renderListingBadges(item)}</div>
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.category}</span>
         <span style={{ color: "#60a5fa", fontSize: 12, fontWeight: 500, textAlign: "center", whiteSpace: "nowrap" }}>{groupSizeLabel(item._items || [])}</span>
-        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}</span>
+        <span style={{ color: "#f3f6fb", fontWeight: 500, textAlign: "right" }}>{currency(item._totalValue)}{item._unknownCost > 0 && <small style={{ display: "block", color: "#fbbf24" }}>{item._unknownCost} unknown cost</small>}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{groupDateLabel(item._items || [])}</span>
         <span style={{ color: item._items?.some(isPreorderOrigin) ? "#93c5fd" : "#4b5563", fontSize: 11, fontWeight: item._items?.some(isPreorderOrigin) ? 600 : 400, textAlign: "center" }}>{groupReleaseDateLabel(item._items || [])}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{item._count}</span>
-        <span aria-hidden="true" />
+        <span>{receiveButton}</span>
       </div>
     );
   };
@@ -2657,7 +2760,7 @@ export default function App({ onLogout, userEmail }) {
         <span style={{ color: "#9ca3af", fontSize: 12, textAlign: "center" }}><PlatformBadge platform={s.platform} style={{ margin: "0 auto" }} /></span>
         <span style={{ color: "#60a5fa", fontSize: 12, textAlign: "center" }}>{s.size||"OS"}</span>
         <span style={{ color: "#7c8aa0", fontSize: 11, textAlign: "center" }}>{s.saleDate}</span>
-        <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "right" }}>{currency(s.costPrice)}</span>
+        <span style={{ color: "#7c8aa0", fontSize: 12, textAlign: "right" }}>{(knownMoney(s.costPrice) && s.costConfirmed !== false ? currency(s.costPrice) : "Unknown")}</span>
         <span style={{ color: "#f3f6fb", fontWeight: 500, fontSize: 12, textAlign: "right" }}>{currency(s.salePrice)}</span>
         <span style={{ color: s.profit>=0?"#34d399":"#f87171", fontWeight: 600, fontSize: 12, textAlign: "right" }}>{currency(s.profit)}</span>
         <div className="archive-row-actions">
@@ -2832,9 +2935,10 @@ export default function App({ onLogout, userEmail }) {
               onClick={() => setMobileNavMoreOpen((v) => !v)}
               title="More"
               aria-label={mobileMoreAlertColor ? "More (alerts need attention)" : "More"}
-              style={{ width: 42, height: 38, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: mobileMoreActive || mobileNavMoreOpen ? "#1e293b" : "transparent", color: mobileMoreActive || mobileNavMoreOpen ? "#60a5fa" : "#8b97ad", position: "relative", flexShrink: 0 }}
+              style={{ width: 72, height: 46, flexDirection: "column", gap: 3, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", background: mobileMoreActive || mobileNavMoreOpen ? "#1e293b" : "transparent", color: mobileMoreActive || mobileNavMoreOpen ? "#60a5fa" : "#8b97ad", position: "relative", flexShrink: 0 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12h.01 M19 12h.01 M5 12h.01" /></svg>
+              <span style={{ fontSize: 10, fontWeight: 600 }}>More</span>
               {mobileMoreAlertColor && !mobileNavMoreOpen && <span style={{ position: "absolute", top: 4, right: 4, width: 7, height: 7, borderRadius: "50%", background: mobileMoreAlertColor }} />}
             </button>
             {mobileNavMoreOpen && (
@@ -2895,12 +2999,12 @@ export default function App({ onLogout, userEmail }) {
         )}
 
         {/* DASHBOARD */}
-        {page === "dashboard" && <DashboardHomePage ctx={{ pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, profitTarget }} />}
+        {page === "dashboard" && <DashboardHomePage ctx={{ openFinancialReview, inventoryWorkQueues, openInventoryWorkView, pagePad, isMobile, stats, velocityStats, dashboardCustomizeOpen, setDashboardCustomizeOpen, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, CATS, PLATS, dashboardCards, dashboardCardLabels, setDashboardCard, settings, persistSettings, upcomingPreorderGroups, upcomingPreorderCommitted, setPage, setInvPreorderView, setInvStatus, setInvSort, agingStats, subStats, fxRates, logAllOverdue, periodComparison, periodTrend, profitTarget }} />}
         {/* INVENTORY */}
-        {page === "inventory" && <InventoryPage ctx={{ pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, purchaseSources, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSource, setInvSource, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, inventoryTransitionStatus, inventoryTransitionBusy, moveInventoryAvailability, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
+        {page === "inventory" && <InventoryPage ctx={{ invFinancialFocus, setInvFinancialFocus, invWorkView, setInvWorkView, inventoryWorkQueues, openInventoryWorkView, openReceiveInventory, pagePad, inventory, selectedInv, setBulkSellOpen, setBulkEditOpen, setConfirmDel, CATS, listingPlatforms, purchaseSources, openAddInventory, gmailQueueOpen, gmailQueuePanel, invSearch, setInvSearch, invCat, setInvCat, invSource, setInvSource, invPreorderView, setInvPreorderView, invStatus, setInvStatus, invSort, setInvSort, invCollapse, setInvCollapse, filteredInv, selectedValue, preorderInvCount, availableInvCount, listedInvCount, facebookListedInvCount, ebayExportStatus, handleEbayPartnerExport, buyerNotifyStatus, handleBuyerNotifyExport, selectedBuyerNotifyCount, inventoryTransitionStatus, inventoryTransitionBusy, moveInventoryAvailability, isMobile, toggleAll, mobileSelectAll, groupedInv, invRow, expandedGroups, groupRow }} />}
 
         {/* SALES */}
-        {page === "sales" && <SalesPage ctx={{ pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
+        {page === "sales" && <SalesPage ctx={{ saleFinancialFocus, setSaleFinancialFocus, openFinancialReview, pagePad, sales, stats, saleProfit, selectedSales, setAddSaleOpen, setBulkEditSaleOpen, setConfirmDel, ebayQueueOpen, ebayQueuePanel, saleSearch, setSaleSearch, saleCat, setSaleCat, CATS, salePlat, setSalePlat, PLATS, salePayment, setSalePayment, PAYMETHODS, saleSort, setSaleSort, filteredSales, selectedSalesRevenue, selectedSalesProfit, selectedSalesCost, selectedSalesUnknownCost, isMobile, toggleAllSales, mobileSelectAll, saleRow }} />}
 
         {/* PRICING */}
         {page === "pricing" && <PricingPage ctx={{ pagePad, inventory, isMobile, connectEbay }} />}
@@ -2909,7 +3013,7 @@ export default function App({ onLogout, userEmail }) {
         {page === "customers" && <CustomersPage ctx={{ pagePad, isMobile, customerRows, customerSearch, setCustomerSearch, customerPlatform, setCustomerPlatform, customerSort, setCustomerSort, activeCustomerKey, setActiveCustomerKey, updateCustomerProfile, addCustomer, removeCustomer, setAddSaleOpen, settings, persistSettings }} />}
 
         {/* REPORTS */}
-        {page === "reports" && <ReportsPage ctx={{ pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, sourcePerformanceRows, velocityStats, agingStats, exportReportCSV }} />}
+        {page === "reports" && <ReportsPage ctx={{ openFinancialReview, pagePad, isMobile, range, setRange, customFrom, setCustomFrom, customTo, setCustomTo, dashCat, setDashCat, dashPlat, setDashPlat, dashSource, setDashSource, purchaseSources, reportPaymentMode, setReportPaymentMode, reportPaymentMethods, setReportPaymentMethods, toggleReportPaymentMethod, CATS, PLATS, PAYMETHODS, reportStats, sourcePerformanceRows, velocityStats, agingStats, exportReportCSV }} />}
 
         {/* ══ EXPENSES ══ */}
         {page === "expenses" && (<div style={{ padding: pagePad }}>
@@ -3036,10 +3140,12 @@ export default function App({ onLogout, userEmail }) {
         <fieldset disabled={invSaving || invSavePending} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
         <ResponsiveGrid columns="minmax(0, 1.65fr) minmax(280px, 1fr)" gap={24}>
           <div style={{ minWidth: 0 }}>
-        {addInvOpen && <PurchasePastePanel defaults={invForm} categories={CATS} onQueue={queuePastedInventory} onDirtyChange={setInvPasteDirty} disabled={invSaving || invSavePending} />}
+        {addInvOpen && <PurchasePastePanel defaults={invForm} categories={CATS} records={[...inventory, ...sales]} onQueue={queuePastedInventory} onDirtyChange={setInvPasteDirty} disabled={invSaving || invSavePending} />}
         <Field label="Product name" req><input value={invForm.name} onChange={(e) => updateInvForm({ name: e.target.value })} style={inp} placeholder="e.g. Nike Dunk Low Panda" /></Field>
         <Row cols={3}><Field label="Category" req><select value={invForm.category} onChange={(e) => updateInvForm({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field><Field label="Size"><select value={invForm.size} onChange={(e) => updateInvForm({ size: e.target.value })} style={sel}>{getSizes(invForm.category).map((s) => <option key={s}>{s}</option>)}</select></Field><Field label="Landed cost / unit (AU$)" req><input type="number" step="0.01" value={invForm.price} onChange={(e) => updateInvForm({ price: e.target.value })} style={inp} placeholder="0.00" /></Field></Row>
+        <Field label="Retailer SKU (optional)"><input value={invForm.retailerSku || ""} onChange={(e) => updateInvForm({ retailerSku: e.target.value })} style={inp} /></Field>
         <Row><Field label="Brand"><input value={invForm.brand} onChange={(e) => updateInvForm({ brand: e.target.value })} style={inp} placeholder="e.g. Nike" /></Field><Field label="Purchase date"><input type="date" value={invForm.purchaseDate} onChange={(e) => updateInvForm({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
+        {invForm.availability === "available" && <Field label="In hand since (confirmed, optional)"><input type="date" max={today()} value={invForm.receivedDate || ""} onChange={(e) => updateInvForm({ receivedDate: e.target.value })} style={inp} /></Field>}
         <Row cols={3}><Field label="Quantity"><input type="number" min="1" value={invForm.quantity} onChange={(e) => updateInvForm({ quantity: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={invForm.availability} onChange={(e) => updateInvForm({ availability: e.target.value })} style={sel}><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field><Field label="Release / Expected Date"><input type="date" value={invForm.releaseExpectedDate} onChange={(e) => updateInvForm({ releaseExpectedDate: e.target.value })} style={inp} /></Field></Row>
         <Row><PurchaseSourceField purchaseSources={purchaseSources} value={invForm.purchaseSource} onChange={(purchaseSource) => updateInvForm({ purchaseSource })} /><Field label="Purchased by"><input value={invForm.purchasedBy} onChange={(e) => updateInvForm({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
         <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{listingPlatforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listedPlatformsFor(invForm).includes(p)} onChange={(e) => { const next = new Set(listedPlatformsFor(invForm)); e.target.checked ? next.add(p) : next.delete(p); updateInvForm({ listedPlatforms: [...next] }); }} style={cb} /> {platformShortName(p)}</label>)}</div></Field>
@@ -3051,9 +3157,9 @@ export default function App({ onLogout, userEmail }) {
         </ResponsiveGrid>
         </fieldset>
         <ModalActions mobileStack={false} style={{ flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ flex: "1 1 140px", fontSize: 12, color: "#8b97ad" }}>{invQueue.length ? `${invQueue.length} queued units · ${currency(invQueueTotal)}` : "Retailer stays selected between entries"}</span>
+          <span style={{ flex: "1 1 140px", fontSize: 12, color: "#8b97ad" }}>{invQueue.length ? `${invQueue.length} queued units · ${currency(invQueue.reduce((sum, item) => sum + Number(item.price || 0), 0))}` : "Retailer stays selected between entries"}</span>
           <button disabled={invSaving} onClick={guardedCloseAdd} style={ghostBtn}>Cancel</button>
-          <button disabled={invSaving || invSavePending} onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd" }}>Queue {parseInt(invForm.quantity, 10) > 1 ? `${invForm.quantity} units` : "item"}</button>
+          <button disabled={invSaving || invSavePending} onClick={queueInventoryDraft} style={{ ...ghostBtn, color: "#93c5fd" }}>Add another item / Bulk add</button>
           <button disabled={invSaving} onClick={addInventory} style={primaryBtn}>{invSaving ? "Saving…" : invSavePending ? "Retry saving batch" : invQueue.length ? `Save ${invQueue.length} queued units` : `Add ${parseInt(invForm.quantity, 10) > 1 ? `${invForm.quantity} items` : "item"}`}</button>
         </ModalActions>
       </Modal>
@@ -3069,16 +3175,17 @@ export default function App({ onLogout, userEmail }) {
       </Modal>
 
       {sellOpen && <SellModal item={sellOpen} onSell={(sf) => handleSell(sellOpen, sf)} onClose={() => setSellOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
-      {addSaleOpen && <ManualSaleModal inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
-      <Modal open={Boolean(saleRecovery)} title={saleRecovery?.busy ? "Saving sale" : "Finish saving sale"} dismissible={!hasPendingSale() && !saleRecovery?.busy} onClose={() => setSaleRecovery(null)}>
+      {addSaleOpen && <ManualSaleModal pendingSave={hasPendingSale()} inventory={inventory} onSell={handleManualSell} onClose={() => setAddSaleOpen(false)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      <Modal open={Boolean(saleRecovery) && !addSaleOpen} title={saleRecovery?.busy ? "Saving sale" : "Finish saving sale"} dismissible={!hasPendingSale() && !saleRecovery?.busy} onClose={() => setSaleRecovery(null)}>
         <p style={{ color: "#cbd5e1", fontSize: 13, lineHeight: 1.6 }}>Recording this sale also removes the sold items from inventory. Keep this tab open until both finish. If the connection fails, Retry sale continues the original sale.</p>
         {saleRecovery?.error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{saleRecovery.error}</p>}
         <ModalActions><button onClick={exportJSON} style={ghostBtn}>Export current data</button>{hasPendingSale() && <button disabled={saleRecovery?.busy} onClick={() => commitInventorySale()} style={primaryBtn}>{saleRecovery?.busy ? "Saving…" : "Retry sale"}</button>}</ModalActions>
       </Modal>
       {ebayReviewOpen && <EbaySaleReviewModal draft={ebayReviewOpen.draft} items={ebayReviewOpen.items} onRecord={recordEbaySale} onClose={() => setEbayReviewOpen(null)} paymentMethods={PAYMETHODS} />}
       {gmailReviewOpen && <GmailInventoryReviewModal purchaseSources={purchaseSources} draft={gmailReviewOpen} categories={CATS} onAdd={recordGmailInventory} onClose={() => setGmailReviewOpen(null)} />}
+      {receiveOpen && <ReceiveInventoryModal items={receiveOpen} onReceive={receiveInventory} onClose={() => { setReceiveOpen(null); receiveAttempt.current = null; }} />}
       {editInvOpen && <EditInvModal purchaseSources={purchaseSources} item={editInvOpen} onSave={async (ef) => { const result = await persistInv(inventory.map((i) => i.id===editInvOpen.id?{...i,...ef}:i)); if (result.ok) setEditInvOpen(null); return result; }} onClose={() => setEditInvOpen(null)} categories={CATS} customers={CUSTS} platforms={listingPlatforms} />}
-      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { await persistSales(keyedSales.map((s) => stripSaleKey(s._saleKey===editSaleOpen._saleKey ? u : s))); if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
+      {editSaleOpen && <EditSaleModal sale={editSaleOpen} onSave={async (u) => { const result = await persistSales(keyedSales.map((s) => stripSaleKey(s._saleKey===editSaleOpen._saleKey ? u : s))); if (result?.ok === false) return result; if (u.customer) addCustomer(u.customer); setEditSaleOpen(null); }} onClose={() => setEditSaleOpen(null)} platforms={PLATS} customers={CUSTS} paymentMethods={PAYMETHODS} />}
       {editExpOpen && <EditExpModal expense={editExpOpen} onSave={async (u) => { const result = await persistExp(expenses.map((e) => e.id===editExpOpen.id?u:e)); if (result.ok) setEditExpOpen(null); return result; }} onClose={() => setEditExpOpen(null)} paymentMethods={PAYMETHODS} />}
       {bulkEditOpen && <BulkEditModal purchaseSources={purchaseSources} items={inventory.filter((i) => selectedInv.has(i.id))} onSave={handleBulkEdit} onClose={() => setBulkEditOpen(false)} categories={CATS} platforms={listingPlatforms} />}
       {subModalOpen && <SubModal sub={subModalOpen === "new" ? null : subModalOpen} onSave={saveSub} onClose={() => setSubModalOpen(null)} />}

@@ -24,6 +24,8 @@ export default function InventoryQueueSummary({ items, onRemove, onClear, isMobi
             <span style={{ color: "#93c5fd", fontSize: 12, whiteSpace: "nowrap" }}>× {ids.length}</span>
           </div>
           <div style={{ color: "#7c8aa0", fontSize: 11, marginTop: 3 }}>{[item.purchaseSource, item.size || "OS", item.category].filter(Boolean).join(" · ")}</div>
+          {item.receiptTitle && item.receiptTitle !== item.name && <div style={{ color: "#9aa6bb", fontSize: 11, marginTop: 4 }}>Receipt: {item.receiptTitle}</div>}
+          {item.retailerSku && <div style={{ color: "#9aa6bb", fontSize: 11 }}>SKU: {item.retailerSku}</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 11 }}>
             <span style={{ color: "#8b97ad", flex: 1 }}>{currency(item.price)} / unit</span>
             <strong style={{ color: "#e5e7eb", fontVariantNumeric: "tabular-nums" }}>{currency(rowTotal)}</strong>

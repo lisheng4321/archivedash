@@ -9,7 +9,7 @@ test("release never turns unreceived stock into available stock", () => {
   const date = "2026-09-25";
   assert.equal(inventoryStatusFor({ availability: "preorder", releaseExpectedDate: "2026-09-26" }, date), "preorder");
   for (const releaseExpectedDate of ["2026-09-24", date, ""]) {
-    assert.equal(inventoryStatusFor({ availability: "preorder", releaseExpectedDate }, date), "in_transit");
+    assert.equal(inventoryStatusFor({ availability: "preorder", releaseExpectedDate }, date), "preorder");
   }
   assert.equal(inventoryStatusFor({ availability: "in_transit", releaseExpectedDate: "2099-01-01" }, date), "in_transit");
   assert.equal(inventoryStatusFor({ availability: "available", releaseExpectedDate: "2099-01-01" }, date), "available");
@@ -63,7 +63,7 @@ test("queued orders retain each buyer's items and costs with separate order IDs"
 test("a queue rejects duplicate or missing stock before any sale is committed", () => {
   const order = queuedOrder([queueStock[0]], "Alice", 30);
   assert.throws(() => prepareManualSaleOrders([order, order], queueStock, () => "id", "2026-10-05"), /same inventory unit/);
-  assert.throws(() => prepareManualSaleOrders([order], queueStock.slice(1), () => "id", "2026-10-05"), /no longer in inventory/);
+  assert.throws(() => prepareManualSaleOrders([order], queueStock.slice(1), () => "id", "2026-10-05"), /no longer available/);
 });
 
 test("invalid queued money and future dates reject the entire batch", () => {

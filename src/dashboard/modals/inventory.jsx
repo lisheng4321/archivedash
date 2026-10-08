@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { draftChanged, recordError, validAmount } from "../formValidation.js";
 import { getDefaultSize, getSizes, currency, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid } from "../shared.jsx";
+import { calendarAge } from "../receiving.js";
+import { knownMoney } from "../financialCompleteness.js";
 import { PURCHASE_SOURCES, canonicalPurchaseSource, explicitAvailabilityFor, releaseExpectedDateFor } from "../inventory.js";
 
 function PurchaseSourceField({ purchaseSources = PURCHASE_SOURCES, value, onChange, blankLabel = "Unknown / not set" }) {
@@ -29,7 +31,7 @@ function PurchaseSourceField({ purchaseSources = PURCHASE_SOURCES, value, onChan
 }
 
 function EditInvModal({ purchaseSources = PURCHASE_SOURCES, item, onSave, onClose, categories, customers, platforms = [] }) {
-  const [ef, setEf] = useState({ name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price, ebayListedPrice: item.ebayListedPrice || "", brand: item.brand || "", purchaseDate: item.purchaseDate, releaseExpectedDate: releaseExpectedDateFor(item), purchaseSource: canonicalPurchaseSource(item.purchaseSource), purchasedBy: item.purchasedBy || "", availability: explicitAvailabilityFor(item), listedPlatforms: Array.isArray(item.listedPlatforms) ? item.listedPlatforms : [], tags: item.tags || "", customer: item.customer || "" });
+  const [ef, setEf] = useState({ receivedDate: item.receivedDate || "", transitDate: item.transitDate || "", stockIssue: item.stockIssue || "", name: item.name, category: item.category, size: item.size || getDefaultSize(item.category), price: item.price ?? "", costConfirmed: knownMoney(item.price) && item.costConfirmed !== false, ebayListedPrice: item.ebayListedPrice || "", brand: item.brand || "", purchaseDate: item.purchaseDate, releaseExpectedDate: releaseExpectedDateFor(item), purchaseSource: canonicalPurchaseSource(item.purchaseSource), purchasedBy: item.purchasedBy || "", availability: explicitAvailabilityFor(item), listedPlatforms: Array.isArray(item.listedPlatforms) ? item.listedPlatforms : [], tags: item.tags || "", customer: item.customer || "" });
   const [showU, setShowU] = useState(false);
   const initial = useRef(ef);
   const [error, setError] = useState("");
@@ -44,22 +46,27 @@ function EditInvModal({ purchaseSources = PURCHASE_SOURCES, item, onSave, onClos
   const gc = () => { if (saving) return; if (draftChanged(ef, initial.current, ["price", "ebayListedPrice"])) setShowU(true); else onClose(); };
   const submit = async () => {
     const issue = recordError(ef.name, ef.price) || (!getSizes(ef.category).includes(ef.size) ? "Choose a size for this category." : "") || (ef.ebayListedPrice !== "" && !validAmount(ef.ebayListedPrice) ? "Listed price must be zero or more." : "");
-    setError(issue); if (issue || saving) return;
+    const dateIssue = [ef.receivedDate, ef.transitDate].some((date) => date && (calendarAge(date, today()) === null || calendarAge(date, today()) < 0)) ? "Confirmed dates must be valid and not in the future." : "";
+    setError(issue || dateIssue); if (issue || dateIssue || saving) return;
     setSaving(true);
     try {
-      const result = await onSave({ ...ef, name: ef.name.trim(), purchaseSource: canonicalPurchaseSource(ef.purchaseSource), preorderDate: ef.releaseExpectedDate, preorderOrigin: Boolean(item.preorderOrigin || item.preorderDate || ef.availability === "preorder"), price: Number(ef.price), ebayListedPrice: ef.ebayListedPrice !== "" ? Number(ef.ebayListedPrice) : undefined });
+      const dates = ef.availability !== explicitAvailabilityFor(item) ? ef.availability === "available" ? { receivedDate: ef.receivedDate || today() } : ef.availability === "in_transit" ? { transitDate: ef.transitDate || today() } : {} : {};
+      const result = await onSave({ ...ef, ...dates, name: ef.name.trim(), purchaseSource: canonicalPurchaseSource(ef.purchaseSource), preorderDate: ef.releaseExpectedDate, preorderOrigin: Boolean(item.preorderOrigin || item.preorderDate || ef.availability === "preorder"), price: Number(ef.price), ebayListedPrice: ef.ebayListedPrice !== "" ? Number(ef.ebayListedPrice) : undefined });
       if (result?.ok === false) setError(result.error || "Could not save. Your changes are still here; try Save again.");
     } finally { setSaving(false); }
   };
   return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit item" dismissible={!saving}>
     {error && <p role="alert" style={{ color: "#fca5a5", fontSize: 13 }}>{error}</p>}
     <Field label="Product name" req><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field>
+    {item.receiptTitle && <p style={{ color: "#9aa6bb", fontSize: 12 }}>Receipt title: {item.receiptTitle}{item.retailerSku ? ` · SKU ${item.retailerSku}` : ""}</p>}
     <Row cols={3}><Field label="Category"><select value={ef.category} onChange={(e) => up({ category: e.target.value, size: getDefaultSize(e.target.value) })} style={sel}>{categories.map((c) => <option key={c}>{c}</option>)}</select></Field>
     <Field label="Size"><select value={ef.size} onChange={(e) => up({ size: e.target.value })} style={sel}>{getSizes(ef.category).map((s) => <option key={s}>{s}</option>)}</select></Field>
-    <Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.price} onChange={(e) => up({ price: e.target.value })} style={inp} /></Field></Row>
+    <Field label="Cost (AU$)"><input type="number" min="0" step="0.01" value={ef.price} onChange={(e) => up({ price: e.target.value, costConfirmed: knownMoney(e.target.value) })} style={inp} placeholder="Unknown" /></Field></Row>
+    <label style={{ color: "#9aa6bb", fontSize: 12 }}><input type="checkbox" checked={ef.costConfirmed} disabled={!knownMoney(ef.price)} onChange={(event) => up({ costConfirmed: event.target.checked })} /> Cost confirmed (0 means a free item)</label>
     <Row><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field><Field label="Purchase date"><input type="date" value={ef.purchaseDate} onChange={(e) => up({ purchaseDate: e.target.value })} style={inp} /></Field></Row>
     <Row><Field label="Release / Expected Date"><input type="date" value={ef.releaseExpectedDate} onChange={(e) => up({ releaseExpectedDate: e.target.value })} style={inp} /></Field><Field label="Availability"><select value={ef.availability} onChange={(e) => up({ availability: e.target.value })} style={sel}><option value="">Unknown (historical)</option><option value="preorder">Preorder</option><option value="in_transit">In transit / awaiting dispatch</option><option value="available">Available</option></select></Field></Row>
     <Row><PurchaseSourceField purchaseSources={purchaseSources} value={ef.purchaseSource} onChange={(purchaseSource) => up({ purchaseSource })} /><Field label="Purchased by"><input value={ef.purchasedBy} onChange={(e) => up({ purchasedBy: e.target.value })} style={inp} placeholder="Optional person / account" /></Field></Row>
+    <Row><Field label="Condition"><select value={ef.stockIssue || ""} onChange={(e) => up({ stockIssue: e.target.value })} style={sel}><option value="">Ready / no condition issue</option><option value="damaged">Damaged — blocked from sale</option></select></Field>{ef.availability === "available" && <Field label="Confirmed receipt date"><input type="date" max={today()} value={ef.receivedDate || ""} onChange={(e) => up({ receivedDate: e.target.value })} style={inp} /></Field>}{ef.availability === "in_transit" && <Field label="Confirmed transit date"><input type="date" max={today()} value={ef.transitDate || ""} onChange={(e) => up({ transitDate: e.target.value })} style={inp} /></Field>}</Row>
     <Field label="Tags"><input value={ef.tags} onChange={(e) => up({ tags: e.target.value })} style={inp} /></Field>
     <Field label="Listed on"><div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{platforms.map((p) => <label key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#9ca3af", cursor: "pointer" }}><input type="checkbox" checked={listed.includes(p)} onChange={(e) => toggleListedPlatform(p, e.target.checked)} style={cb} /> {p}</label>)}</div></Field>
     {listed.some((p) => String(p).toLowerCase().includes("ebay")) && <Field label="eBay listed price (AU$)"><input type="number" step="0.01" value={ef.ebayListedPrice || ""} onChange={(e) => up({ ebayListedPrice: e.target.value })} style={inp} placeholder="Current eBay listing price" /></Field>}

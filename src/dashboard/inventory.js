@@ -52,7 +52,7 @@ const explicitAvailabilityFor = (record = {}) => ["preorder", "in_transit", "ava
 const isPreorderOrigin = (record = {}) => Boolean(record.preorderOrigin || record.preorderDate || explicitAvailabilityFor(record) === "preorder");
 const inventoryStatusFor = (record = {}, todayKey = today()) => {
   const status = explicitAvailabilityFor(record);
-  if (status === "available" || status === "in_transit") return status;
+  if (status) return status;
   const releaseDate = releaseExpectedDateFor(record);
   if (releaseDate && releaseDate > todayKey) return "preorder";
   if (status === "preorder" || releaseDate) return "in_transit";
@@ -60,6 +60,7 @@ const inventoryStatusFor = (record = {}, todayKey = today()) => {
 };
 const isInventoryAvailable = (record = {}, todayKey) => inventoryStatusFor(record, todayKey) === "available";
 const isInventorySellable = (record = {}) => {
+  if (record.stockIssue) return false;
   const availability = explicitAvailabilityFor(record);
   if (availability === "available") return true;
   if (availability === "preorder" || availability === "in_transit") return false;
@@ -67,11 +68,13 @@ const isInventorySellable = (record = {}) => {
 };
 const inventorySaleError = (inventory, items) => {
   if (!items.length || items.some((item) => !inventory.some((current) => current.id === item.id))) return "Some selected stock is no longer available. Refresh your selection.";
+  if (items.some((item) => inventory.find((current) => current.id === item.id)?.stockIssue)) return "Resolve the condition issue on this stock before selling it.";
   if (items.some((item) => !isInventorySellable(inventory.find((current) => current.id === item.id)))) return "Preorder or in-transit stock cannot be sold. Mark it Available after it arrives, then try again.";
   return "";
 };
 const isUnreleasedPreorder = (record = {}, todayKey) => inventoryStatusFor(record, todayKey) === "preorder";
 const inventoryAgeStart = (record = {}) => {
+  if (record.receivedDate) return record.receivedDate;
   const releaseDate = releaseExpectedDateFor(record);
   return isPreorderOrigin(record) && releaseDate ? releaseDate : (record.purchaseDate || "");
 };
@@ -103,10 +106,7 @@ const orderKeyForSale = (sale = {}) => {
   const explicitOrderId = explicitOrderIdForSale(sale);
   if (explicitOrderId) return `${platform}:order:${explicitOrderId.toLowerCase()}`;
 
-  const customer = customerKey(sale.customer);
-  if (customer === "unknown") return `sale:${sale.id || `${platform}:${sale.name || ""}:${sale.saleDate || ""}`}`;
-
-  return `${platform}:manual:${customer}:${sale.saleDate || "undated"}`;
+  return `sale:${sale.id || sale._saleKey || JSON.stringify([platform, sale.name || "", sale.saleDate || "", sale.inventoryUnitId || "", sale.costPrice, sale.salePrice])}`;
 };
 
 const sortedListedPlatformsFor = (item = {}) => {

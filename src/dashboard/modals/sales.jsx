@@ -1,4 +1,5 @@
 import ManualSaleModal from "./ManualSaleModal.jsx";
+import { financialIssue, knownMoney } from "../financialCompleteness.js";
 import { useState } from "react";
 import { DEF_CATEGORIES, EBAY_AU_FEE_RATE, EBAY_AU_FIXED_ORDER_FEE, currency, computeProfit, estimateEbayFee, today, inp, sel, primaryBtn, ghostBtn, cb, Modal, UnsavedDialog, Field, Row, ModalActions, ResponsiveGrid, useIsMobile } from "../shared.jsx";
 
@@ -44,18 +45,34 @@ const hasValidSalePrice = (value) => {
 };
 
 function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMethods = [] }) {
-  const [ef, setEf] = useState({ name: sale.name, category: sale.category, costPrice: sale.costPrice, salePrice: sale.salePrice, shippingPrice: sale.shippingPrice, platformFees: sale.platformFees, platform: sale.platform, paymentMethod: sale.paymentMethod || "Other", saleDate: sale.saleDate, tags: sale.tags || "", brand: sale.brand || "", customer: sale.customer || "" });
+  const [ef, setEf] = useState({ name: sale.name, category: sale.category, costPrice: sale.costPrice ?? "", salePrice: sale.salePrice, shippingPrice: sale.shippingPrice ?? "", platformFees: sale.platformFees ?? "", costConfirmed: !financialIssue(sale, "cost"), feesConfirmed: !financialIssue(sale, "fees"), postageConfirmed: !financialIssue(sale, "postage"), platform: sale.platform, paymentMethod: sale.paymentMethod || "Other", saleDate: sale.saleDate, tags: sale.tags || "", brand: sale.brand || "", customer: sale.customer || "" });
   const [showU, setShowU] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const up = (u) => { setEf({ ...ef, ...u }); };
   const gc = () => { setShowU(true); };
   const sp = parseFloat(ef.salePrice)||0, ship = parseFloat(ef.shippingPrice)||0, fees = parseFloat(ef.platformFees)||0, cost = parseFloat(ef.costPrice)||0;
   const preview = computeProfit({ salePrice: sp, cost, shipping: ship, fees });
   const salePriceValid = hasValidSalePrice(ef.salePrice);
-  return (<><Modal open={true} onClose={onClose} guardedClose={gc} title="Edit sale">
+  const submit = async () => {
+    if (saving || !salePriceValid || !ef.name.trim() || !ef.saleDate || ef.saleDate > today() || [ef.costPrice, ef.shippingPrice, ef.platformFees].some((value) => value !== "" && !knownMoney(value))) { setError("Check the name, date and non-negative amounts."); return; }
+    setSaving(true); setError("");
+    try {
+      const result = await onSave({ ...sale, ...ef, name: ef.name.trim(), costPrice: ef.costPrice === "" ? null : cost, salePrice: sp, shippingPrice: ef.shippingPrice === "" ? null : ship, platformFees: ef.platformFees === "" ? null : fees, profit: preview });
+      if (result?.ok === false) setError(result.error || "Could not save. Your changes are still here.");
+    } catch (err) { setError(err.message || "Could not save."); }
+    finally { setSaving(false); }
+  };
+  return (<><Modal open={true} onClose={onClose} guardedClose={saving ? () => {} : gc} title="Edit sale" dismissible={!saving}>
+    {error && <p role="alert" style={{ color: "#fca5a5" }}>{error}</p>}
+    <fieldset disabled={saving} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
     <div style={{ background: "#0d1117", padding: 12, borderRadius: 8, marginBottom: 14 }}><div style={{ fontSize: 14, fontWeight: 600, color: "#e5e7eb" }}>{ef.name}</div><div style={{ fontSize: 12, color: "#8b97ad" }}>{ef.category} · {sale.size || "OS"}{sale.brand ? ` · ${sale.brand}` : ""}</div></div>
-    <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value })} style={inp} /></Field></Row>
+    <Row><Field label="Item name"><input value={ef.name} onChange={(e) => up({ name: e.target.value })} style={inp} /></Field><Field label="Cost (AU$)"><input type="number" min="0" step="0.01" value={ef.costPrice} onChange={(e) => up({ costPrice: e.target.value, costConfirmed: knownMoney(e.target.value) })} style={inp} placeholder="Unknown" /></Field></Row>
     <Row><Field label="Sale price (AU$)" req><input type="number" min="0" step="0.01" value={ef.salePrice} onChange={(e) => up({ salePrice: e.target.value })} style={inp} /></Field><Field label="Sale date (buyer paid)"><input type="date" value={ef.saleDate} onChange={(e) => up({ saleDate: e.target.value })} style={inp} /></Field></Row>
-    <Row cols={3}><Field label="Shipping"><input type="number" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value })} style={inp} /></Field><Field label="Fees"><input type="number" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value })} style={inp} /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
+    <Row cols={3}><Field label="Shipping"><input type="number" min="0" step="0.01" value={ef.shippingPrice} onChange={(e) => up({ shippingPrice: e.target.value, postageConfirmed: knownMoney(e.target.value) })} style={inp} placeholder="Unknown" /></Field><Field label="Fees"><input type="number" min="0" step="0.01" value={ef.platformFees} onChange={(e) => up({ platformFees: e.target.value, feesConfirmed: knownMoney(e.target.value) })} style={inp} placeholder="Unknown" /></Field><Field label="Platform"><select value={ef.platform} onChange={(e) => up({ platform: e.target.value })} style={sel}>{platforms.map((p) => <option key={p}>{p}</option>)}</select></Field></Row>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, marginBottom: 12 }}>{[["costConfirmed", "Cost confirmed", "costPrice"], ["feesConfirmed", "Fees confirmed", "platformFees"], ["postageConfirmed", "Postage confirmed", "shippingPrice"]].map(([flag, label, amount]) => <label key={flag}><input type="checkbox" checked={ef[flag]} disabled={!knownMoney(ef[amount])} onChange={(event) => up({ [flag]: event.target.checked })} /> {label}</label>)}</div>
+    <p style={{ color: "#9aa6bb", fontSize: 12 }}>Enter 0 for no charge. Leave unknown amounts blank; unconfirmed estimates stay in the review queue.</p>
+    {sale.receiptTitle && <p style={{ color: "#7c8aa0", fontSize: 12 }}>Receipt title: {sale.receiptTitle}{sale.retailerSku ? ` · SKU ${sale.retailerSku}` : ""}</p>}
     <Row><Field label="Payment method"><select value={ef.paymentMethod} onChange={(e) => up({ paymentMethod: e.target.value })} style={sel}>{methodOptions(paymentMethods, ef.paymentMethod).map((p) => <option key={p}>{p}</option>)}</select></Field><Field label="Brand"><input value={ef.brand} onChange={(e) => up({ brand: e.target.value })} style={inp} /></Field></Row>
     <Field label="Customer"><input list="cust-list2" value={ef.customer} onChange={(e) => up({ customer: e.target.value })} style={inp} /><datalist id="cust-list2">{customers.map((c) => <option key={c} value={c} />)}</datalist></Field>
     <ResponsiveGrid columns="repeat(4, minmax(0, 1fr))" mobileColumns="repeat(2, minmax(0, 1fr))" gap={8} style={{ background: "#0d1117", borderRadius: 12, padding: 14, marginTop: 4, fontSize: 12 }}>
@@ -64,7 +81,8 @@ function EditSaleModal({ sale, onSave, onClose, platforms, customers, paymentMet
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Revenue</div><div style={{ color: "#f3f6fb", fontWeight: 600 }}>{currency(sp)}</div></div>
       <div><div style={{ color: "#8b97ad", marginBottom: 2 }}>Profit</div><div style={{ color: preview>=0?"#34d399":"#f87171", fontWeight: 700, fontSize: 15 }}>{currency(preview)}</div></div>
     </ResponsiveGrid>
-    <ModalActions><button onClick={gc} style={ghostBtn}>Cancel</button><button onClick={() => { if (!salePriceValid) return; onSave({ ...sale, ...ef, costPrice: cost, salePrice: sp, shippingPrice: ship, platformFees: fees, profit: preview }); }} style={{ ...primaryBtn, opacity: salePriceValid ? 1 : 0.5 }}>Save</button></ModalActions>
+    </fieldset>
+    <ModalActions><button onClick={gc} disabled={saving} style={ghostBtn}>Cancel</button><button onClick={submit} disabled={saving || !salePriceValid} style={primaryBtn}>{saving ? "Saving…" : "Save"}</button></ModalActions>
   </Modal><UnsavedDialog open={showU} onDiscard={onClose} onCancel={() => setShowU(false)} /></>);
 }
 

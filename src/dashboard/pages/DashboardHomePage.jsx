@@ -1,4 +1,6 @@
 import PeriodComparisonChart from "../components/PeriodComparisonChart.jsx";
+import FinancialCompleteness from "../components/FinancialCompleteness.jsx";
+import MobileDisclosure from "../components/MobileDisclosure.jsx";
 import { RESELLER_DASHBOARD_CARDS } from "../settings.js";
 import { TIME_RANGES, cardSurface, cb, currency, ghostBtn, inp, KPI, preorderBadge, sel, smallCaps, subAmountAud } from "../shared.jsx";
 
@@ -74,6 +76,9 @@ export default function DashboardHomePage({ ctx }) {
     periodComparison,
     periodTrend,
     profitTarget,
+    inventoryWorkQueues = [],
+    openInventoryWorkView,
+    openFinancialReview,
   } = ctx;
 
   const rangeButtonStyle = (r) => ({
@@ -89,6 +94,7 @@ export default function DashboardHomePage({ ctx }) {
 
   return (
     <div style={{ padding: pagePad }}>
+      <div aria-label="Stock work queues" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>{inventoryWorkQueues.map((view) => <button key={view.id} onClick={() => openInventoryWorkView(view.id)} style={{ ...ghostBtn, fontSize: 12, padding: "7px 10px" }}>{view.label} · <strong>{view.units}</strong> · {currency(view.value)}</button>)}</div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "center", marginBottom: 16, flexWrap: "wrap", gap: isMobile ? 12 : 8 }}>
         <div style={{ minWidth: 0, width: isMobile ? "100%" : undefined }}>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Dashboard</h2>
@@ -114,6 +120,9 @@ export default function DashboardHomePage({ ctx }) {
         </div>
       </div>
 
+      <MobileDisclosure isMobile={isMobile} label={`Financial completeness · ${stats.completeness.incomplete.length} sales need review`}>
+        <FinancialCompleteness summary={stats.completeness} onOpen={openFinancialReview} scope="Sales in the selected period and filters" />
+      </MobileDisclosure>
       {dashboardCustomizeOpen && (
         <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 14, marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -145,7 +154,7 @@ export default function DashboardHomePage({ ctx }) {
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 12 }}>
           {[
             { label: "Preorder exposure", value: stats.preorderUnits, detail: `${currency(stats.preorderValue)} committed`, tone: stats.preorderUnits ? "#60a5fa" : "#7c8aa0", onClick: () => { setPage("inventory"); setInvPreorderView("preorders"); setInvStatus("All"); setInvSort("preorder_asc"); } },
-            { label: "Aged stock (90d+)", value: agingStats.aged90.length, detail: `${currency(agingStats.agedValue)} tied up`, tone: agingStats.aged90.length ? "#f59e0b" : "#7c8aa0", onClick: () => setPage("inventory") },
+            { label: "Aged stock (90d+)", value: agingStats.aged90.length, detail: `${currency(agingStats.agedValue)} tied up`, tone: agingStats.aged90.length ? "#f59e0b" : "#7c8aa0", onClick: () => openInventoryWorkView("aged_available") },
           ].map((a) => (
             <button key={a.label} onClick={a.onClick} style={{ textAlign: "left", background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: "11px 13px", cursor: "pointer", fontFamily: "inherit" }}>
               <div style={{ fontSize: 11, color: "#7c8aa0", marginBottom: 4 }}>{a.label}</div>

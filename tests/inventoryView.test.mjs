@@ -5,18 +5,18 @@ import { isInventoryAvailable, isUnreleasedPreorder } from "../src/dashboard/inv
 import { calendarDaysUntil } from "../src/dashboard/shared/dates.js";
 
 const item = (id, fields = {}) => ({ id, name: id, category: "Sneakers", size: "US 9", price: 20, availability: "preorder", ...fields });
-const transit = item("Z transit", { size: "US 12", price: "12.50" });
+const transit = item("Z transit", { availability: "in_transit", size: "US 12", price: "12.50" });
 const early = item("A early", { releaseExpectedDate: "2099-01-10" });
 const late = item("B late", { preorderDate: "2099-02-20" });
 const sorts = ["name_asc", "name_desc", "price_asc", "price_desc", "date_asc", "date_desc", "preorder_asc", "preorder_desc"];
 
-test("undated legacy preorders belong to transit, not the preorder queue", () => {
+test("explicit preorders remain preorder even without an estimate", () => {
   for (const fields of [{}, { preorderDate: "", releaseExpectedDate: "" }, { preorderDate: null, releaseExpectedDate: null }]) {
-    const record = item("transit", fields);
-    assert.equal(isInventoryInTransit(record), true);
-    assert.equal(isUnreleasedPreorder(record, "2026-09-15"), false);
+    const record = item("waiting", fields);
+    assert.equal(isInventoryInTransit(record), false);
+    assert.equal(isUnreleasedPreorder(record, "2026-09-15"), true);
     assert.equal(isInventoryAvailable(record, "2026-09-15"), false);
-    assert.equal(inventoryPreorderBadge(record).text, "In transit");
+    assert.equal(inventoryPreorderBadge(record).text, "Preorder");
   }
 });
 
@@ -27,13 +27,13 @@ test("available items and historical preorders without dates are not in transit"
   }
 });
 
-test("both date fields retain countdown badges and released status", () => {
+test("both date fields retain countdowns without implying dispatch", () => {
   for (const record of [early, late]) {
     const date = record.releaseExpectedDate || record.preorderDate;
     assert.equal(isInventoryInTransit(record), false);
     assert.equal(inventoryPreorderBadge(record).text, `${calendarDaysUntil(date)}d`);
   }
-  assert.equal(inventoryPreorderBadge(item("old", { preorderDate: "2000-01-01" })).text, "In transit");
+  assert.equal(inventoryPreorderBadge(item("old", { preorderDate: "2000-01-01" })).text, "Expected date passed");
 });
 
 for (const sort of sorts) {

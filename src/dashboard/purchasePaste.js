@@ -11,6 +11,7 @@ const aliases = {
   purchaseDate: ["purchase date", "date"],
   releaseExpectedDate: ["release date", "expected date", "release / expected date"],
   availability: ["availability", "status"], tags: ["tags"],
+  retailerSku: ["sku", "retailer sku", "product sku", "retailer product id"],
 };
 const normalizeHeader = (value) => value.toLowerCase().replace(/\*\*/g, "").replace(/\s*\((?:au\$|aud|\$)\)/g, "").trim();
 

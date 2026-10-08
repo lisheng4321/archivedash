@@ -1,4 +1,5 @@
 import { toCents, fromCents } from "./shared/money.js";
+import { inventorySaleError, isInventorySellable } from "./inventory.js";
 
 // Allocate whole-order amounts in cents so the saved unit rows sum exactly.
 export function allocateOrderAmount(value, count) {
@@ -26,7 +27,7 @@ export function manualSaleRows(selected, prices, buyerShipping = 0, shipping = 0
 export function saleProductGroups(inventory) {
   const groups = new Map();
   for (const item of inventory) {
-    const key = JSON.stringify([item.name, item.size || "OS", item.category, item.brand || "", Number(item.price) || 0, item.availability || "", item.releaseExpectedDate || item.preorderDate || ""]);
+    const key = JSON.stringify([item.name, item.size || "OS", item.category, item.brand || "", Number(item.price) || 0, item.availability || "", item.releaseExpectedDate || item.preorderDate || "", item.purchaseLotId || "", item.purchaseLineId || "", item.purchaseSource || "", item.purchaseDate || "", item.purchasedBy || "", item.stockIssue || "", isInventorySellable(item)]);
     if (!groups.has(key)) groups.set(key, { key, item, items: [] });
     groups.get(key).items.push(item);
   }
@@ -43,6 +44,9 @@ export function prepareManualSaleOrders(orders, inventory, createId, latestDate)
   for (const order of orders) {
     const { items, shared, rows } = order;
     if (!items.length || !shared.saleDate || shared.saleDate > latestDate) throw new Error("Check the items and date for each sale.");
+    const eligibilityError = inventorySaleError(inventory, items);
+    if (eligibilityError) throw new Error(eligibilityError);
+    if (shared.fulfilmentDate && shared.fulfilmentDate > latestDate) throw new Error("Fulfilment date cannot be in the future.");
     const orderId = createId();
     for (const selected of items) {
       const item = stock.get(selected.id);

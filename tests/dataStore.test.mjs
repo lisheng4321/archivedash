@@ -11,6 +11,7 @@ function fixture() {
   let writeError = null;
   let gate = null;
   let user = 'alice';
+  let loseResponse = false;
   const storage = new Map();
   globalThis.sessionStorage = {
     getItem: (key) => storage.get(key) ?? null,
@@ -40,6 +41,7 @@ function fixture() {
           if (mode === 'update' && (!row || row.updated_at !== filters.updated_at)) return { data: null };
           const next = { ...row, ...payload };
           rows.set(id, next);
+          if (loseResponse) { loseResponse = false; return { error: { message: 'Response lost after commit' } }; }
           return { data: { updated_at: next.updated_at } };
         },
       };
@@ -52,10 +54,23 @@ function fixture() {
     failReads: (value) => { readError = value; },
     failWrites: (value) => { writeError = value; },
     setUser: (value) => { user = value; },
+    loseNextResponse: () => { loseResponse = true; },
     holdWrites: () => { let release; gate = new Promise((resolve) => { release = resolve; }); return release; },
   };
 }
 const notes = [{ id: 'n1', content: 'Recovered notes', title: 'Keep me' }];
+
+test('intake and receipt saves recognize a lost committed response without duplicate units', async () => {
+  const f = fixture(); f.seed('arch-inv2', [{ id: 'transit', availability: 'in_transit', price: 23 }]);
+  await f.store.load('arch-inv2', []);
+  const next = [{ id: 'transit', availability: 'available', receivedDate: '2026-10-07', price: 23 }, { id: 'purchase', price: 46, purchaseReference: 'receipt' }];
+  f.loseNextResponse();
+  assert.equal((await f.store.save('arch-inv2', next)).ok, true);
+  assert.equal(f.writes.length, 1); assert(!f.store.hasPendingSaves());
+  assert.deepEqual(f.rows.get('alice:arch-inv2').value, next);
+  assert.equal((await f.store.save('arch-inv2', [...next, { id: 'next-purchase', price: 24 }])).ok, true);
+  assert.equal(f.rows.get('alice:arch-inv2').value.length, 3);
+});
 
 test('failed startup read rejects, cannot save empty fallback, and preserves notes', async () => {
   const f = fixture(); f.seed('arch-notes', notes);

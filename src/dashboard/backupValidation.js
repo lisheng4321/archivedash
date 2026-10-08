@@ -21,3 +21,10 @@ export async function requireSaved(promise) {
   if (!result?.ok || result.superseded) throw new Error(result?.error || 'Save was superseded by a newer edit.');
   return result;
 }
+
+// A backup may contain identical-priced units and separate orders from the same
+// buyer. Their stable IDs, rather than financial totals, define duplication.
+export function saleBackupIdentity(sale) {
+  if (sale.id) return JSON.stringify(['id', sale.id]);
+  return JSON.stringify([sale.orderId || sale.order_id || '', sale.inventoryUnitId || '', sale.name || '', sale.saleDate || '', sale.salePrice, sale.profit]);
+}

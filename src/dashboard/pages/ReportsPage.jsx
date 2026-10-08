@@ -1,4 +1,5 @@
 import { currency, ghostBtn, inp, KPI, primaryBtn, sel, TIME_RANGES } from "../shared.jsx";
+import FinancialCompleteness from "../components/FinancialCompleteness.jsx";
 
 export default function ReportsPage({ ctx }) {
   const {
@@ -30,6 +31,7 @@ export default function ReportsPage({ ctx }) {
     velocityStats,
     agingStats,
     exportReportCSV,
+    openFinancialReview,
   } = ctx;
 
   const rb = (r) => ({
@@ -140,6 +142,7 @@ export default function ReportsPage({ ctx }) {
 
       <p style={{ color: "#9aa6bb", fontSize: 12, lineHeight: 1.5 }}>Category, platform and purchase source filter sales only; operating expenses remain business-wide. Date and payment filters apply to both. Stock figures use current inventory; units sold uses the last 30 days.</p>
 
+      <FinancialCompleteness summary={reportStats.completeness} onOpen={openFinancialReview} scope={`${reportStats.cutFrom} to ${reportStats.cutTo} · current report filters`} />
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(6, 1fr)", gap: 10, marginBottom: 14 }}>
         <KPI label="Revenue" value={currency(reportStats.revenue)} />
         <KPI label="Gross profit" value={currency(reportStats.grossProfit)} accent={reportStats.grossProfit >= 0 ? "#34d399" : "#f87171"} />

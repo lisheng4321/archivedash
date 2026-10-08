@@ -1,6 +1,11 @@
 import PlatformBadge from "../components/PlatformBadge.jsx";
 import { useState } from "react";
 import { orderKeyForSale } from "../inventory.js";
+import FinancialCompleteness from "../components/FinancialCompleteness.jsx";
+import MobileDisclosure from "../components/MobileDisclosure.jsx";
+import { financialCompleteness } from "../financialCompleteness.js";
+import { scopeTotals } from "../scopeTotals.js";
+import { daysAgo, today } from "../shared/dates.js";
 import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
 
 const tableHead = (align = "left") => ({ textAlign: align, minWidth: 0 });
@@ -37,19 +42,22 @@ export default function SalesPage({ ctx }) {
     mobileSelectAll,
     saleRow
   } = ctx;
+  const { saleFinancialFocus, setSaleFinancialFocus, openFinancialReview } = ctx;
 
   const [expandedOrders, setExpandedOrders] = useState(new Set());
-  const since30 = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  })();
-  const recentSales = sales.filter((sale) => String(sale.saleDate || "") >= since30);
+  const since30 = daysAgo(29);
+  const recentSales = sales.filter((sale) => String(sale.saleDate || "") >= since30 && String(sale.saleDate || "") <= today());
   const recentRevenue = recentSales.reduce((a, s) => a + (Number(s.salePrice) || 0), 0);
   const recentProfit = recentSales.reduce((a, s) => a + saleProfit(s), 0);
   const latestSaleDate = [...sales].map((sale) => sale.saleDate).filter(Boolean).sort().pop();
-  const clearFilters = () => { setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
+  const clearFilters = () => { setSaleFinancialFocus(null); setSaleSearch(""); setSaleCat("All"); setSalePlat("All"); setSalePayment("All"); setSaleSort("date_desc"); };
   const visibleSales = filteredSales;
+  const visible = scopeTotals(visibleSales, "costPrice");
+  const hiddenSelectedCount = selectedSales.size - visibleSales.filter((sale) => selectedSales.has(sale._saleKey || sale.id)).length;
+  const completeness = financialCompleteness(visibleSales);
+  const visibleRevenue = visibleSales.reduce((sum, sale) => sum + (Number(sale.salePrice) || 0), 0);
+  const visibleProfit = visibleSales.reduce((sum, sale) => sum + saleProfit(sale), 0);
+  const issueLabel = { cost: "Unknown sale cost", fees: "Unconfirmed fees", postage: "Unconfirmed postage" };
   const orderGroups = new Map();
   visibleSales.forEach((sale) => {
     const key = orderKeyForSale(sale);
@@ -63,7 +71,7 @@ export default function SalesPage({ ctx }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#f3f6fb" }}>Sales</h2>
-          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>30d {recentSales.length} sales - {currency(recentRevenue)} revenue - {currency(recentProfit)} profit{latestSaleDate ? ` - latest ${latestSaleDate}` : ""}</p>
+          <p style={{ margin: "3px 0 0", fontSize: 12, color: "#8b97ad" }}>All time: {sales.length} sale records{latestSaleDate ? ` · latest ${latestSaleDate}` : ""}</p>
         </div>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {selectedSales.size > 0 && <>
@@ -73,12 +81,18 @@ export default function SalesPage({ ctx }) {
           <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add Sale</button>
         </div>
       </div>
+      <MobileDisclosure isMobile={isMobile} label={`30-day totals · ${completeness.incomplete.length} sales need financial review`}>
+        <p style={{ color: "#8b97ad", fontSize: 12 }}>Last 30 days ({since30} to {today()}, all sales): {recentSales.length} records · {currency(recentRevenue)} revenue · {currency(recentProfit)} recorded profit</p>
+        <FinancialCompleteness summary={completeness} scope="Visible sale records · all dates" onOpen={openFinancialReview} showStock={false} />
+      </MobileDisclosure>
+      {saleFinancialFocus && <div role="status" style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>{issueLabel[saleFinancialFocus.issue]} · opened from financial review. Corrected records leave this view. <button onClick={() => setSaleFinancialFocus(null)} style={{ ...ghostBtn, fontSize: 11, padding: "4px 8px" }}>Clear review filter</button></div>}
 
       {selectedSales.size > 0 && (
         <div style={{ background: "#121a2b", borderRadius: 12, border: "1px solid #232c3c", padding: "10px 16px", marginBottom: 12, display: "flex", gap: 24, alignItems: "center", fontSize: 12, flexWrap: "wrap" }}>
-          <span style={{ color: "#7c8aa0" }}>{selectedSales.size} selected</span>
+          <span style={{ color: "#7c8aa0" }}>Selected across all filters: {selectedSales.size} records{hiddenSelectedCount ? ` · ${hiddenSelectedCount} outside this filter` : ""}</span>
+          <span style={{ color: "#9aa6bb" }}>Known cost: {currency(ctx.selectedSalesCost)}{ctx.selectedSalesUnknownCost ? " · " + ctx.selectedSalesUnknownCost + " unknown cost" : ""}</span>
           <span style={{ color: "#f3f6fb" }}>Revenue: <strong>{currency(selectedSalesRevenue)}</strong></span>
-          <span style={{ color: selectedSalesProfit >= 0 ? "#34d399" : "#f87171" }}>Profit: <strong>{currency(selectedSalesProfit)}</strong></span>
+          <span style={{ color: selectedSalesProfit >= 0 ? "#34d399" : "#f87171" }}>Recorded profit: <strong>{currency(selectedSalesProfit)}</strong></span>
         </div>
       )}
 
@@ -86,7 +100,7 @@ export default function SalesPage({ ctx }) {
 
       <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
         <input aria-label="Search sales by item title or buyer name" placeholder="Search item title or buyer name..." value={saleSearch} onChange={(e) => setSaleSearch(e.target.value)} style={{ ...inp, maxWidth: isMobile ? "none" : 260, flex: isMobile ? "1 1 100%" : undefined }} />
-        <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
+<MobileDisclosure isMobile={isMobile} label="Filters and sorting"><div style={{ display: "flex", gap: 8, flexWrap: "wrap", width: isMobile ? "100%" : undefined }}>        <select value={saleCat} onChange={(e) => setSaleCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 140, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={salePlat} onChange={(e) => setSalePlat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 160, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>
         <select value={salePayment} onChange={(e) => setSalePayment(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 135px" : undefined }}><option value="All">All Payments</option>{PAYMETHODS.map((p) => <option key={p}>{p}</option>)}</select>
         {isMobile && <select aria-label="Sort sales" value={saleSort} onChange={(e) => setSaleSort(e.target.value)} style={{ ...sel, maxWidth: "none", flex: "1 1 135px" }}>
@@ -99,9 +113,11 @@ export default function SalesPage({ ctx }) {
           <option value="sale_desc">Sale down</option>
           <option value="sale_asc">Sale up</option>
         </select>}
-        {(saleSearch || saleCat !== "All" || salePlat !== "All" || salePayment !== "All" || saleSort !== "date_desc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
+</div></MobileDisclosure>
+        {(saleFinancialFocus || saleSearch || saleCat !== "All" || salePlat !== "All" || salePayment !== "All" || saleSort !== "date_desc") && <button onClick={clearFilters} style={{ ...ghostBtn, padding: "5px 10px", fontSize: 11 }}>Clear</button>}
         <span style={{ marginLeft: "auto", fontSize: 12, color: "#8b97ad" }}>{visibleSales.length} shown</span>
       </div>
+      <div aria-label="Visible sales totals" style={{ fontSize: 12, color: "#9aa6bb", marginBottom: 10 }}>Visible (all dates, current filters): {visible.units} units · {currency(visible.cost)} known cost{visible.unknown ? ` · ${visible.unknown} unknown cost` : ""} · {currency(visibleRevenue)} revenue · {currency(visibleProfit)} recorded profit. Select all selects only visible records.</div>
 
       {sales.length === 0 ? (
         <EmptyState
@@ -125,7 +141,8 @@ export default function SalesPage({ ctx }) {
           if (items.length === 1) return saleRow(items[0], index);
           const expanded = expandedOrders.has(key);
           const total = items.reduce((sum, sale) => sum + Number(sale.salePrice || 0), 0);
-          const cost = items.reduce((sum, sale) => sum + Number(sale.costPrice || 0), 0);
+          const groupCosts = scopeTotals(items, "costPrice");
+          const cost = groupCosts.cost;
           const profit = items.reduce((sum, sale) => sum + saleProfit(sale), 0);
           const names = [...new Set(items.map((sale) => sale.name))].join(", ");
           return <div key={key}>
@@ -140,7 +157,7 @@ export default function SalesPage({ ctx }) {
                 <span style={{ justifySelf: "center" }}><PlatformBadge platform={items[0].platform} compact /></span>
                 <span style={{ color: "#7c8aa0", textAlign: "center" }}>—</span>
                 <span style={{ color: "#8b97ad", textAlign: "center", fontSize: 11 }}>{items[0].saleDate}</span>
-                <span style={{ color: "#8b97ad", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(cost)}</span>
+                <span style={{ color: "#8b97ad", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(cost)}{groupCosts.unknown > 0 && <small style={{ display: "block" }}>{groupCosts.unknown} unknown</small>}</span>
                 <strong style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(total)}</strong>
                 <strong style={{ color: profit >= 0 ? "#34d399" : "#f87171", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{currency(profit)}</strong>
                 <span style={{ textAlign: "center", color: "#8b97ad", fontSize: 11 }}>{expanded ? "Hide items" : "View items"}</span>
@@ -151,6 +168,12 @@ export default function SalesPage({ ctx }) {
         })}
       </div>
       )}
+      {isMobile && <div aria-label="Sales quick actions" style={{ position: "fixed", bottom: 58, left: 0, right: 0, zIndex: 96, background: "#121a2b", borderTop: "1px solid #334155", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ flex: 1, fontSize: 11, color: "#9aa6bb" }}>{selectedSales.size ? `${selectedSales.size} selected${hiddenSelectedCount ? ` · ${hiddenSelectedCount} hidden` : ""}` : `${visibleSales.length} visible`}</span>
+        {selectedSales.size > 0 && <button onClick={() => setBulkEditSaleOpen(true)} style={{ ...ghostBtn, fontSize: 12, padding: "8px 10px" }}>Edit selected</button>}
+        <button onClick={() => setAddSaleOpen(true)} style={{ ...primaryBtn, fontSize: 12, padding: "8px 10px" }}>+ Add Sale</button>
+      </div>}
+      {isMobile && <div style={{ height: 70 }} />}
     </div>
   );
 }

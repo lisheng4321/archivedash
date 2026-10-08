@@ -1,5 +1,6 @@
 import { compareInventorySize, inventoryStatusFor, isPreorderOrigin, releaseExpectedDateFor } from "./inventory.js";
 import { calendarDaysUntil, preorderBadge } from "./shared/dates.js";
+import { financialIssue } from "./financialCompleteness.js";
 
 const isInventoryInTransit = (item = {}) => (
   inventoryStatusFor(item) === "in_transit"
@@ -11,7 +12,10 @@ const inventoryPreorderBadge = (item = {}) => {
   const items = Array.isArray(item._items) ? item._items : [item];
   if (items.some(isInventoryInTransit)) return { bg: "#1e3a5f", fg: "#93c5fd", text: "In transit" };
   if (inventoryStatusFor(item) !== "preorder") return null;
-  return preorderBadge(calendarDaysUntil(releaseExpectedDateFor(item)));
+  const days = calendarDaysUntil(releaseExpectedDateFor(item));
+  if (days === null) return { bg: "#232c3c", fg: "#9ca3af", text: "Preorder" };
+  if (days < 0) return { bg: "#3b1f2b", fg: "#f472b6", text: "Expected date passed" };
+  return preorderBadge(days);
 };
 
 const sortInventory = (items, sort, view) => {
@@ -55,7 +59,8 @@ const groupInventory = (items, collapse, view) => {
       _group: true,
       _items: sortedItems,
       _count: sortedItems.length,
-      _totalValue: sortedItems.reduce((sum, item) => sum + (Number(item.price) || 0), 0),
+      _totalValue: sortedItems.reduce((sum, item) => sum + (financialIssue(item, "cost", true) ? 0 : Number(item.price)), 0),
+      _unknownCost: sortedItems.filter((item) => financialIssue(item, "cost", true)).length,
     };
   });
 };

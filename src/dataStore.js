@@ -52,6 +52,11 @@ export function createDataStore(client) {
       }
     }
     const token = `${id}:${key}`;
+    if (saleDraft?.mode === 'atomic' && saleKeys.includes(key)) {
+      revisions.set(token, data ? data.updated_at : null);
+      pending.set(token, saleDraft[key].value);
+      return data ? data.value : fallback;
+    }
     if (saleDraft && saleKeys.includes(key)) {
       const entry = saleDraft[key];
       const committed = data && equivalent(data.value, entry.value);
@@ -107,6 +112,17 @@ export function createDataStore(client) {
             : client.from('app_data').update({ value: snapshot, updated_at: updatedAt })
               .eq('user_id', id).eq('key', key).eq('updated_at', revision);
         const { data, error } = await query.select('updated_at').maybeSingle();
+        if ((error || !data) && key === 'arch-inv2') {
+          // A committed write can lose its response. Recognize only the exact
+          // snapshot; never adopt a conflicting revision or overwrite its data.
+          const check = await client.from('app_data').select('value,updated_at').eq('user_id', id).eq('key', key).maybeSingle();
+          if (owner === id && !check.error && check.data && equivalent(check.data.value, snapshot)) {
+            revisions.set(token, check.data.updated_at);
+            const superseded = pending.get(token) !== snapshot;
+            if (!superseded) pending.delete(token);
+            return { ok: true, superseded };
+          }
+        }
         if (error?.code === '23505' || (!error && !data)) {
           throw new Error('This data changed in another tab or device. Export your current data before reloading to reconcile the changes.');
         }
@@ -137,6 +153,10 @@ export function createDataStore(client) {
         if (saleKeys.some((key) => pending.has(`${owner}:${key}`))) throw new Error('Save your existing inventory and sales changes before recording a sale.');
         saleOwner = owner;
         saleDraft = Object.fromEntries(saleKeys.map((key) => [key, { value: structuredClone(values[key]), revision: revisions.get(`${owner}:${key}`), done: false }]));
+        if (typeof client.rpc === 'function') {
+          saleDraft.mode = 'atomic';
+          saleDraft.operationId = crypto.randomUUID();
+        }
         try { storeSaleDraft(); } catch {
           saleDraft = null;
           throw new Error('Could not keep a recovery copy of this sale. Free browser storage and try again. No sale was saved.');
@@ -146,6 +166,34 @@ export function createDataStore(client) {
     const operation = saleDraft;
     const operationOwner = saleOwner;
     saleFlight = (async () => {
+      if (operation.mode === 'atomic') {
+        if (owner !== operationOwner || await userId() !== operationOwner) throw new Error('Account changed. Sign back in to finish saving this sale.');
+        const { data, error } = await client.rpc('commit_inventory_sale', {
+          p_operation_id: operation.operationId,
+          p_inventory: operation['arch-inv2'].value,
+          p_sales: operation['arch-sales2'].value,
+          p_inventory_revision: operation['arch-inv2'].revision,
+          p_sales_revision: operation['arch-sales2'].revision,
+        });
+        if (owner !== operationOwner) throw new Error('Account changed. Sign back in to finish saving this sale.');
+        if (error?.code === 'P0001' || /^22/.test(error?.code || '')) {
+          // An explicit transaction rejection committed nothing. Keep the UI
+          // order and refresh its stock rather than trapping a stale journal.
+          saleDraft = null;
+          saleKeys.forEach((key) => pending.delete(`${operationOwner}:${key}`));
+          try { storeSaleDraft(); } catch { /* retain UI error */ }
+          const [inventory, sales] = await Promise.all([load('arch-inv2', []), load('arch-sales2', [])]);
+          return { ok: false, conflict: true, error: error.message, inventory, sales };
+        }
+        if (error) throw new Error(error.code === 'PGRST202' ? 'The sale update needs its database migration before it can save. Your order is kept for retry.' : error.message);
+        if (!data?.ok || !Array.isArray(data.inventory) || !Array.isArray(data.sales)) throw new Error('The sale response could not be confirmed. Retry this order.');
+        revisions.set(`${operationOwner}:arch-inv2`, data.inventoryRevision);
+        revisions.set(`${operationOwner}:arch-sales2`, data.salesRevision);
+        saleKeys.forEach((key) => pending.delete(`${operationOwner}:${key}`));
+        saleDraft = null;
+        try { storeSaleDraft(); } catch { /* operation receipt makes reload/retry safe */ }
+        return { ok: true, inventory: data.inventory, sales: data.sales };
+      }
       // A stable, account-scoped journal keeps the two existing datasets together
       // through retries and refreshes. Revision conflicts still stop the operation.
       for (const key of saleKeys) {
