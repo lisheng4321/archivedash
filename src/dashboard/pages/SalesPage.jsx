@@ -1,9 +1,7 @@
 import PlatformBadge from "../components/PlatformBadge.jsx";
 import { useState } from "react";
 import { orderKeyForSale } from "../inventory.js";
-import FinancialCompleteness from "../components/FinancialCompleteness.jsx";
 import MobileDisclosure from "../components/MobileDisclosure.jsx";
-import { financialCompleteness } from "../financialCompleteness.js";
 import { scopeTotals } from "../scopeTotals.js";
 import { daysAgo, today } from "../shared/dates.js";
 import { cb, currency, EmptyState, ghostBtn, inp, primaryBtn, sel } from "../shared.jsx";
@@ -42,7 +40,7 @@ export default function SalesPage({ ctx }) {
     mobileSelectAll,
     saleRow
   } = ctx;
-  const { saleFinancialFocus, setSaleFinancialFocus, openFinancialReview } = ctx;
+  const { saleFinancialFocus, setSaleFinancialFocus } = ctx;
 
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const since30 = daysAgo(29);
@@ -54,7 +52,6 @@ export default function SalesPage({ ctx }) {
   const visibleSales = filteredSales;
   const visible = scopeTotals(visibleSales, "costPrice");
   const hiddenSelectedCount = selectedSales.size - visibleSales.filter((sale) => selectedSales.has(sale._saleKey || sale.id)).length;
-  const completeness = financialCompleteness(visibleSales);
   const visibleRevenue = visibleSales.reduce((sum, sale) => sum + (Number(sale.salePrice) || 0), 0);
   const visibleProfit = visibleSales.reduce((sum, sale) => sum + saleProfit(sale), 0);
   const issueLabel = { cost: "Unknown sale cost", fees: "Unconfirmed fees", postage: "Unconfirmed postage" };
@@ -81,9 +78,8 @@ export default function SalesPage({ ctx }) {
           <button onClick={() => setAddSaleOpen(true)} style={primaryBtn}>+ Add Sale</button>
         </div>
       </div>
-      <MobileDisclosure isMobile={isMobile} label={`30-day totals · ${completeness.incomplete.length} sales need financial review`}>
+      <MobileDisclosure isMobile={isMobile} label="30-day totals">
         <p style={{ color: "#8b97ad", fontSize: 12 }}>Last 30 days ({since30} to {today()}, all sales): {recentSales.length} records · {currency(recentRevenue)} revenue · {currency(recentProfit)} recorded profit</p>
-        <FinancialCompleteness summary={completeness} scope="Visible sale records · all dates" onOpen={openFinancialReview} showStock={false} />
       </MobileDisclosure>
       {saleFinancialFocus && <div role="status" style={{ fontSize: 12, color: "#fbbf24", marginBottom: 10 }}>{issueLabel[saleFinancialFocus.issue]} · opened from financial review. Corrected records leave this view. <button onClick={() => setSaleFinancialFocus(null)} style={{ ...ghostBtn, fontSize: 11, padding: "4px 8px" }}>Clear review filter</button></div>}
 

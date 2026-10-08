@@ -1,5 +1,4 @@
 import PeriodComparisonChart from "../components/PeriodComparisonChart.jsx";
-import FinancialCompleteness from "../components/FinancialCompleteness.jsx";
 import MobileDisclosure from "../components/MobileDisclosure.jsx";
 import { RESELLER_DASHBOARD_CARDS } from "../settings.js";
 import { TIME_RANGES, cardSurface, cb, currency, ghostBtn, inp, KPI, preorderBadge, sel, smallCaps, subAmountAud } from "../shared.jsx";
@@ -78,7 +77,6 @@ export default function DashboardHomePage({ ctx }) {
     profitTarget,
     inventoryWorkQueues = [],
     openInventoryWorkView,
-    openFinancialReview,
   } = ctx;
 
   const rangeButtonStyle = (r) => ({
@@ -120,9 +118,6 @@ export default function DashboardHomePage({ ctx }) {
         </div>
       </div>
 
-      <MobileDisclosure isMobile={isMobile} label={`Financial completeness · ${stats.completeness.incomplete.length} sales need review`}>
-        <FinancialCompleteness summary={stats.completeness} onOpen={openFinancialReview} scope="Sales in the selected period and filters" />
-      </MobileDisclosure>
       {dashboardCustomizeOpen && (
         <div style={{ background: "#121a2b", border: "1px solid #232c3c", borderRadius: 12, padding: 14, marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
