@@ -1,5 +1,5 @@
 import { toCents, fromCents } from "./shared/money.js";
-import { inventorySaleError, isInventorySellable } from "./inventory.js";
+import { inventorySaleError, inventoryStatusFor, isInventorySellable } from "./inventory.js";
 
 // Allocate whole-order amounts in cents so the saved unit rows sum exactly.
 export function allocateOrderAmount(value, count) {
@@ -27,7 +27,9 @@ export function manualSaleRows(selected, prices, buyerShipping = 0, shipping = 0
 export function saleProductGroups(inventory) {
   const groups = new Map();
   for (const item of inventory) {
-    const key = JSON.stringify([item.name, item.size || "OS", item.category, item.brand || "", Number(item.price) || 0, item.availability || "", item.releaseExpectedDate || item.preorderDate || "", item.purchaseLotId || "", item.purchaseLineId || "", item.purchaseSource || "", item.purchaseDate || "", item.purchasedBy || "", item.stockIssue || "", isInventorySellable(item)]);
+    // Sale selection groups names; the original units retain their own costs and
+    // purchase details. Keep unavailable stock out of sellable quantities.
+    const key = JSON.stringify([item.name, isInventorySellable(item) ? "available" : [inventoryStatusFor(item), item.stockIssue || ""]]);
     if (!groups.has(key)) groups.set(key, { key, item, items: [] });
     groups.get(key).items.push(item);
   }

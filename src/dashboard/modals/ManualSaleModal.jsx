@@ -61,8 +61,15 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
     } catch (err) { setError(err.message || "Could not save these sales."); }
     finally { setBusy(false); }
   };
-  const filtered = groups.filter((group) => (showUnavailable || group.items.every(isInventorySellable)) && [group.item.name, group.item.brand, group.item.category, group.item.size, group.item.purchaseSource, group.item.purchaseReference].some((value) => String(value || "").toLowerCase().includes(query.toLowerCase().trim())));
-  const stockDetail = (group) => `${group.item.size || "OS"} · ${currency(group.item.price)} cost/unit · ${group.items.length} remaining · ${group.item.purchaseSource || "Unknown source"} · ${group.item.purchaseDate || "Undated lot"}${group.item.purchaseReference ? ` · ${group.item.purchaseReference}` : ""}`;
+  const filtered = groups.filter((group) => (showUnavailable || group.items.every(isInventorySellable)) && group.items.some((item) => [item.name, item.brand, item.category, item.size, item.purchaseSource, item.purchaseReference].some((value) => String(value || "").toLowerCase().includes(query.toLowerCase().trim()))));
+  const suggestions = filtered.filter((group) => !selection.some((entry) => entry.key === group.key));
+  const costDetail = (units) => {
+    const costs = units.map((item) => toCents(item.price));
+    const low = Math.min(...costs), high = Math.max(...costs);
+    return `${currency(fromCents(low))}${low === high ? "" : `–${currency(fromCents(high))}`} cost/unit`;
+  };
+  const sizeDetail = (group) => [...new Set(group.items.map((item) => item.size || "OS"))].join(", ");
+  const stockDetail = (group) => `${sizeDetail(group)} · ${costDetail(group.items)} · ${group.items.length} ${group.items.every(isInventorySellable) ? "available" : "unavailable"}`;
   const unavailableReason = (group) => group.item.stockIssue ? "Condition issue — resolve before selling" : `${inventoryStatusFor(group.item).replace("in_transit", "In transit")} — mark Available after arrival`;
   return <><Modal key={step} open onClose={close} guardedClose={close} dismissible={!busy} title={step === 0 ? "Add Sale" : `Bulk Sale · ${step === 1 ? "1. Select stock" : "2. Price and review"}`} maxWidth={900}>
     <fieldset disabled={busy || pendingSave} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
@@ -74,11 +81,11 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
     {step === 0 && <>
       <Field label="Add an item"><input value={query} onChange={(event) => setQuery(event.target.value)} style={inp} placeholder="Search inventory to add one or a few items…" /></Field>
       {query.trim() && <div style={{ marginBottom: 16, border: "1px solid #232c3c", borderRadius: 8, overflow: "hidden" }}>
-        {filtered.slice(0, 6).map((group) => <button key={group.key} disabled={!group.items.every(isInventorySellable)} onClick={() => { changeQuantity(group, (selection.find((entry) => entry.key === group.key)?.quantity || 0) + 1); setQuery(""); }} style={{ display: "block", textAlign: "left", width: "100%", border: 0, borderBottom: "1px solid #232c3c", padding: "10px 12px", background: "#0d1117", color: "#e5e7eb", cursor: "pointer", fontFamily: "inherit" }}>
+        {suggestions.slice(0, 6).map((group) => <button key={group.key} disabled={!group.items.every(isInventorySellable)} onClick={() => { changeQuantity(group, 1); setQuery(""); }} style={{ display: "block", textAlign: "left", width: "100%", border: 0, borderBottom: "1px solid #232c3c", padding: "10px 12px", background: "#0d1117", color: "#e5e7eb", cursor: "pointer", fontFamily: "inherit" }}>
           <span style={{ display: "block", fontSize: 13 }}>{group.item.name}</span><span style={{ fontSize: 11, color: "#8b97ad" }}>{stockDetail(group)}{!group.items.every(isInventorySellable) && ` · ${unavailableReason(group)}`}</span>
         </button>)}
-        {filtered.length === 0 && <p style={{ color: "#8b97ad", padding: "0 12px", fontSize: 12 }}>No matching stock.</p>}
-        {filtered.length > 6 && <p style={{ color: "#8b97ad", padding: "0 12px", fontSize: 12 }}>Showing 6 of {filtered.length} matches. Refine your search or use Bulk sale.</p>}
+        {suggestions.length === 0 && <p style={{ color: "#8b97ad", padding: "0 12px", fontSize: 12 }}>{filtered.length ? "Matching items already added. Adjust quantity below." : "No matching stock."}</p>}
+        {suggestions.length > 6 && <p style={{ color: "#8b97ad", padding: "0 12px", fontSize: 12 }}>Showing 6 of {suggestions.length} matches. Refine your search or use Bulk sale.</p>}
       </div>}
     </>}
     {step === 1 ? <>
@@ -86,12 +93,12 @@ export default function ManualSaleModal({ inventory, onSell, onClose, platforms,
       {filtered.length === 0 && <p style={{ color: "#9aa6bb" }}>No matching stock.</p>}
       {filtered.map((group) => <div key={group.key} style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 0", borderBottom: "1px solid #232c3c" }}>
         <div style={{ flex: 1, minWidth: 0, color: "#e5e7eb", fontSize: 13 }}><strong>{group.item.name}</strong><div style={{ color: "#9aa6bb", marginTop: 4, fontSize: 12 }}>{stockDetail(group)}{!group.items.every(isInventorySellable) && <div style={{ color: "#fbbf24" }}>{unavailableReason(group)}</div>}</div></div>
-        <div style={{ width: 90 }}><Field label="Quantity"><input disabled={!group.items.every(isInventorySellable)} aria-label={`Quantity for ${group.item.name} ${group.item.size || "OS"} at ${group.item.price}`} type="number" min="0" max={group.items.length} step="1" value={selection.find((entry) => entry.key === group.key)?.quantity || 0} onChange={(event) => changeQuantity(group, event.target.value)} style={inp} /></Field></div>
+        <div style={{ width: 90 }}><Field label="Quantity"><input disabled={!group.items.every(isInventorySellable)} aria-label={`Quantity for ${group.item.name}`} type="number" min="0" max={group.items.length} step="1" value={selection.find((entry) => entry.key === group.key)?.quantity || 0} onChange={(event) => changeQuantity(group, event.target.value)} style={inp} /></Field></div>
       </div>)}
     </> : <>
       {selected.map((group) => <div key={group.key} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", padding: "12px 0", borderBottom: "1px solid #232c3c" }}>
-        <div style={{ flex: "1 1 200px", color: "#e5e7eb", fontSize: 13 }}><strong>{group.item.name}</strong><div style={{ color: "#9aa6bb", marginTop: 4 }}>{group.item.size || "OS"} · {group.quantity} units · {currency(group.item.price)} cost/unit</div></div>
-        {step === 0 && <div style={{ width: 76 }}><Field label="Quantity"><input type="number" min="1" max={group.items.length} step="1" value={group.quantity} onChange={(event) => changeQuantity(group, event.target.value)} style={inp} /></Field></div>}
+        <div style={{ flex: "1 1 200px", color: "#e5e7eb", fontSize: 13 }}><strong>{group.item.name}</strong><div style={{ color: "#9aa6bb", marginTop: 4 }}>{sizeDetail(group)} · {group.quantity} of {group.items.length} units · {costDetail(group.items.slice(0, group.quantity))}</div></div>
+        {step === 0 && <div style={{ width: 76 }}><Field label="Quantity"><input aria-label={`Quantity for ${group.item.name}`} type="number" min="1" max={group.items.length} step="1" value={group.quantity} onChange={(event) => changeQuantity(group, event.target.value)} style={inp} /></Field></div>}
         <div style={{ width: 140 }}><Field label="Price per unit" req><input type="number" min="0" step="0.01" value={prices[group.key] ?? ""} onChange={(event) => setPrices({ ...prices, [group.key]: event.target.value })} style={inp} /></Field></div>
         <span style={{ color: "#e5e7eb", width: 100 }}>{currency(Number(prices[group.key] || 0) * group.quantity)}</span>
         <button style={ghostBtn} onClick={() => changeQuantity(group, 0)}>Remove</button>

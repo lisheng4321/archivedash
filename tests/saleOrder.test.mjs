@@ -25,10 +25,28 @@ test("order expense allocations retain every cent, including tiny totals", () =>
   }
 });
 
-test("bulk product groups preserve distinct sizes, costs and stock statuses", () => {
+test("sale selection groups by name across costs and purchase details while keeping unavailable stock separate", () => {
   const item = { name: "Product", size: "OS", category: "TCG", price: 10, availability: "available" };
-  const groups = saleProductGroups([{ ...item, id: "1" }, { ...item, id: "2" }, { ...item, id: "3", price: 11 }, { ...item, id: "4", availability: "in_transit" }]);
-  assert.deepEqual(groups.map((group) => group.items.length), [2, 1, 1]);
+  const stock = [{ ...item, id: "1" }, { ...item, id: "2", purchaseLotId: "second", purchaseLineId: "line", purchaseDate: "2026-10-01", purchaseSource: "Other shop", purchasedBy: "Other buyer" }, { ...item, id: "3", price: 11, size: "Other size", brand: "Other brand", category: "Other category" }, { ...item, id: "4", availability: "in_transit" }, { ...item, id: "5", availability: "preorder" }, { ...item, id: "6", stockIssue: "damaged" }, { ...item, id: "7", name: "Other product" }];
+  const groups = saleProductGroups(stock);
+  assert.deepEqual(groups.map((group) => group.items.map(({ id }) => id)), [["1", "2", "3"], ["4"], ["5"], ["6"], ["7"]]);
+  assert.deepEqual(groups[0].items, stock.slice(0, 3));
+});
+
+test("all six bundles sell together with their original costs, and partial sales leave the rest selectable", () => {
+  const stock = [58, 58, 58, 57.99, 57.99, 57.99].map((price, index) => ({ id: `bundle-${index}`, name: "Pokemon Shrouded Fable Booster Bundle", price, availability: "available", purchaseLotId: `lot-${index % 4}`, purchaseSource: index % 2 ? "JB Hi-Fi" : "Other shop" }));
+  const [group] = saleProductGroups(stock);
+  assert.equal(group.items.length, 6);
+  const order = (quantity) => ({ items: group.items.slice(0, quantity), shared: { saleDate: "2026-10-21" }, rows: manualSaleRows([{ ...group, quantity }], { [group.key]: "70" }) });
+  const { entries, soldIds } = prepareManualSaleOrders([order(6)], stock, () => "order", "2026-10-21");
+  assert.equal(soldIds.size, 6);
+  assert.deepEqual(entries.map(({ item }) => item), stock);
+  assert.deepEqual(entries.map(({ row }) => row.salePrice), Array(6).fill(70));
+  assert.equal(entries.reduce((sum, { item }) => sum + toCents(item.price), 0), 34797);
+  const partial = prepareManualSaleOrders([order(2)], stock, () => "partial", "2026-10-21");
+  const [remaining] = saleProductGroups(stock.filter((item) => !partial.soldIds.has(item.id)));
+  assert.equal(remaining.key, group.key);
+  assert.deepEqual(remaining.items.map(({ id }) => id), stock.slice(2).map(({ id }) => id));
 });
 
 test("different orders from the same buyer on the same day remain separate", () => {

@@ -66,9 +66,11 @@ test('purchase paste accepts retailer SKU and preserves leading zeroes and recei
   assert.deepEqual(result.errors, []); assert.equal(result.rows[0].retailerSku, '001234');
   assert.equal(result.rows[0].price, 25);
 });
-test('approved canonical products still keep independent purchase lots in sale selection', () => {
+test('sale selection combines canonical product lots while retaining each original lot', () => {
   const item = { id: 'a', name: 'Box', productId: 'canonical', price: 20, availability: 'available', purchaseLotId: 'one' };
-  assert.equal(saleProductGroups([item, { ...item, id: 'b', purchaseLotId: 'two' }]).length, 2);
+  const groups = saleProductGroups([item, { ...item, id: 'b', purchaseLotId: 'two' }]);
+  assert.equal(groups.length, 1);
+  assert.deepEqual(groups[0].items.map((unit) => unit.purchaseLotId), ['one', 'two']);
 });
 test('legacy sales without an explicit order never group on buyer and date alone', () => {
   const sale = { customer: 'Same Buyer', saleDate: '2026-10-07', platform: 'Other' };
