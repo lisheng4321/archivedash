@@ -47,6 +47,17 @@ const sydneyDate = (date) => {
 
 const today = () => sydneyDate(new Date());
 
+const customDateRangeError = (from, to) => {
+  const isDateKey = (value) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    const date = new Date(`${value}T00:00:00Z`);
+    return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  };
+  if (!isDateKey(from) || !isDateKey(to)) return "Enter both dates in full.";
+  if (from > to) return "From must be on or before To.";
+  return "";
+};
+
 // Advance by whole months without day-of-month overflow (Jan 31 + 1mo = Feb 28, not Mar 3).
 const addMonthsClamped = (d, months) => {
   const day = d.getDate();
@@ -110,6 +121,7 @@ export {
   preorderBadge,
   sydneyDate,
   today,
+  customDateRangeError,
   daysAgo,
   getFilterDate,
 };

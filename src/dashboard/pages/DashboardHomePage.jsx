@@ -1,7 +1,8 @@
 import PeriodComparisonChart from "../components/PeriodComparisonChart.jsx";
+import CustomDateRange from "../components/CustomDateRange.jsx";
 import MobileDisclosure from "../components/MobileDisclosure.jsx";
 import { RESELLER_DASHBOARD_CARDS } from "../settings.js";
-import { TIME_RANGES, cardSurface, cb, currency, ghostBtn, inp, KPI, preorderBadge, sel, smallCaps, subAmountAud } from "../shared.jsx";
+import { TIME_RANGES, cardSurface, cb, currency, ghostBtn, KPI, preorderBadge, sel, smallCaps, subAmountAud } from "../shared.jsx";
 
 function ProfitMarginKPI({ profitLabel, profitValue, profitVisible, marginLabel, marginValue, marginVisible, accent }) {
   if (!profitVisible && !marginVisible) return null;
@@ -138,7 +139,7 @@ export default function DashboardHomePage({ ctx }) {
         </div>
       )}
 
-      {range === "Custom" && <div style={{ display: "flex", gap: 8, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 12, color: "#7c8aa0" }}>From</span><input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 160 }} /><span style={{ fontSize: 12, color: "#7c8aa0" }}>To</span><input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 160 }} /></div>}
+      {range === "Custom" && <div style={{ marginBottom: 12 }}><CustomDateRange from={customFrom} to={customTo} onFromChange={setCustomFrom} onToChange={setCustomTo} /></div>}
       <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
         <select value={dashCat} onChange={(e) => setDashCat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 150, flex: isMobile ? "1 1 140px" : undefined }}><option value="All">All Categories</option>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
         <select value={dashPlat} onChange={(e) => setDashPlat(e.target.value)} style={{ ...sel, maxWidth: isMobile ? "none" : 170, flex: isMobile ? "1 1 140px" : undefined }}><option value="All">All Platforms</option>{PLATS.map((p) => <option key={p}>{p}</option>)}</select>

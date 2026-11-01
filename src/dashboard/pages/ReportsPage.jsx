@@ -1,4 +1,5 @@
-import { currency, ghostBtn, inp, KPI, primaryBtn, sel, TIME_RANGES } from "../shared.jsx";
+import { currency, ghostBtn, KPI, primaryBtn, sel, TIME_RANGES } from "../shared.jsx";
+import CustomDateRange from "../components/CustomDateRange.jsx";
 
 export default function ReportsPage({ ctx }) {
   const {
@@ -117,10 +118,7 @@ export default function ReportsPage({ ctx }) {
           <option value="exclude">Exclude selected</option>
         </select>
         {range === "Custom" && (
-          <>
-            <input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} style={{ ...inp, maxWidth: 150 }} />
-            <input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} style={{ ...inp, maxWidth: 150 }} />
-          </>
+          <CustomDateRange from={customFrom} to={customTo} onFromChange={setCustomFrom} onToChange={setCustomTo} />
         )}
         {(dashCat !== "All" || dashPlat !== "All" || dashSource !== "All" || reportPaymentMode !== "all" || reportPaymentMethods.length > 0) && <button onClick={() => { setDashCat("All"); setDashPlat("All"); setDashSource("All"); setReportPaymentMode("all"); setReportPaymentMethods([]); }} style={{ ...ghostBtn, padding: "7px 11px", fontSize: 12 }}>Clear</button>}
         {reportPaymentMode !== "all" && (
